@@ -1000,32 +1000,51 @@
                 },
 
                 async saveBarang() {
-                    if(this.editingBarangIndex !== null) {
-                        this.barangList[this.editingBarangIndex] = { ...this.modalBarang };
-                        if(supabaseClient) {
-                            await supabaseClient.from('master_barang').update({
-                                nama: this.modalBarang.nama,
-                                kategori: this.modalBarang.kategori,
-                                jenis: this.modalBarang.jenis,
-                                satuan: this.modalBarang.satuan
-                            }).eq('kode', this.modalBarang.kode);
-                        }
-                        alert('Barang berhasil diperbarui!');
-                    } else {
-                        this.barangList.push({ ...this.modalBarang });
-                        if(supabaseClient) {
-                            await supabaseClient.from('master_barang').insert([{
-                                kode: this.modalBarang.kode,
-                                nama: this.modalBarang.nama,
-                                kategori: this.modalBarang.kategori,
-                                jenis: this.modalBarang.jenis,
-                                satuan: this.modalBarang.satuan
-                            }]);
-                        }
-                        alert('Barang berhasil ditambahkan!');
-                    }
-                    this.closeModal();
-                },
+    if(this.editingBarangIndex !== null) {
+        // Mode Edit
+        if(supabaseClient) {
+            const { error } = await supabaseClient.from('master_barang').update({
+                nama: this.modalBarang.nama,
+                kategori: this.modalBarang.kategori,
+                jenis: this.modalBarang.jenis,
+                satuan: this.modalBarang.satuan
+            }).eq('kode', this.modalBarang.kode);
+
+            if (error) {
+                console.error('Gagal update ke Supabase:', error);
+                alert('Gagal memperbarui ke Supabase: ' + error.message);
+                return;
+            }
+        }
+        this.barangList[this.editingBarangIndex] = { ...this.modalBarang };
+        alert('Barang berhasil diperbarui!');
+    } else {
+        // Mode Tambah Baru
+        if(supabaseClient) {
+            const { error } = await supabaseClient.from('master_barang').insert([{
+                kode: this.modalBarang.kode,
+                nama: this.modalBarang.nama,
+                kategori: this.modalBarang.kategori,
+                jenis: this.modalBarang.jenis,
+                satuan: this.modalBarang.satuan
+            }]);
+
+            if (error) {
+                console.error('Gagal insert ke Supabase:', error);
+                alert('Gagal menyimpan ke Supabase: ' + error.message);
+                return;
+            }
+        }
+        this.barangList.push({ ...this.modalBarang });
+        alert('Barang berhasil ditambahkan!');
+    }
+    
+    // Sinkronisasi ulang data dari Supabase
+    if(supabaseClient) {
+        await this.fetchFromSupabase();
+    }
+    this.closeModal();
+},
 
                 async saveGudang() {
                     this.gudangList.push({...this.modalGudang});
@@ -1064,17 +1083,26 @@
                     alert('Project berhasil ditambahkan!');
                 },
 
-                async deleteBarang(index) {
-                    let targetItem = this.filteredBarang[index];
-                    let originalIndex = this.barangList.findIndex(b => b.kode === targetItem.kode);
-                    if(confirm('Hapus barang ini?')) {
-                        this.barangList.splice(originalIndex, 1);
-                        if(supabaseClient) {
-                            await supabaseClient.from('master_barang').delete().eq('kode', targetItem.kode);
-                        }
-                    }
-                },
-
+               async deleteBarang(index) {
+    let targetItem = this.filteredBarang[index];
+    if(confirm('Hapus barang ini?')) {
+        if(supabaseClient) {
+            const { error } = await supabaseClient.from('master_barang').delete().eq('kode', targetItem.kode);
+            if (error) {
+                console.error('Gagal hapus dari Supabase:', error);
+                alert('Gagal menghapus dari Supabase: ' + error.message);
+                return;
+            }
+        }
+        let originalIndex = this.barangList.findIndex(b => b.kode === targetItem.kode);
+        if(originalIndex !== -1) {
+            this.barangList.splice(originalIndex, 1);
+        }
+        if(supabaseClient) {
+            await this.fetchFromSupabase();
+        }
+    }
+}
                 async deleteGudang(index) {
                     let targetGudang = this.gudangList[index];
                     if(confirm('Hapus gudang ini?')) {
