@@ -20,6 +20,8 @@
     </script>
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Supabase JS Client v2 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -36,7 +38,7 @@
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body class="h-full text-slate-800 text-xs antialiased selection:bg-indigo-500 selection:text-white" x-data="wmsApp()">
+<body class="h-full text-slate-800 text-xs antialiased selection:bg-indigo-500 selection:text-white" x-data="wmsApp()" x-init="init()">
 
     <!-- LOGIN MODAL / ROLE SELECTOR -->
     <div x-show="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm no-print">
@@ -94,8 +96,8 @@
                 <div class="flex items-center space-x-4">
                     <!-- Supabase Status Indicator -->
                     <div class="hidden sm:flex items-center space-x-1.5 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700 text-2xs">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span class="text-slate-300">Supabase Connected (Free Tier)</span>
+                        <span class="w-2 h-2 rounded-full" :class="isSupabaseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'"></span>
+                        <span class="text-slate-300" x-text="isSupabaseConnected ? 'Supabase Connected' : 'Supabase (Local Fallback)'"></span>
                     </div>
 
                     <!-- User Profile & Role -->
@@ -128,7 +130,7 @@
         <!-- MAIN CONTENT AREA -->
         <main class="flex-1 p-4 max-w-7xl mx-auto w-full space-y-4">
 
-            <!-- 1. MASTER BARANG (Updated Columns & Edit Button) -->
+            <!-- 1. MASTER BARANG -->
             <div x-show="activeTab === 'master_barang'" class="space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-xs border border-slate-200">
                     <div>
@@ -178,7 +180,7 @@
                 </div>
             </div>
 
-            <!-- 2. MASTER GUDANG (Converted to Table Layout) -->
+            <!-- 2. MASTER GUDANG -->
             <div x-show="activeTab === 'master_gudang'" class="space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-xs border border-slate-200">
                     <div>
@@ -481,7 +483,7 @@
                 </div>
             </div>
 
-            <!-- 6. STOK PROJECT (Material Usage) -->
+            <!-- 6. STOK PROJECT -->
             <div x-show="activeTab === 'stok_project'" class="space-y-4">
                 <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
@@ -610,7 +612,7 @@ CREATE TABLE master_gudang (
     id SERIAL PRIMARY KEY,
     kode VARCHAR(50) UNIQUE NOT NULL,
     nama VARCHAR(150) NOT NULL,
-    tipe VARCHAR(50) NOT NULL, -- 'Perusahaan Sendiri' atau 'Pihak Lain'
+    tipe VARCHAR(50) NOT NULL,
     lokasi TEXT,
     pic VARCHAR(100)
 );
@@ -635,26 +637,8 @@ CREATE TABLE master_project (
                         </div>
 
                         <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            <h3 class="font-bold text-slate-900 mb-1">2. Integrasi ke Script HTML (JavaScript)</h3>
-                            <p class="text-slate-600 mb-2">Tambahkan CDN Supabase di bagian &lt;head&gt; dan inisialisasi:</p>
-                            <pre class="bg-slate-900 text-slate-200 p-3 rounded text-2xs font-mono overflow-x-auto">
-&lt;script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"&gt;&lt;/script&gt;
-&lt;script&gt;
-  const SUPABASE_URL = 'https://your-project.supabase.co';
-  const SUPABASE_KEY = 'your-anon-key';
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-&lt;/script&gt;
-                            </pre>
-                        </div>
-
-                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            <h3 class="font-bold text-slate-900 mb-1">3. Hosting Gratis di GitHub Pages</h3>
-                            <ul class="list-disc pl-4 space-y-1 text-slate-600">
-                                <li>Simpan file ini dengan nama <code class="bg-slate-200 px-1 rounded">index.html</code> dalam sebuah repository GitHub.</li>
-                                <li>Masuk ke menu <strong>Settings</strong> repository &gt; <strong>Pages</strong>.</li>
-                                <li>Pilih branch <code class="bg-slate-200 px-1 rounded">main</code> / <code class="bg-slate-200 px-1 rounded">root</code>, lalu klik Save.</li>
-                                <li>Aplikasi WMS Anda siap diakses secara online melalui URL GitHub Pages!</li>
-                            </ul>
+                            <h3 class="font-bold text-slate-900 mb-1">2. Konfigurasi Kunci Supabase pada Kode</h3>
+                            <p class="text-slate-600 mb-2">Ubah variabel <code class="bg-slate-200 px-1 rounded">SUPABASE_URL</code> dan <code class="bg-slate-200 px-1 rounded">SUPABASE_ANON_KEY</code> di bagian bawah skrip file ini dengan URL dan API Key project Supabase Anda.</p>
                         </div>
                     </div>
                 </div>
@@ -663,7 +647,7 @@ CREATE TABLE master_project (
         </main>
     </div>
 
-    <!-- MODAL FORM TAMBAH / EDIT (BARANG / GUDANG / PROJECT) -->
+    <!-- MODAL FORM TAMBAH / EDIT -->
     <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm no-print">
         <div class="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 transform transition-all">
             <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
@@ -714,7 +698,7 @@ CREATE TABLE master_project (
                 </div>
                 <div>
                     <label class="block font-medium text-slate-700 mb-1">Lokasi / Alamat</label>
-                    <input type="text" x-model="modalGudang.lokasi" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Jl. Soekarno Hatta No. 45, Pekanbaru">
+                    <input type="text" x-model="modalGudang.lokasi" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Jl. Soekarno Hatta No. 45">
                 </div>
                 <div>
                     <label class="block font-medium text-slate-700 mb-1">Petugas / PIC</label>
@@ -795,8 +779,18 @@ CREATE TABLE master_project (
         </div>
     </div>
 
-    <!-- SCRIPT LOGIC -->
+    <!-- SCRIPT LOGIC & SUPABASE INTEGRATION -->
     <script>
+        // ==========================================
+        // KONFIGURASI SUPABASE (Ubah dengan kredensial Anda)
+        // ==========================================
+        const SUPABASE_URL = 'https://your-project.supabase.co';
+        const SUPABASE_ANON_KEY = 'your-anon-key-here';
+        
+        const supabaseClient = (window.supabase && SUPABASE_URL !== 'https://your-project.supabase.co') 
+            ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
+            : null;
+
         function wmsApp() {
             return {
                 isLoggedIn: false,
@@ -807,6 +801,7 @@ CREATE TABLE master_project (
                 selectedGudangFilter: '',
                 selectedProjectFilter: '',
                 editingBarangIndex: null,
+                isSupabaseConnected: false,
                 
                 tabs: [
                     { id: 'master_barang', name: 'Master Barang', icon: 'package' },
@@ -819,7 +814,7 @@ CREATE TABLE master_project (
                     { id: 'supabase_setup', name: 'Setup Supabase & GitHub', icon: 'cloud' }
                 ],
 
-                // Mock Data
+                // Mock Data (Default Fallback)
                 barangList: [
                     { kode: 'MAT-FIB-001', nama: 'Drop Cable 1 Core 1000M', kategori: 'FTTH', jenis: 'Passive Material', satuan: 'Roll' },
                     { kode: 'MAT-FIB-002', nama: 'Optical Distribution Box (ODB) 16C', kategori: 'FTTH', jenis: 'Hardware', satuan: 'Pcs' },
@@ -857,7 +852,6 @@ CREATE TABLE master_project (
                     { kodeProject: 'PRJ-ACEH-2026', noDocument: 'TRX-2026-003', kodeBarang: 'MAT-FIB-002', namaBarang: 'Optical Distribution Box (ODB) 16C', qty: 3, tanggal: '2026-01-18' }
                 ],
 
-                // New Transaction Form State
                 newTransaction: {
                     noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
                     tanggal: new Date().toISOString().split('T')[0],
@@ -875,13 +869,42 @@ CREATE TABLE master_project (
                 newItemBarang: '',
                 newItemQty: 1,
 
-                // Modal state
                 showModal: false,
                 modalType: '',
                 modalTitle: '',
                 modalBarang: { kode: '', nama: '', kategori: '', jenis: '' },
                 modalGudang: { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' },
                 modalProject: { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: 'Clear', statusSnd: 'Done', statusProject: 'On Progress', statusDoc: 'Complete' },
+
+                async init() {
+                    setTimeout(() => lucide.createIcons(), 200);
+                    if (supabaseClient) {
+                        await this.fetchFromSupabase();
+                    }
+                },
+
+                async fetchFromSupabase() {
+                    try {
+                        let { data: bData } = await supabaseClient.from('master_barang').select('*');
+                        if (bData && bData.length > 0) {
+                            this.barangList = bData;
+                            this.isSupabaseConnected = true;
+                        }
+
+                        let { data: gData } = await supabaseClient.from('master_gudang').select('*');
+                        if (gData && gData.length > 0) {
+                            this.gudangList = gData;
+                        }
+
+                        let { data: pData } = await supabaseClient.from('master_project').select('*');
+                        if (pData && pData.length > 0) {
+                            this.projectList = pData;
+                        }
+                    } catch (err) {
+                        console.warn('Supabase fetch notice: menggunakan data lokal.', err);
+                        this.isSupabaseConnected = false;
+                    }
+                },
 
                 login() {
                     if(!this.username) return alert('Masukkan nama petugas!');
@@ -992,37 +1015,88 @@ CREATE TABLE master_project (
                     this.showModal = false;
                 },
 
-                saveBarang() {
+                async saveBarang() {
                     if(this.editingBarangIndex !== null) {
                         this.barangList[this.editingBarangIndex] = { ...this.modalBarang };
+                        if(supabaseClient) {
+                            await supabaseClient.from('master_barang').update({
+                                nama: this.modalBarang.nama,
+                                kategori: this.modalBarang.kategori,
+                                jenis: this.modalBarang.jenis
+                            }).eq('kode', this.modalBarang.kode);
+                        }
                         alert('Barang berhasil diperbarui!');
                     } else {
                         this.barangList.push({ ...this.modalBarang });
+                        if(supabaseClient) {
+                            await supabaseClient.from('master_barang').insert([{
+                                kode: this.modalBarang.kode,
+                                nama: this.modalBarang.nama,
+                                kategori: this.modalBarang.kategori,
+                                jenis: this.modalBarang.jenis
+                            }]);
+                        }
                         alert('Barang berhasil ditambahkan!');
                     }
                     this.closeModal();
                 },
 
-                saveGudang() {
+                async saveGudang() {
                     this.gudangList.push({...this.modalGudang});
+                    if(supabaseClient) {
+                        await supabaseClient.from('master_gudang').insert([{
+                            kode: this.modalGudang.kode,
+                            nama: this.modalGudang.nama,
+                            tipe: this.modalGudang.tipe,
+                            lokasi: this.modalGudang.lokasi,
+                            pic: this.modalGudang.pic
+                        }]);
+                    }
                     this.closeModal();
                     alert('Gudang berhasil ditambahkan!');
                 },
 
-                saveProject() {
+                async saveProject() {
                     this.projectList.push({...this.modalProject});
+                    if(supabaseClient) {
+                        await supabaseClient.from('master_project').insert([{
+                            kode_project: this.modalProject.kodeProject,
+                            periode: this.modalProject.periode,
+                            type: this.modalProject.type,
+                            region: this.modalProject.region,
+                            no_pr_po: this.modalProject.noPrPo,
+                            po_plan: this.modalProject.poPlan,
+                            po_final: this.modalProject.poFinal,
+                            status_po: this.modalProject.statusPo,
+                            permit: this.modalProject.permit,
+                            status_snd: this.modalProject.statusSnd,
+                            status_project: this.modalProject.statusProject,
+                            status_doc: this.modalProject.statusDoc
+                        }]);
+                    }
                     this.closeModal();
                     alert('Project berhasil ditambahkan!');
                 },
 
-                deleteBarang(index) {
+                async deleteBarang(index) {
                     let targetItem = this.filteredBarang[index];
                     let originalIndex = this.barangList.findIndex(b => b.kode === targetItem.kode);
-                    if(confirm('Hapus barang ini?')) this.barangList.splice(originalIndex, 1);
+                    if(confirm('Hapus barang ini?')) {
+                        this.barangList.splice(originalIndex, 1);
+                        if(supabaseClient) {
+                            await supabaseClient.from('master_barang').delete().eq('kode', targetItem.kode);
+                        }
+                    }
                 },
 
-                deleteGudang(index) {
-                    if(confirm('Hapus gudang ini?')) this.gudangList.splice(index, 1);
+                async deleteGudang(index) {
+                    let targetGudang = this.gudangList[index];
+                    if(confirm('Hapus gudang ini?')) {
+                        this.gudangList.splice(index, 1);
+                        if(supabaseClient) {
+                            await supabaseClient.from('master_gudang').delete().eq('kode', targetGudang.kode);
+                        }
+                    }
                 }
             }
         }
