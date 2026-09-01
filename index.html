@@ -244,6 +244,7 @@
                                     <th class="p-3">Status PO</th>
                                     <th class="p-3">Permit & SND</th>
                                     <th class="p-3">Status Project & Doc</th>
+                                    <th class="p-3 text-right" x-show="role === 'Admin' || role === 'Approver'">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
@@ -274,6 +275,10 @@
                                         <td class="p-3">
                                             <div class="font-medium text-slate-800" x-text="p.statusProject"></div>
                                             <div class="text-indigo-600 text-2xs" x-text="p.statusDoc"></div>
+                                        </td>
+                                        <td class="p-3 text-right space-x-1" x-show="role === 'Admin' || role === 'Approver'">
+                                            <button @click="editProject(p)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Project"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="deleteProject(p.kodeProject)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Project"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
                                 </template>
@@ -534,6 +539,7 @@
                                     <th class="p-3">Project</th>
                                     <th class="p-3">Petugas</th>
                                     <th class="p-3">Approval</th>
+                                    <th class="p-3 text-right">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
@@ -558,6 +564,10 @@
                                         <td class="p-3 text-2xs">
                                             <div class="text-slate-700">Disetujui: <span class="font-medium" x-text="trx.disetujui || '-'"></span></div>
                                             <div class="text-slate-500">Diketahui: <span class="font-medium" x-text="trx.diketahui || '-'"></span></div>
+                                        </td>
+                                        <td class="p-3 text-right space-x-1">
+                                            <button @click="editTransaction(trx)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Transaksi"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="deleteTransaction(trx.noDocument)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Transaksi"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
                                 </template>
@@ -774,7 +784,85 @@ CREATE TABLE master_project (
                 </div>
                 <div class="flex justify-end space-x-2 pt-3">
                     <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
-                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Project</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" x-text="isEditProjectMode ? 'Simpan Perubahan' : 'Simpan Project'"></button>
+                </div>
+            </form>
+
+            <form x-show="modalType === 'transaksi'" @submit.prevent="saveTransactionEdit()" class="space-y-3">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">No Document</label>
+                    <input type="text" x-model="modalTransaction.noDocument" readonly class="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 rounded-lg text-xs text-slate-600">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Tanggal Transaksi</label>
+                        <input type="date" x-model="modalTransaction.tanggal" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">No TO-DO / Ref</label>
+                        <input type="text" x-model="modalTransaction.noTodo" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Tipe</label>
+                        <select x-model="modalTransaction.tipe" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                            <option value="Masuk">Masuk</option>
+                            <option value="Keluar">Keluar</option>
+                            <option value="Transfer">Transfer</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Gudang Asal</label>
+                        <select x-model="modalTransaction.gudangAsal" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                            <option value="-">-- Non-Gudang --</option>
+                            <template x-for="g in gudangList" :key="g.kode">
+                                <option :value="g.nama" x-text="g.nama"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Gudang Tujuan</label>
+                        <select x-model="modalTransaction.gudangTujuan" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                            <option value="-">-- Non-Gudang --</option>
+                            <template x-for="g in gudangList" :key="g.kode">
+                                <option :value="g.nama" x-text="g.nama"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Kode Project</label>
+                        <select x-model="modalTransaction.kodeProject" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                            <option value="-">-- Pilih Project --</option>
+                            <template x-for="p in projectList" :key="p.kodeProject">
+                                <option :value="p.kodeProject" x-text="`${p.kodeProject} (${p.type})`"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Petugas</label>
+                        <input type="text" x-model="modalTransaction.petugas" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Disetujui</label>
+                        <input type="text" x-model="modalTransaction.disetujui" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Diketahui</label>
+                        <input type="text" x-model="modalTransaction.diketahui" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Keterangan</label>
+                    <textarea x-model="modalTransaction.keterangan" rows="2" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"></textarea>
+                </div>
+                <div class="flex justify-end space-x-2 pt-3">
+                    <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Perubahan</button>
                 </div>
             </form>
         </div>
@@ -792,6 +880,8 @@ CREATE TABLE master_project (
                 selectedProjectFilter: '',
                 isEditMode: false,
                 originalKode: '',
+                isEditProjectMode: false,
+                originalProjectKode: '',
                 
                 tabs: [
                     { id: 'master_barang', name: 'Master Barang', icon: 'package' },
@@ -864,6 +954,7 @@ CREATE TABLE master_project (
                 modalBarang: { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' },
                 modalGudang: { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' },
                 modalProject: { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: 'Clear', statusSnd: 'Done', statusProject: 'On Progress', statusDoc: 'Complete' },
+                modalTransaction: { noDocument: '', tanggal: '', noTodo: '', tipe: 'Keluar', gudangAsal: '-', gudangTujuan: '-', kodeProject: '-', petugas: '', disetujui: '', diketahui: '', keterangan: '', items: [] },
 
                 login() {
                     if(!this.username) return alert('Masukkan nama petugas!');
@@ -1006,7 +1097,12 @@ CREATE TABLE master_project (
                         this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' };
                     }
                     if(type === 'gudang') this.modalTitle = 'Tambah Master Gudang Baru';
-                    if(type === 'project') this.modalTitle = 'Tambah Master Project Baru';
+                    if(type === 'project') {
+                        this.isEditProjectMode = false;
+                        this.originalProjectKode = '';
+                        this.modalTitle = 'Tambah Master Project Baru';
+                        this.modalProject = { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: 'Clear', statusSnd: 'Done', statusProject: 'On Progress', statusDoc: 'Complete' };
+                    }
                     this.showModal = true;
                     setTimeout(() => lucide.createIcons(), 100);
                 },
@@ -1021,10 +1117,30 @@ CREATE TABLE master_project (
                     setTimeout(() => lucide.createIcons(), 100);
                 },
 
+                editProject(p) {
+                    this.modalType = 'project';
+                    this.modalTitle = 'Edit Master Project';
+                    this.isEditProjectMode = true;
+                    this.originalProjectKode = p.kodeProject;
+                    this.modalProject = { ...p };
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
+                editTransaction(trx) {
+                    this.modalType = 'transaksi';
+                    this.modalTitle = 'Edit Data Transaksi';
+                    this.modalTransaction = JSON.parse(JSON.stringify(trx));
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
                 closeModal() {
                     this.showModal = false;
                     this.isEditMode = false;
+                    this.isEditProjectMode = false;
                     this.originalKode = '';
+                    this.originalProjectKode = '';
                 },
 
                 saveBarang() {
@@ -1060,12 +1176,32 @@ CREATE TABLE master_project (
                 },
 
                 saveProject() {
-                    if(this.projectList.some(p => p.kodeProject.toLowerCase() === this.modalProject.kodeProject.toLowerCase())) {
-                        return alert('Kode project sudah terdaftar!');
+                    if (this.isEditProjectMode) {
+                        if (this.modalProject.kodeProject !== this.originalProjectKode && this.projectList.some(p => p.kodeProject.toLowerCase() === this.modalProject.kodeProject.toLowerCase())) {
+                            return alert('Kode project baru sudah terdaftar!');
+                        }
+                        let idx = this.projectList.findIndex(p => p.kodeProject === this.originalProjectKode);
+                        if (idx !== -1) {
+                            this.projectList[idx] = { ...this.modalProject };
+                        }
+                        alert('Project berhasil diperbarui!');
+                    } else {
+                        if(this.projectList.some(p => p.kodeProject.toLowerCase() === this.modalProject.kodeProject.toLowerCase())) {
+                            return alert('Kode project sudah terdaftar!');
+                        }
+                        this.projectList.push({...this.modalProject});
+                        alert('Project berhasil ditambahkan!');
                     }
-                    this.projectList.push({...this.modalProject});
                     this.closeModal();
-                    alert('Project berhasil ditambahkan!');
+                },
+
+                saveTransactionEdit() {
+                    let idx = this.transactionList.findIndex(t => t.noDocument === this.modalTransaction.noDocument);
+                    if (idx !== -1) {
+                        this.transactionList[idx] = JSON.parse(JSON.stringify(this.modalTransaction));
+                    }
+                    alert('Data transaksi berhasil diperbarui!');
+                    this.closeModal();
                 },
 
                 deleteBarang(kode) {
@@ -1079,6 +1215,21 @@ CREATE TABLE master_project (
                     if(confirm(`Hapus gudang dengan kode ${kode}?`)) {
                         let idx = this.gudangList.findIndex(g => g.kode === kode);
                         if(idx !== -1) this.gudangList.splice(idx, 1);
+                    }
+                },
+
+                deleteProject(kode) {
+                    if(confirm(`Hapus project dengan kode ${kode}?`)) {
+                        let idx = this.projectList.findIndex(p => p.kodeProject === kode);
+                        if(idx !== -1) this.projectList.splice(idx, 1);
+                    }
+                },
+
+                deleteTransaction(noDocument) {
+                    if(confirm(`Hapus transaksi dengan No Document ${noDocument}?`)) {
+                        let idx = this.transactionList.findIndex(t => t.noDocument === noDocument);
+                        if(idx !== -1) this.transactionList.splice(idx, 1);
+                        alert('Transaksi berhasil dihapus!');
                     }
                 }
             }
