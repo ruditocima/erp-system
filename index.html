@@ -25,104 +25,151 @@
             body { background: white !important; -webkit-print-color-adjust: exact; }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
+            table { font-size: 9px !important; }
         }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body class="h-full font-sans text-slate-800 antialiased" x-data="wmsApp()">
+<body class="h-full text-slate-800 text-xs antialiased selection:bg-indigo-500 selection:text-white" x-data="wmsApp()">
 
-    <div class="min-h-full flex flex-col">
-        <header class="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between h-16">
-                    <div class="flex items-center space-x-3">
-                        <div class="bg-primary-600 text-white p-2 rounded-lg shadow-sm">
-                            <i data-lucide="box" class="w-6 h-6"></i>
-                        </div>
-                        <div>
-                            <h1 class="text-lg font-bold text-slate-900 leading-tight">Enterprise WMS</h1>
-                            <p class="text-xs text-slate-500">Warehouse Management System</p>
-                        </div>
+    <div class="fixed top-4 right-4 z-50 space-y-2 no-print" x-cloak>
+        <template x-for="toast in toasts" :key="toast.id">
+            <div :class="toast.type === 'success' ? 'bg-emerald-600 text-white' : (toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white')"
+                 class="px-4 py-3 rounded-xl shadow-lg flex items-center space-x-2 text-xs font-medium transition-all transform duration-300">
+                <i :data-lucide="toast.type === 'success' ? 'check-circle' : (toast.type === 'error' ? 'alert-circle' : 'info')" class="w-4 h-4"></i>
+                <span x-text="toast.message"></span>
+            </div>
+        </template>
+    </div>
+
+    <div x-show="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm no-print" x-cloak>
+        <div class="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md p-8 transform transition-all">
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 mb-3">
+                    <i data-lucide="warehouse" class="w-6 h-6"></i>
+                </div>
+                <h2 class="text-lg font-bold text-slate-900">Warehouse Management System</h2>
+                <p class="text-slate-500 text-xs mt-1">Silakan pilih peran akun untuk masuk ke sistem</p>
+            </div>
+            
+            <form @submit.prevent="login()" class="space-y-4">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Nama Pengguna / Petugas</label>
+                    <input type="text" x-model="username" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Masukkan nama Anda...">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Peran Akses (Role)</label>
+                    <select x-model="role" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="Admin">Admin (Full Access & Master Data)</option>
+                        <option value="Approver">Approver (Approval Transaksi & PO)</option>
+                        <option value="Requester">Requester (Input Transaksi & Pemohon)</option>
+                    </select>
+                </div>
+                <div class="pt-2">
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors shadow-sm text-xs">
+                        Masuk ke Sistem WMS
+                    </button>
+                </div>
+            </form>
+            
+            <div class="mt-6 border-t border-slate-100 pt-4 text-center text-slate-400 text-2xs">
+                Terhubung dengan Supabase (Free Tier) & Frontend GitHub Pages
+            </div>
+        </div>
+    </div>
+
+    <div x-show="isLoggedIn" class="min-h-full flex flex-col" x-cloak>
+        
+        <header class="bg-slate-900 text-white sticky top-0 z-40 border-b border-slate-800 shadow-sm no-print">
+            <div class="px-4 py-2.5 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-indigo-600 p-1.5 rounded-lg text-white">
+                        <i data-lucide="boxes" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-sm tracking-wide">ENTERPRISE WMS</h1>
+                        <p class="text-2xs text-slate-400">Warehouse & Project Material Management</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <div class="hidden sm:flex items-center space-x-1.5 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700 text-2xs">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="text-slate-300">Supabase Connected (Free Tier)</span>
                     </div>
 
-                    <nav class="hidden md:flex space-x-1 items-center">
-                        <template x-for="tab in tabs" :key="tab.id">
-                            <button @click="currentTab = tab.id; $nextTick(() => lucide.createIcons())"
-                                    :class="currentTab === tab.id ? 'bg-primary-50 text-primary-600 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'"
-                                    class="px-3 py-2 rounded-md text-sm transition flex items-center space-x-2">
-                                <i :data-lucide="tab.icon" class="w-4 h-4"></i>
-                                <span x-text="tab.name"></span>
-                            </button>
-                        </template>
-                    </nav>
+                    <div class="flex items-center space-x-2 border-l border-slate-700 pl-4">
+                        <div class="text-right">
+                            <div class="font-semibold text-white" x-text="username"></div>
+                            <div class="text-2xs text-indigo-400 uppercase tracking-wider font-medium" x-text="role"></div>
+                        </div>
+                        <button @click="logout()" class="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-red-400 transition-colors" title="Keluar">
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            <nav class="flex space-x-1 px-4 bg-slate-900/90 overflow-x-auto text-xs border-t border-slate-800">
+                <template x-for="tab in tabs" :key="tab.id">
+                    <button @click="activeTab = tab.id; $nextTick(() => lucide.createIcons())"
+                        :class="activeTab === tab.id ? 'bg-indigo-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-800 hover:text-white'"
+                        class="px-3 py-2 transition-colors whitespace-nowrap flex items-center space-x-1.5 border-b-2"
+                        :style="activeTab === tab.id ? 'border-color: #818cf8;' : 'border-color: transparent;'">
+                        <i :data-lucide="tab.icon" class="w-3.5 h-3.5"></i>
+                        <span x-text="tab.name"></span>
+                    </button>
+                </template>
+            </nav>
         </header>
 
-        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            
-            <div x-show="currentTab === 'dashboard'" x-cloak>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-slate-500">Total Barang</p>
-                            <h3 class="text-2xl font-bold text-slate-900 mt-1" x-text="barangList.length">0</h3>
-                        </div>
-                        <div class="bg-blue-50 text-blue-600 p-3 rounded-lg"><i data-lucide="package" class="w-6 h-6"></i></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-slate-500">Total Gudang</p>
-                            <h3 class="text-2xl font-bold text-slate-900 mt-1" x-text="gudangList.length">0</h3>
-                        </div>
-                        <div class="bg-emerald-50 text-emerald-600 p-3 rounded-lg"><i data-lucide="warehouse" class="w-6 h-6"></i></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-slate-500">Total Project</p>
-                            <h3 class="text-2xl font-bold text-slate-900 mt-1" x-text="projectList.length">0</h3>
-                        </div>
-                        <div class="bg-amber-50 text-amber-600 p-3 rounded-lg"><i data-lucide="briefcase" class="w-6 h-6"></i></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-slate-500">Total Transaksi</p>
-                            <h3 class="text-2xl font-bold text-slate-900 mt-1" x-text="transactionList.length">0</h3>
-                        </div>
-                        <div class="bg-indigo-50 text-indigo-600 p-3 rounded-lg"><i data-lucide="file-text" class="w-6 h-6"></i></div>
-                    </div>
-                </div>
-            </div>
+        <main class="flex-1 p-4 max-w-7xl mx-auto w-full space-y-4">
 
-            <div x-show="currentTab === 'barang'" x-cloak>
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold text-slate-900">Manajemen Barang</h2>
-                        <button @click="openBarangModal()" class="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition flex items-center space-x-2">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                            <span>Tambah Barang</span>
-                        </button>
+            <div x-show="activeTab === 'master_barang'" class="space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-xs border border-slate-200">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Master Barang</h2>
+                        <p class="text-slate-500 text-2xs">Kelola data material, kategori, jenis, dan kode unik barang.</p>
+                    </div>
+                    <button x-show="role === 'Admin'" @click="openModal('barang')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium flex items-center space-x-1 transition-colors shadow-xs">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>Tambah Barang</span>
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+                    <div class="p-3 border-b border-slate-100 flex items-center justify-between">
+                        <input type="text" x-model="searchBarang" placeholder="Cari kode atau nama barang..." class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-64 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <span class="text-slate-400 text-2xs" x-text="`Total: ${filteredBarang.length} item`"></span>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="text-left text-slate-500 font-semibold bg-slate-50">
-                                    <th class="px-4 py-3">Kode</th>
-                                    <th class="px-4 py-3">Nama Barang</th>
-                                    <th class="px-4 py-3">Kategori</th>
-                                    <th class="px-4 py-3">Stok</th>
-                                    <th class="px-4 py-3 text-right">Aksi</th>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Kategori</th>
+                                    <th class="p-3">Jenis</th>
+                                    <th class="p-3">Kode Barang</th>
+                                    <th class="p-3">Nama Barang</th>
+                                    <th class="p-3">Satuan</th>
+                                    <th class="p-3 text-right" x-show="role === 'Admin'">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-200">
-                                <template x-for="item in barangList" :key="item.kode">
-                                    <tr>
-                                        <td class="px-4 py-3 font-medium text-slate-900" x-text="item.kode"></td>
-                                        <td class="px-4 py-3 text-slate-700" x-text="item.nama"></td>
-                                        <td class="px-4 py-3 text-slate-600" x-text="item.kategori"></td>
-                                        <td class="px-4 py-3 font-semibold text-slate-900" x-text="item.stok"></td>
-                                        <td class="px-4 py-3 text-right space-x-2">
-                                            <button @click="editBarang(item)" class="text-primary-600 hover:text-primary-800 font-medium">Edit</button>
-                                            <button @click="deleteBarang(item.kode)" class="text-red-600 hover:text-red-800 font-medium">Hapus</button>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="item in filteredBarang" :key="item.kode">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3">
+                                            <span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium text-2xs" x-text="item.kategori"></span>
+                                        </td>
+                                        <td class="p-3 text-slate-600" x-text="item.jenis"></td>
+                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="item.kode"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="item.nama"></td>
+                                        <td class="p-3 text-slate-600" x-text="item.satuan || 'Pcs'"></td>
+                                        <td class="p-3 text-right space-x-1" x-show="role === 'Admin'">
+                                            <button @click="editBarang(item)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Barang"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="deleteBarang(item.kode)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Barang"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
                                 </template>
@@ -132,34 +179,49 @@
                 </div>
             </div>
 
-            <div x-show="currentTab === 'gudang'" x-cloak>
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold text-slate-900">Manajemen Gudang</h2>
-                        <button @click="openGudangModal()" class="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition flex items-center space-x-2">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                            <span>Tambah Gudang</span>
-                        </button>
+            <div x-show="activeTab === 'master_gudang'" class="space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-xs border border-slate-200">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Master Gudang</h2>
+                        <p class="text-slate-500 text-2xs">Daftar gudang milik perusahaan sendiri dan gudang pihak ketiga / partner.</p>
+                    </div>
+                    <button x-show="role === 'Admin'" @click="openModal('gudang')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium flex items-center space-x-1 transition-colors shadow-xs">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>Tambah Gudang</span>
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+                    <div class="p-3 border-b border-slate-100 flex items-center justify-between">
+                        <span class="text-slate-400 text-2xs" x-text="`Total: ${gudangList.length} gudang`"></span>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="text-left text-slate-500 font-semibold bg-slate-50">
-                                    <th class="px-4 py-3">Kode</th>
-                                    <th class="px-4 py-3">Nama Gudang</th>
-                                    <th class="px-4 py-3">Lokasi</th>
-                                    <th class="px-4 py-3 text-right">Aksi</th>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Kode Gudang</th>
+                                    <th class="p-3">Nama Gudang</th>
+                                    <th class="p-3">Tipe Kepemilikan</th>
+                                    <th class="p-3">Lokasi</th>
+                                    <th class="p-3">PIC (Pengelola)</th>
+                                    <th class="p-3 text-right" x-show="role === 'Admin'">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-200">
+                            <tbody class="divide-y divide-slate-100">
                                 <template x-for="g in gudangList" :key="g.kode">
-                                    <tr>
-                                        <td class="px-4 py-3 font-medium text-slate-900" x-text="g.kode"></td>
-                                        <td class="px-4 py-3 text-slate-700" x-text="g.nama"></td>
-                                        <td class="px-4 py-3 text-slate-600" x-text="g.lokasi"></td>
-                                        <td class="px-4 py-3 text-right space-x-2">
-                                            <button @click="editGudang(g)" class="text-primary-600 hover:text-primary-800 font-medium">Edit</button>
-                                            <button @click="deleteGudang(g.kode)" class="text-red-600 hover:text-red-800 font-medium">Hapus</button>
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="g.kode"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="g.nama"></td>
+                                        <td class="p-3">
+                                            <span class="px-2 py-0.5 rounded text-2xs font-bold uppercase tracking-wider"
+                                                  :class="g.tipe === 'Perusahaan Sendiri' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                                                  x-text="g.tipe"></span>
+                                        </td>
+                                        <td class="p-3 text-slate-600" x-text="g.lokasi"></td>
+                                        <td class="p-3 text-slate-700 font-medium" x-text="g.pic"></td>
+                                        <td class="p-3 text-right space-x-1" x-show="role === 'Admin'">
+                                            <button @click="editGudang(g)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Gudang"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="deleteGudang(g.kode)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Gudang"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
                                 </template>
@@ -169,34 +231,65 @@
                 </div>
             </div>
 
-            <div x-show="currentTab === 'project'" x-cloak>
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold text-slate-900">Manajemen Project</h2>
-                        <button @click="openProjectModal()" class="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition flex items-center space-x-2">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                            <span>Tambah Project</span>
-                        </button>
+            <div x-show="activeTab === 'master_project'" class="space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-xs border border-slate-200">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Master Project</h2>
+                        <p class="text-slate-500 text-2xs">Pelacakan project, status PO, permit, SND, dan dokumen terkait.</p>
                     </div>
+                    <button x-show="role === 'Admin' || role === 'Approver'" @click="openModal('project')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium flex items-center space-x-1 transition-colors shadow-xs">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>Tambah Project</span>
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="text-left text-slate-500 font-semibold bg-slate-50">
-                                    <th class="px-4 py-3">Kode Project</th>
-                                    <th class="px-4 py-3">Nama Project</th>
-                                    <th class="px-4 py-3">Klien</th>
-                                    <th class="px-4 py-3 text-right">Aksi</th>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Kode / Periode</th>
+                                    <th class="p-3">Type & Region</th>
+                                    <th class="p-3">No PR-PO</th>
+                                    <th class="p-3">PO Plan / Final</th>
+                                    <th class="p-3">Status PO</th>
+                                    <th class="p-3">Permit & SND</th>
+                                    <th class="p-3">Status Project & Doc</th>
+                                    <th class="p-3 text-right" x-show="role === 'Admin' || role === 'Approver'">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-200">
+                            <tbody class="divide-y divide-slate-100">
                                 <template x-for="p in projectList" :key="p.kodeProject">
-                                    <tr>
-                                        <td class="px-4 py-3 font-medium text-slate-900" x-text="p.kodeProject"></td>
-                                        <td class="px-4 py-3 text-slate-700" x-text="p.namaProject"></td>
-                                        <td class="px-4 py-3 text-slate-600" x-text="p.klien"></td>
-                                        <td class="px-4 py-3 text-right space-x-2">
-                                            <button @click="editProject(p)" class="text-primary-600 hover:text-primary-800 font-medium">Edit</button>
-                                            <button @click="deleteProject(p.kodeProject)" class="text-red-600 hover:text-red-800 font-medium">Hapus</button>
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3">
+                                            <div class="font-mono font-bold text-indigo-600" x-text="p.kodeProject"></div>
+                                            <div class="text-slate-400 text-2xs" x-text="p.periode"></div>
+                                        </td>
+                                        <td class="p-3">
+                                            <div class="font-medium text-slate-800" x-text="p.type"></div>
+                                            <div class="text-slate-500 text-2xs" x-text="p.region"></div>
+                                        </td>
+                                        <td class="p-3 font-mono text-slate-700" x-text="p.noPrPo"></td>
+                                        <td class="p-3">
+                                            <div class="text-slate-700" x-text="p.poPlan"></div>
+                                            <div class="text-slate-500 text-2xs" x-text="p.poFinal"></div>
+                                        </td>
+                                        <td class="p-3">
+                                            <span class="px-2 py-0.5 rounded font-medium text-2xs"
+                                                  :class="p.statusPo === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                                                  x-text="p.statusPo"></span>
+                                        </td>
+                                        <td class="p-3">
+                                            <div class="text-slate-700">Permit: <span x-text="p.permit"></span></div>
+                                            <div class="text-slate-500 text-2xs">SND: <span x-text="p.statusSnd"></span></div>
+                                        </td>
+                                        <td class="p-3">
+                                            <div class="font-medium text-slate-800" x-text="p.statusProject"></div>
+                                            <div class="text-indigo-600 text-2xs" x-text="p.statusDoc"></div>
+                                        </td>
+                                        <td class="p-3 text-right space-x-1" x-show="role === 'Admin' || role === 'Approver'">
+                                            <button @click="editProject(p)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Project"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="deleteProject(p.kodeProject)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Project"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
                                 </template>
@@ -206,42 +299,383 @@
                 </div>
             </div>
 
-            <div x-show="currentTab === 'transaksi'" x-cloak>
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold text-slate-900">Manajemen Transaksi</h2>
-                        <button @click="openTransactionModal()" class="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition flex items-center space-x-2">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                            <span>Buat Transaksi</span>
+            <div x-show="activeTab === 'input_transaksi'" class="space-y-4">
+                <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200">
+                    <div class="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-sm">Form Input Transaksi Gudang</h2>
+                            <p class="text-slate-500 text-2xs">Catat pergerakan material keluar, masuk, atau transfer antar gudang/project. (Dilengkapi Validasi Stok & Sinkronisasi Otomatis)</p>
+                        </div>
+                        <span class="bg-indigo-50 text-indigo-600 font-mono px-2.5 py-1 rounded-lg text-xs" x-text="newTransaction.noDocument"></span>
+                    </div>
+
+                    <form @submit.prevent="submitTransaction()" class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block font-medium text-slate-700 mb-1">Tanggal Transaksi</label>
+                                <input type="date" x-model="newTransaction.tanggal" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-medium text-slate-700 mb-1">No TO-DO / Referensi</label>
+                                <input type="text" x-model="newTransaction.noTodo" placeholder="Contoh: TODO-2026-089" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-medium text-slate-700 mb-1">Tipe Transaksi</label>
+                                <select x-model="newTransaction.tipe" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                    <option value="Masuk">Masuk (Inbound)</option>
+                                    <option value="Keluar">Keluar (Outbound)</option>
+                                    <option value="Transfer">Transfer (Antar Gudang)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block font-medium text-slate-700 mb-1">Gudang Asal</label>
+                                <select x-model="newTransaction.gudangAsal" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                    <option value="-">-- Non-Gudang (Supplier/External) --</option>
+                                    <template x-for="g in gudangList" :key="g.kode">
+                                        <option :value="g.nama" x-text="g.nama"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-medium text-slate-700 mb-1">Gudang Tujuan</label>
+                                <select x-model="newTransaction.gudangTujuan" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                    <option value="-">-- Non-Gudang (Site/Project) --</option>
+                                    <template x-for="g in gudangList" :key="g.kode">
+                                        <option :value="g.nama" x-text="g.nama"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-medium text-slate-700 mb-1">Kode Project</label>
+                                <select x-model="newTransaction.kodeProject" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                    <option value="-">-- Pilih Project --</option>
+                                    <template x-for="p in projectList" :key="p.kodeProject">
+                                        <option :value="p.kodeProject" x-text="`${p.kodeProject} (${p.type})`"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-100 pt-4">
+                            <h3 class="font-bold text-slate-700 mb-2 text-xs">Detail Material / Barang</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                <div class="sm:col-span-2">
+                                    <label class="block font-medium text-slate-600 mb-1 text-2xs">Pilih Barang</label>
+                                    <select x-model="newItemBarang" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white">
+                                        <option value="">-- Pilih Barang --</option>
+                                        <template x-for="b in barangList" :key="b.kode">
+                                            <option :value="b.kode" x-text="`${b.kode} - ${b.nama} (${b.satuan || 'Pcs'})`"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-medium text-slate-600 mb-1 text-2xs">Jumlah (Qty)</label>
+                                    <div class="flex space-x-2">
+                                        <input type="number" x-model.number="newItemQty" min="1" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white" placeholder="Qty">
+                                        <button type="button" @click="addItemToTransaction()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs">Tambah</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 overflow-x-auto" x-show="newTransaction.items.length > 0">
+                                <table class="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr class="bg-slate-100 text-slate-600 border-b border-slate-200">
+                                            <th class="p-2">Kode Barang</th>
+                                            <th class="p-2">Nama Barang</th>
+                                            <th class="p-2 text-center">Qty</th>
+                                            <th class="p-2 text-right">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="(it, idx) in newTransaction.items" :key="idx">
+                                            <tr class="border-b border-slate-100">
+                                                <td class="p-2 font-mono" x-text="it.kode"></td>
+                                                <td class="p-2" x-text="it.nama"></td>
+                                                <td class="p-2 text-center font-bold" x-text="it.qty"></td>
+                                                <td class="p-2 text-right">
+                                                    <button type="button" @click="newTransaction.items.splice(idx, 1)" class="text-red-500 hover:text-red-700">Hapus</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+                            <div>
+                                <label class="block font-medium text-slate-700 mb-1">Petugas / Pembuat</label>
+                                <input type="text" x-model="newTransaction.petugas" readonly class="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 rounded-lg text-xs text-slate-600">
+                            </div>
+                            <div>
+                                <label class="block font-medium text-slate-700 mb-1">Disetujui Oleh</label>
+                                <input type="text" x-model="newTransaction.disetujui" placeholder="Nama Approver" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-medium text-slate-700 mb-1">Diketahui Oleh</label>
+                                <input type="text" x-model="newTransaction.diketahui" placeholder="Nama Supervisor / Manager" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">Keterangan / Catatan</label>
+                            <textarea x-model="newTransaction.keterangan" rows="2" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Catatan tambahan transaksi..."></textarea>
+                        </div>
+
+                        <div class="flex justify-end space-x-3 pt-2">
+                            <button type="button" @click="printTransaction()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-1 transition-colors">
+                                <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                                <span>Print PDF / Cetak</span>
+                            </button>
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
+                                Simpan Transaksi
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div x-show="activeTab === 'stok_gudang'" class="space-y-4">
+                <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Stok Gudang</h2>
+                        <p class="text-slate-500 text-2xs">Pilih gudang untuk melihat ketersediaan material secara real-time.</p>
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                        <select x-model="selectedGudangFilter" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-48">
+                            <option value="">-- Semua Gudang --</option>
+                            <template x-for="g in gudangList" :key="g.kode">
+                                <option :value="g.nama" x-text="g.nama"></option>
+                            </template>
+                        </select>
+                        <button @click="exportToExcel('stokGudangTable', 'Laporan_Stok_Gudang.xls')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors shadow-xs">
+                            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                            <span>Export Excel</span>
                         </button>
                     </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <table id="stokGudangTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="text-left text-slate-500 font-semibold bg-slate-50">
-                                    <th class="px-4 py-3">No Document</th>
-                                    <th class="px-4 py-3">Tipe</th>
-                                    <th class="px-4 py-3">Barang</th>
-                                    <th class="px-4 py-3">Qty</th>
-                                    <th class="px-4 py-3 text-right">Aksi</th>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Gudang</th>
+                                    <th class="p-3">Kode Barang</th>
+                                    <th class="p-3">Nama Barang</th>
+                                    <th class="p-3 text-center">Stok Tersedia</th>
+                                    <th class="p-3">Status</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-200">
-                                <template x-for="t in transactionList" :key="t.noDocument">
-                                    <tr>
-                                        <td class="px-4 py-3 font-medium text-slate-900" x-text="t.noDocument"></td>
-                                        <td class="px-4 py-3">
-                                            <span class="px-2 py-1 rounded text-xs font-semibold" :class="t.tipe === 'IN' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'" x-text="t.tipe"></span>
-                                        </td>
-                                        <td class="px-4 py-3 text-slate-700" x-text="t.barangKode"></td>
-                                        <td class="px-4 py-3 font-semibold text-slate-900" x-text="t.qty"></td>
-                                        <td class="px-4 py-3 text-right space-x-2">
-                                            <button @click="deleteTransaction(t.noDocument)" class="text-red-600 hover:text-red-800 font-medium">Hapus</button>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="(stok, index) in filteredStokGudang" :key="index">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-medium text-slate-700" x-text="stok.gudang"></td>
+                                        <td class="p-3 font-mono text-indigo-600" x-text="stok.kodeBarang"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="stok.namaBarang"></td>
+                                        <td class="p-3 text-center font-bold text-slate-800" x-text="stok.qty"></td>
+                                        <td class="p-3">
+                                            <span class="px-2 py-0.5 rounded font-medium text-2xs"
+                                                  :class="stok.qty > 5 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'"
+                                                  x-text="stok.qty > 5 ? 'Aman' : 'Stok Menipis'"></span>
                                         </td>
                                     </tr>
                                 </template>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="activeTab === 'stok_project'" class="space-y-4">
+                <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Material Usage per Project</h2>
+                        <p class="text-slate-500 text-2xs">Analisis material apa saja yang telah digunakan pada setiap project yang dipilih.</p>
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                        <select x-model="selectedProjectFilter" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-48">
+                            <option value="">-- Semua Project --</option>
+                            <template x-for="p in projectList" :key="p.kodeProject">
+                                <option :value="p.kodeProject" x-text="`${p.kodeProject} - ${p.type}`"></option>
+                            </template>
+                        </select>
+                        <button @click="exportToExcel('projectUsageTable', 'Material_Usage_Project.xls')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors shadow-xs">
+                            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                            <span>Export Excel</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table id="projectUsageTable" class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Kode Project</th>
+                                    <th class="p-3">No Document / Ref</th>
+                                    <th class="p-3">Kode Barang</th>
+                                    <th class="p-3">Nama Barang</th>
+                                    <th class="p-3 text-center">Qty Terpakai</th>
+                                    <th class="p-3">Tanggal</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="(usage, index) in filteredProjectUsage" :key="index">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-bold text-indigo-600" x-text="usage.kodeProject"></td>
+                                        <td class="p-3 font-mono text-slate-600" x-text="usage.noDocument"></td>
+                                        <td class="p-3 font-mono text-slate-800" x-text="usage.kodeBarang"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="usage.namaBarang"></td>
+                                        <td class="p-3 text-center font-bold text-slate-800" x-text="usage.qty"></td>
+                                        <td class="p-3 text-slate-500" x-text="usage.tanggal"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="activeTab === 'data_transaksi'" class="space-y-4">
+                <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex justify-between items-center">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Riwayat Data Transaksi</h2>
+                        <p class="text-slate-500 text-2xs">Log seluruh transaksi barang masuk, keluar, dan transfer.</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-slate-400 text-2xs mr-2" x-text="`Total: ${transactionList.length}`"></span>
+                        <button @click="exportToExcel('transactionTable', 'Riwayat_Transaksi_WMS.xls')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors shadow-xs">
+                            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                            <span>Export Excel</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table id="transactionTable" class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">No Document</th>
+                                    <th class="p-3">Tanggal & TO-DO</th>
+                                    <th class="p-3">Tipe</th>
+                                    <th class="p-3">Asal → Tujuan</th>
+                                    <th class="p-3">Project</th>
+                                    <th class="p-3">Petugas</th>
+                                    <th class="p-3">Approval</th>
+                                    <th class="p-3 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="trx in transactionList" :key="trx.noDocument">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-bold text-indigo-600" x-text="trx.noDocument"></td>
+                                        <td class="p-3">
+                                            <div class="text-slate-800 font-medium" x-text="trx.tanggal"></div>
+                                            <div class="text-slate-400 text-2xs font-mono" x-text="trx.noTodo"></div>
+                                        </td>
+                                        <td class="p-3">
+                                            <span class="px-2 py-0.5 rounded font-medium text-2xs"
+                                                  :class="trx.tipe === 'Masuk' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.tipe === 'Keluar' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200')"
+                                                  x-text="trx.tipe"></span>
+                                        </td>
+                                        <td class="p-3 text-slate-700">
+                                            <span x-text="trx.gudangAsal"></span> → <span x-text="trx.gudangTujuan"></span>
+                                        </td>
+                                        <td class="p-3 font-mono text-slate-600" x-text="trx.kodeProject"></td>
+                                        <td class="p-3 text-slate-700" x-text="trx.petugas"></td>
+                                        <td class="p-3">
+                                            <div class="text-slate-700">Disetujui: <span class="font-medium" x-text="trx.disetujui || '-'"></span></div>
+                                            <div class="text-slate-400 text-2xs">Diketahui: <span x-text="trx.diketahui || '-'"></span></div>
+                                        </td>
+                                        <td class="p-3 text-right space-x-1">
+                                            <button @click="editTransaction(trx)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Transaksi"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="deleteTransaction(trx.noDocument)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Transaksi"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="activeTab === 'supabase_setup'" class="space-y-4">
+                <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200 space-y-4">
+                    <div>
+                        <h2 class="font-bold text-slate-900 text-sm mb-1">Panduan Setup Supabase Database & GitHub Pages</h2>
+                        <p class="text-slate-500 text-2xs">Ikuti langkah di bawah ini untuk menghubungkan WMS ini ke database cloud gratis dan hosting online.</p>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
+                        <h3 class="font-bold text-slate-900">1. Skema Tabel SQL di Supabase</h3>
+                        <p class="text-slate-600">Jalankan perintah SQL berikut di SQL Editor Supabase Anda:</p>
+                        <pre class="bg-slate-900 text-slate-200 p-3 rounded text-2xs font-mono overflow-x-auto">
+-- Tabel Master Barang
+CREATE TABLE master_barang (
+    id SERIAL PRIMARY KEY,
+    kode VARCHAR(50) UNIQUE NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    kategori VARCHAR(100),
+    jenis VARCHAR(100),
+    satuan VARCHAR(20)
+);
+
+-- Tabel Master Gudang
+CREATE TABLE master_gudang (
+    id SERIAL PRIMARY KEY,
+    kode VARCHAR(50) UNIQUE NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    tipe VARCHAR(50),
+    lokasi TEXT,
+    pic VARCHAR(100)
+);
+
+-- Tabel Project
+CREATE TABLE master_project (
+    id SERIAL PRIMARY KEY,
+    kode_project VARCHAR(50) UNIQUE NOT NULL,
+    periode VARCHAR(50),
+    type VARCHAR(100),
+    region VARCHAR(100),
+    no_pr_po VARCHAR(100),
+    po_plan VARCHAR(50),
+    po_final VARCHAR(50),
+    status_po VARCHAR(50),
+    permit VARCHAR(50),
+    status_snd VARCHAR(50),
+    status_project VARCHAR(50),
+    status_doc VARCHAR(50)
+);
+                        </pre>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <h3 class="font-bold text-slate-900 mb-1">2. Integrasi ke Script HTML (JavaScript)</h3>
+                        <p class="text-slate-600 mb-2">Tambahkan CDN Supabase di bagian &lt;head&gt; dan inisialisasi:</p>
+                        <pre class="bg-slate-900 text-slate-200 p-3 rounded text-2xs font-mono overflow-x-auto">
+&lt;script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"&gt;&lt;/script&gt;
+&lt;script&gt;
+    const SUPABASE_URL = 'https://your-project.supabase.co';
+    const SUPABASE_KEY = 'your-anon-key';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+&lt;/script&gt;
+                        </pre>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <h3 class="font-bold text-slate-900 mb-1">3. Hosting Gratis di GitHub Pages</h3>
+                        <ul class="list-disc pl-4 space-y-1 text-slate-600">
+                            <li>Simpan file ini dengan nama <code class="bg-slate-200 px-1 rounded">index.html</code> dalam sebuah repository GitHub.</li>
+                            <li>Masuk ke menu <strong>Settings</strong> repository > <strong>Pages</strong>.</li>
+                            <li>Pilih branch <code class="bg-slate-200 px-1 rounded">main</code> / <code class="bg-slate-200 px-1 rounded">root</code>, lalu klik Save.</li>
+                            <li>Aplikasi WMS Anda siap diakses secara online melalui URL GitHub Pages!</li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -249,162 +683,627 @@
         </main>
     </div>
 
+    <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm no-print" x-cloak>
+        <div class="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 transform transition-all">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-900 text-sm" x-text="modalTitle"></h3>
+                <button @click="closeModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+
+            <form x-show="modalType === 'barang'" @submit.prevent="saveBarang()" class="space-y-3">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Kode Barang</label>
+                    <input type="text" x-model="modalBarang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: MAT-FIB-003">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Nama Barang</label>
+                    <input type="text" x-model="modalBarang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Splicer Machine Fujikura">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Kategori</label>
+                    <input type="text" x-model="modalBarang.kategori" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Fiber Optic Tools">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Jenis</label>
+                    <input type="text" x-model="modalBarang.jenis" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Equipment">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Satuan</label>
+                    <input type="text" x-model="modalBarang.satuan" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Unit / Pcs">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3">
+                    <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" x-text="isEditMode ? 'Simpan Perubahan' : 'Simpan Barang'"></button>
+                </div>
+            </form>
+
+            <form x-show="modalType === 'gudang'" @submit.prevent="saveGudang()" class="space-y-3">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Kode Gudang</label>
+                    <input type="text" x-model="modalGudang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: WH-PKU-01">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Nama Gudang</label>
+                    <input type="text" x-model="modalGudang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Gudang Utama Pekanbaru">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Kepemilikan Gudang</label>
+                    <select x-model="modalGudang.tipe" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                        <option value="Perusahaan Sendiri">Perusahaan Sendiri</option>
+                        <option value="Pihak Lain">Pihak Lain / Partner 3PL</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Lokasi / Alamat</label>
+                    <input type="text" x-model="modalGudang.lokasi" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Jl. Soekarno Hatta No. 45, Pekanbaru">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Petugas / PIC</label>
+                    <input type="text" x-model="modalGudang.pic" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Nama PIC Gudang">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3">
+                    <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" x-text="isEditGudangMode ? 'Simpan Perubahan' : 'Simpan Gudang'"></button>
+                </div>
+            </form>
+
+            <form x-show="modalType === 'project'" @submit.prevent="saveProject()" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Kode Project</label>
+                        <input type="text" x-model="modalProject.kodeProject" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PRJ-NEW-2026">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Periode</label>
+                        <input type="text" x-model="modalProject.periode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Februari 2026">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Type Project</label>
+                        <input type="text" x-model="modalProject.type" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="FTTH Rollout">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Region</label>
+                        <input type="text" x-model="modalProject.region" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Sumatera Tengah">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">No PR-PO</label>
+                    <input type="text" x-model="modalProject.noPrPo" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PO/2026/II/012">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">PO Plan</label>
+                        <input type="text" x-model="modalProject.poPlan" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="01 Feb 2026">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">PO Final</label>
+                        <input type="text" x-model="modalProject.poFinal" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="05 Feb 2026">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Status PO</label>
+                        <select x-model="modalProject.statusPo" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                            <option value="Approved">Approved</option>
+                            <option value="Pending">Pending</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Permit</label>
+                        <input type="text" x-model="modalProject.permit" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Clear / Issued">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Status SND</label>
+                        <input type="text" x-model="modalProject.statusSnd" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Done">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Status Project</label>
+                        <input type="text" x-model="modalProject.statusProject" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="On Progress">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Status Doc</label>
+                    <input type="text" x-model="modalProject.statusDoc" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Complete 100%">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3">
+                    <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" x-text="isEditProjectMode ? 'Simpan Perubahan' : 'Simpan Project'"></button>
+                </div>
+            </form>
+
+            <form x-show="modalType === 'transaksi'" @submit.prevent="saveTransactionEdit()" class="space-y-3">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">No Document</label>
+                    <input type="text" x-model="modalTransaction.noDocument" readonly class="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 rounded-lg text-xs text-slate-600">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Tanggal Transaksi</label>
+                        <input type="date" x-model="modalTransaction.tanggal" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Tipe Transaksi</label>
+                        <input type="text" x-model="modalTransaction.tipe" readonly class="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 rounded-lg text-xs text-slate-600">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Disetujui Oleh</label>
+                    <input type="text" x-model="modalTransaction.disetujui" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Diketahui Oleh</label>
+                    <input type="text" x-model="modalTransaction.diketahui" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Keterangan</label>
+                    <textarea x-model="modalTransaction.keterangan" rows="2" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"></textarea>
+                </div>
+                <div class="flex justify-end space-x-2 pt-3">
+                    <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         function wmsApp() {
             return {
-                currentTab: 'dashboard',
+                isLoggedIn: false,
+                username: '',
+                role: 'Admin',
+                activeTab: 'master_barang',
+                searchBarang: '',
+                selectedGudangFilter: '',
+                selectedProjectFilter: '',
+                isEditMode: false,
+                originalKode: '',
+                isEditGudangMode: false,
+                originalGudangKode: '',
+                isEditProjectMode: false,
+                originalProjectKode: '',
+                showModal: false,
+                modalType: '',
+                modalTitle: '',
+                
+                toasts: [],
+                
+                showToast(message, type = 'success') {
+                    let id = Date.now();
+                    this.toasts.push({ id, message, type });
+                    setTimeout(() => {
+                        this.toasts = this.toasts.filter(t => t.id !== id);
+                    }, 3500);
+                },
+
                 tabs: [
-                    { id: 'dashboard', name: 'Dashboard', icon: 'layout-dashboard' },
-                    { id: 'barang', name: 'Barang', icon: 'package' },
-                    { id: 'gudang', name: 'Gudang', icon: 'warehouse' },
-                    { id: 'project', name: 'Project', icon: 'briefcase' },
-                    { id: 'transaksi', name: 'Transaksi', icon: 'file-text' }
+                    { id: 'master_barang', name: 'Master Barang', icon: 'package' },
+                    { id: 'master_gudang', name: 'Master Gudang', icon: 'warehouse' },
+                    { id: 'master_project', name: 'Master Project', icon: 'briefcase' },
+                    { id: 'input_transaksi', name: 'Input Transaksi', icon: 'file-text' },
+                    { id: 'stok_gudang', name: 'Stok Gudang', icon: 'layers' },
+                    { id: 'stok_project', name: 'Stok Project', icon: 'pie-chart' },
+                    { id: 'data_transaksi', name: 'Data Transaksi', icon: 'database' },
+                    { id: 'supabase_setup', name: 'Setup Supabase & GitHub', icon: 'cloud' }
                 ],
+
                 barangList: [
-                    { kode: 'BRG-001', nama: 'Laptop Enterprise 14"', kategori: 'Elektronik', stok: 25 },
-                    { kode: 'BRG-002', nama: 'Office Chair Ergonomic', kategori: 'Furniture', stok: 12 }
+                    { kode: 'MAT-FIB-001', nama: 'Drop Cable 1 Core 1000M', kategori: 'Fiber Optic', jenis: 'Cable', satuan: 'Roll' },
+                    { kode: 'MAT-FIB-002', nama: 'Optical Distribution Box (ODB) 16C', kategori: 'Fiber Optic', jenis: 'Accessories', satuan: 'Pcs' }
                 ],
+
                 gudangList: [
-                    { kode: 'GDG-01', nama: 'Gudang Utama Pusat', lokasi: 'Jakarta' },
-                    { kode: 'GDG-02', nama: 'Gudang Cabang Timur', lokasi: 'Surabaya' }
+                    { kode: 'WH-PKU-01', nama: 'Gudang Utama Pekanbaru', tipe: 'Perusahaan Sendiri', lokasi: 'Jl. Soekarno Hatta No. 45, Pekanbaru', pic: 'Rudi Batubara' },
+                    { kode: 'WH-PLM-02', nama: 'Gudang Transit Palembang', tipe: 'Pihak Lain', lokasi: 'Jl. Kolonel H. Barlian, Palembang', pic: 'Ahmad Subardjo' }
                 ],
+
                 projectList: [
-                    { kodeProject: 'PRJ-001', namaProject: 'Implementasi ERP PT Maju', klien: 'PT Maju Bersama' }
+                    { kodeProject: 'PRJ-ACEH-2026', periode: 'Januari 2026', type: 'FTTH Rollout Deployment', region: 'Aceh Banda', noPrPo: 'PO/2026/I/045', poPlan: '10 Jan 2026', poFinal: '15 Jan 2026', statusPo: 'Approved', permit: 'Issued', statusSnd: 'Verified', statusProject: 'Completed', statusDoc: 'Archived' },
+                    { kodeProject: 'PRJ-TDS-2026', periode: 'Januari 2026', type: 'Civil & Electrical Assessment', region: 'Desa Tanjung Dayang', noPrPo: 'PO/2026/I/089', poPlan: '20 Jan 2026', poFinal: '25 Jan 2026', statusPo: 'Approved', permit: 'Clear', statusSnd: 'Pending', statusProject: 'Planning', statusDoc: 'Draft' }
                 ],
+
                 transactionList: [
-                    { noDocument: 'DOC-2026-001', tipe: 'IN', barangKode: 'BRG-001', qty: 10 }
+                    { noDocument: 'TRX-2026-001', tanggal: '2026-01-10', noTodo: 'TODO-01', tipe: 'Masuk', gudangAsal: '-', gudangTujuan: 'Gudang Utama Pekanbaru', kodeProject: 'PRJ-ACEH-2026', petugas: 'Rudi Batubara', disetujui: 'Manager Logistik', diketahui: 'Direktur Operasional', keterangan: 'Penerimaan awal material FTTH', items: [{kode: 'MAT-FIB-001', nama: 'Drop Cable 1 Core 1000M', qty: 25}, {kode: 'MAT-FIB-002', nama: 'Optical Distribution Box (ODB) 16C', qty: 8}] },
+                    { noDocument: 'TRX-2026-002', tanggal: '2026-01-15', noTodo: 'TODO-02', tipe: 'Keluar', gudangAsal: 'Gudang Utama Pekanbaru', gudangTujuan: '-', kodeProject: 'PRJ-PLM-2026', petugas: 'Rudi Batubara', disetujui: 'Manager Logistik', diketahui: 'Project Manager', keterangan: 'Distribusi material ke site project Palembang', items: [{kode: 'MAT-FIB-001', nama: 'Drop Cable 1 Core 1000M', qty: 5}] }
                 ],
 
-                // Modal / Aksi placeholder & handler
-                openBarangModal() {
-                    let kode = prompt("Masukkan Kode Barang:");
-                    if (!kode) return;
-                    let nama = prompt("Masukkan Nama Barang:");
-                    if (!nama) return;
-                    let kategori = prompt("Masukkan Kategori Barang:");
-                    let stok = parseInt(prompt("Masukkan Jumlah Stok:", "0")) || 0;
+                stokGudangList: [
+                    { gudang: 'Gudang Utama Pekanbaru', kodeBarang: 'MAT-FIB-001', namaBarang: 'Drop Cable 1 Core 1000M', qty: 20 },
+                    { gudang: 'Gudang Utama Pekanbaru', kodeBarang: 'MAT-FIB-002', namaBarang: 'Optical Distribution Box (ODB) 16C', qty: 8 }
+                ],
 
-                    this.barangList.push({ kode, nama, kategori: kategori || 'Umum', stok });
-                    alert('Barang berhasil ditambahkan!');
+                projectUsageList: [
+                    { kodeProject: 'PRJ-ACEH-2026', noDocument: 'TRX-2026-001', kodeBarang: 'MAT-FIB-001', namaBarang: 'Drop Cable 1 Core 1000M', qty: 25, tanggal: '2026-01-10' }
+                ],
+
+                newTransaction: {
+                    noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
+                    tanggal: new Date().toISOString().split('T')[0],
+                    noTodo: '',
+                    tipe: 'Masuk',
+                    gudangAsal: '-',
+                    gudangTujuan: 'Gudang Utama Pekanbaru',
+                    kodeProject: '-',
+                    petugas: '',
+                    disetujui: '',
+                    diketahui: '',
+                    keterangan: '',
+                    items: []
+                },
+
+                newItemBarang: '',
+                newItemQty: 1,
+
+                modalBarang: { kode: '', nama: '', kategori: '', jenis: '', satuan: '' },
+                modalGudang: { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' },
+                modalProject: { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: '', statusSnd: '', statusProject: '', statusDoc: '' },
+                modalTransaction: { noDocument: '', tanggal: '', noTodo: '', tipe: 'Keluar', gudangAsal: '-', gudangTujuan: '-', kodeProject: '-', petugas: '', disetujui: '', diketahui: '', keterangan: '', items: [] },
+
+                login() {
+                    if(!this.username) {
+                        this.showToast('Masukkan nama petugas terlebih dahulu!', 'error');
+                        return;
+                    }
+                    this.newTransaction.petugas = this.username;
+                    this.isLoggedIn = true;
+                    this.showToast(`Selamat datang, ${this.username}!`, 'success');
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
+                logout() {
+                    this.isLoggedIn = false;
+                    this.showToast('Anda telah keluar dari sistem.', 'info');
+                },
+
+                get filteredBarang() {
+                    if(!this.searchBarang) return this.barangList;
+                    return this.barangList.filter(b => b.kode.toLowerCase().includes(this.searchBarang.toLowerCase()) || b.nama.toLowerCase().includes(this.searchBarang.toLowerCase()));
+                },
+
+                get filteredStokGudang() {
+                    if(!this.selectedGudangFilter) return this.stokGudangList;
+                    return this.stokGudangList.filter(s => s.gudang === this.selectedGudangFilter);
+                },
+
+                get filteredProjectUsage() {
+                    if(!this.selectedProjectFilter) return this.projectUsageList;
+                    return this.projectUsageList.filter(u => u.kodeProject === this.selectedProjectFilter);
+                },
+
+                addItemToTransaction() {
+                    if(!this.newItemBarang) {
+                        this.showToast('Pilih barang terlebih dahulu!', 'error');
+                        return;
+                    }
+                    if(!this.newItemQty || this.newItemQty <= 0) {
+                        this.showToast('Jumlah Qty harus lebih besar dari 0!', 'error');
+                        return;
+                    }
+                    let b = this.barangList.find(x => x.kode === this.newItemBarang);
+                    if(b) {
+                        let existing = this.newTransaction.items.find(x => x.kode === b.kode);
+                        if(existing) {
+                            existing.qty += this.newItemQty;
+                        } else {
+                            this.newTransaction.items.push({ kode: b.kode, nama: b.nama, qty: this.newItemQty });
+                        }
+                        this.newItemBarang = '';
+                        this.newItemQty = 1;
+                        this.showToast('Item berhasil ditambahkan ke transaksi.', 'success');
+                    }
+                },
+
+                submitTransaction() {
+                    if(this.newTransaction.items.length === 0) {
+                        this.showToast('Tambahkan minimal 1 item barang!', 'error');
+                        return;
+                    }
+                    if(!this.newTransaction.noTodo.trim()) {
+                        this.showToast('Nomor TO-DO / Referensi wajib diisi!', 'error');
+                        return;
+                    }
+
+                    if(this.newTransaction.tipe === 'Transfer') {
+                        if(this.newTransaction.gudangAsal === '-' || this.newTransaction.gudangTujuan === '-') {
+                            this.showToast('Untuk transaksi Transfer, Gudang Asal dan Tujuan harus dipilih!', 'error');
+                            return;
+                        }
+                        if(this.newTransaction.gudangAsal === this.newTransaction.gudangTujuan) {
+                            this.showToast('Gudang Asal dan Tujuan tidak boleh sama!', 'error');
+                            return;
+                        }
+                    }
+
+                    // VALIDASI STOK CUKUP UNTUK KELUAR / TRANSFER
+                    if(this.newTransaction.tipe === 'Keluar' || this.newTransaction.tipe === 'Transfer') {
+                        let gudangCek = this.newTransaction.gudangAsal;
+                        if(gudangCek === '-') {
+                            this.showToast('Gudang Asal harus ditentukan untuk transaksi Keluar!', 'error');
+                            return;
+                        }
+                        for(let it of this.newTransaction.items) {
+                            let stokRecord = this.stokGudangList.find(s => s.gudang === gudangCek && s.kodeBarang === it.kode);
+                            let currentQty = stokRecord ? stokRecord.qty : 0;
+                            if(currentQty < it.qty) {
+                                this.showToast(`Stok tidak mencukupi untuk barang ${it.nama} di ${gudangCek}! (Tersedia: ${currentQty}, Diminta: ${it.qty})`, 'error');
+                                return;
+                            }
+                        }
+                    }
+
+                    // SINKRONISASI STOK OTOMATIS REAL-TIME
+                    this.newTransaction.items.forEach(it => {
+                        let b = this.barangList.find(x => x.kode === it.kode);
+                        let namaBarang = b ? b.nama : it.nama;
+
+                        if(this.newTransaction.tipe === 'Masuk') {
+                            let gudangTujuan = this.newTransaction.gudangTujuan !== '-' ? this.newTransaction.gudangTujuan : 'Gudang Utama Pekanbaru';
+                            let stok = this.stokGudangList.find(s => s.gudang === gudangTujuan && s.kodeBarang === it.kode);
+                            if(stok) {
+                                stok.qty += it.qty;
+                            } else {
+                                this.stokGudangList.push({ gudang: gudangTujuan, kodeBarang: it.kode, namaBarang: namaBarang, qty: it.qty });
+                            }
+                        } else if(this.newTransaction.tipe === 'Keluar') {
+                            let stok = this.stokGudangList.find(s => s.gudang === this.newTransaction.gudangAsal && s.kodeBarang === it.kode);
+                            if(stok) {
+                                stok.qty = Math.max(0, stok.qty - it.qty);
+                            }
+                        } else if(this.newTransaction.tipe === 'Transfer') {
+                            let stokAsal = this.stokGudangList.find(s => s.gudang === this.newTransaction.gudangAsal && s.kodeBarang === it.kode);
+                            if(stokAsal) {
+                                stokAsal.qty = Math.max(0, stokAsal.qty - it.qty);
+                            }
+                            let stokTujuan = this.stokGudangList.find(s => s.gudang === this.newTransaction.gudangTujuan && s.kodeBarang === it.kode);
+                            if(stokTujuan) {
+                                stokTujuan.qty += it.qty;
+                            } else {
+                                this.stokGudangList.push({ gudang: this.newTransaction.gudangTujuan, kodeBarang: it.kode, namaBarang: namaBarang, qty: it.qty });
+                            }
+                        }
+                    });
+
+                    this.transactionList.unshift(JSON.parse(JSON.stringify(this.newTransaction)));
+
+                    if(this.newTransaction.kodeProject && this.newTransaction.kodeProject !== '-') {
+                        this.newTransaction.items.forEach(it => {
+                            let b = this.barangList.find(x => x.kode === it.kode);
+                            this.projectUsageList.unshift({
+                                kodeProject: this.newTransaction.kodeProject,
+                                noDocument: this.newTransaction.noDocument,
+                                kodeBarang: it.kode,
+                                namaBarang: b ? b.nama : it.nama,
+                                qty: it.qty,
+                                tanggal: this.newTransaction.tanggal
+                            });
+                        });
+                    }
+
+                    this.showToast('Transaksi berhasil disimpan & stok gudang diperbarui!', 'success');
+
+                    this.newTransaction = {
+                        noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
+                        tanggal: new Date().toISOString().split('T')[0],
+                        noTodo: '',
+                        tipe: 'Masuk',
+                        gudangAsal: '-',
+                        gudangTujuan: 'Gudang Utama Pekanbaru',
+                        kodeProject: '-',
+                        petugas: this.username,
+                        disetujui: '',
+                        diketahui: '',
+                        keterangan: '',
+                        items: []
+                    };
+                    this.activeTab = 'data_transaksi';
                     this.$nextTick(() => lucide.createIcons());
                 },
 
+                printTransaction() {
+                    window.print();
+                },
+
+                exportToExcel(tableId, filename = 'export.xls') {
+                    let tableHTML = document.getElementById(tableId).outerHTML;
+                    let downloadLink = document.createElement('a');
+                    let dataType = 'application/vnd.ms-excel';
+                    let blob = new Blob(['\ufeff', tableHTML], { type: dataType });
+                    let url = URL.createObjectURL(blob);
+                    downloadLink.href = url;
+                    downloadLink.download = filename;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    this.showToast('Data berhasil diexport ke Excel!', 'success');
+                },
+
+                openModal(type) {
+                    this.modalType = type;
+                    if(type === 'barang') {
+                        this.modalTitle = 'Tambah Master Barang Baru';
+                        this.isEditMode = false;
+                        this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: '' };
+                    } else if(type === 'gudang') {
+                        this.modalTitle = 'Tambah Master Gudang Baru';
+                        this.isEditGudangMode = false;
+                        this.modalGudang = { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' };
+                    } else if(type === 'project') {
+                        this.modalTitle = 'Tambah Master Project Baru';
+                        this.isEditProjectMode = false;
+                        this.modalProject = { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: '', statusSnd: '', statusProject: '', statusDoc: '' };
+                    }
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
                 editBarang(item) {
-                    let namaBaru = prompt("Edit Nama Barang:", item.nama);
-                    if (namaBaru !== null) item.nama = namaBaru;
-                    let stokBaru = parseInt(prompt("Edit Stok Barang:", item.stok));
-                    if (!isNaN(stokBaru)) item.stok = stokBaru;
-                    alert('Barang berhasil diperbarui!');
+                    this.modalType = 'barang';
+                    this.modalTitle = 'Edit Master Barang';
+                    this.isEditMode = true;
+                    this.originalKode = item.kode;
+                    this.modalBarang = { ...item };
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
+                editGudang(g) {
+                    this.modalType = 'gudang';
+                    this.modalTitle = 'Edit Master Gudang';
+                    this.isEditGudangMode = true;
+                    this.originalGudangKode = g.kode;
+                    this.modalGudang = { ...g };
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
+                editProject(p) {
+                    this.modalType = 'project';
+                    this.modalTitle = 'Edit Master Project';
+                    this.isEditProjectMode = true;
+                    this.originalProjectKode = p.kodeProject;
+                    this.modalProject = { ...p };
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
+                editTransaction(trx) {
+                    this.modalType = 'transaksi';
+                    this.modalTitle = 'Edit Data Transaksi';
+                    this.modalTransaction = JSON.parse(JSON.stringify(trx));
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
+                closeModal() {
+                    this.showModal = false;
+                    this.isEditMode = false;
+                    this.isEditGudangMode = false;
+                    this.isEditProjectMode = false;
+                    this.originalKode = '';
+                    this.originalGudangKode = '';
+                    this.originalProjectKode = '';
+                },
+
+                saveBarang() {
+                    if(!this.modalBarang.kode.trim() || !this.modalBarang.nama.trim()) {
+                        this.showToast('Kode dan Nama Barang wajib diisi!', 'error');
+                        return;
+                    }
+                    if (this.isEditMode) {
+                        if (this.modalBarang.kode !== this.originalKode && this.barangList.some(b => b.kode === this.modalBarang.kode)) {
+                            this.showToast('Kode barang sudah terdaftar!', 'error');
+                            return;
+                        }
+                        let idx = this.barangList.findIndex(b => b.kode === this.originalKode);
+                        if (idx !== -1) {
+                            this.barangList[idx] = { ...this.modalBarang };
+                        }
+                        this.showToast('Data barang berhasil diperbarui!', 'success');
+                    } else {
+                        if (this.barangList.some(b => b.kode === this.modalBarang.kode)) {
+                            this.showToast('Kode barang sudah terdaftar!', 'error');
+                            return;
+                        }
+                        this.barangList.push({ ...this.modalBarang });
+                        this.showToast('Barang baru berhasil ditambahkan!', 'success');
+                    }
+                    this.closeModal();
+                },
+
+                saveGudang() {
+                    if(!this.modalGudang.kode.trim() || !this.modalGudang.nama.trim()) {
+                        this.showToast('Kode dan Nama Gudang wajib diisi!', 'error');
+                        return;
+                    }
+                    if (this.isEditGudangMode) {
+                        if (this.modalGudang.kode !== this.originalGudangKode && this.gudangList.some(g => g.kode === this.modalGudang.kode)) {
+                            this.showToast('Kode gudang sudah terdaftar!', 'error');
+                            return;
+                        }
+                        let idx = this.gudangList.findIndex(g => g.kode === this.originalGudangKode);
+                        if (idx !== -1) {
+                            this.gudangList[idx] = { ...this.modalGudang };
+                        }
+                        this.showToast('Data gudang berhasil diperbarui!', 'success');
+                    } else {
+                        if (this.gudangList.some(g => g.kode === this.modalGudang.kode)) {
+                            this.showToast('Kode gudang sudah terdaftar!', 'error');
+                            return;
+                        }
+                        this.gudangList.push({ ...this.modalGudang });
+                        this.showToast('Gudang baru berhasil ditambahkan!', 'success');
+                    }
+                    this.closeModal();
+                },
+
+                saveProject() {
+                    if(!this.modalProject.kodeProject.trim()) {
+                        this.showToast('Kode Project wajib diisi!', 'error');
+                        return;
+                    }
+                    if (this.isEditProjectMode) {
+                        if (this.modalProject.kodeProject !== this.originalProjectKode && this.projectList.some(p => p.kodeProject === this.modalProject.kodeProject)) {
+                            this.showToast('Kode project sudah terdaftar!', 'error');
+                            return;
+                        }
+                        let idx = this.projectList.findIndex(p => p.kodeProject === this.originalProjectKode);
+                        if (idx !== -1) {
+                            this.projectList[idx] = { ...this.modalProject };
+                        }
+                        this.showToast('Data project berhasil diperbarui!', 'success');
+                    } else {
+                        if (this.projectList.some(p => p.kodeProject === this.modalProject.kodeProject)) {
+                            this.showToast('Kode project sudah terdaftar!', 'error');
+                            return;
+                        }
+                        this.projectList.push({ ...this.modalProject });
+                        this.showToast('Project baru berhasil ditambahkan!', 'success');
+                    }
+                    this.closeModal();
+                },
+
+                saveTransactionEdit() {
+                    let idx = this.transactionList.findIndex(t => t.noDocument === this.modalTransaction.noDocument);
+                    if (idx !== -1) {
+                        this.transactionList[idx] = JSON.parse(JSON.stringify(this.modalTransaction));
+                    }
+                    this.showToast('Data transaksi berhasil diperbarui!', 'success');
+                    this.closeModal();
                 },
 
                 deleteBarang(kode) {
                     if(confirm(`Hapus barang dengan kode ${kode}?`)) {
                         let idx = this.barangList.findIndex(b => b.kode === kode);
-                        if(idx !== -1) {
-                            this.barangList.splice(idx, 1);
-                            alert('Barang berhasil dihapus!');
-                        }
+                        if(idx !== -1) this.barangList.splice(idx, 1);
+                        this.showToast('Barang berhasil dihapus.', 'success');
                     }
-                },
-
-                openGudangModal() {
-                    let kode = prompt("Masukkan Kode Gudang:");
-                    if (!kode) return;
-                    let nama = prompt("Masukkan Nama Gudang:");
-                    if (!nama) return;
-                    let lokasi = prompt("Masukkan Lokasi Gudang:");
-
-                    this.gudangList.push({ kode, nama, lokasi: lokasi || '-' });
-                    alert('Gudang berhasil ditambahkan!');
-                    this.$nextTick(() => lucide.createIcons());
-                },
-
-                editGudang(g) {
-                    let namaBaru = prompt("Edit Nama Gudang:", g.nama);
-                    if (namaBaru !== null) g.nama = namaBaru;
-                    let lokasiBaru = prompt("Edit Lokasi Gudang:", g.lokasi);
-                    if (lokasiBaru !== null) g.lokasi = lokasiBaru;
-                    alert('Gudang berhasil diperbarui!');
                 },
 
                 deleteGudang(kode) {
                     if(confirm(`Hapus gudang dengan kode ${kode}?`)) {
                         let idx = this.gudangList.findIndex(g => g.kode === kode);
-                        if(idx !== -1) {
-                            this.gudangList.splice(idx, 1);
-                            alert('Gudang berhasil dihapus!');
-                        }
+                        if(idx !== -1) this.gudangList.splice(idx, 1);
+                        this.showToast('Gudang berhasil dihapus.', 'success');
                     }
-                },
-
-                openProjectModal() {
-                    let kodeProject = prompt("Masukkan Kode Project:");
-                    if (!kodeProject) return;
-                    let namaProject = prompt("Masukkan Nama Project:");
-                    if (!namaProject) return;
-                    let klien = prompt("Masukkan Nama Klien:");
-
-                    this.projectList.push({ kodeProject, namaProject, klien: klien || '-' });
-                    alert('Project berhasil ditambahkan!');
-                    this.$nextTick(() => lucide.createIcons());
-                },
-
-                editProject(p) {
-                    let namaBaru = prompt("Edit Nama Project:", p.namaProject);
-                    if (namaBaru !== null) p.namaProject = namaBaru;
-                    let klienBaru = prompt("Edit Klien Project:", p.klien);
-                    if (klienBaru !== null) p.klien = klienBaru;
-                    alert('Project berhasil diperbarui!');
                 },
 
                 deleteProject(kode) {
                     if(confirm(`Hapus project dengan kode ${kode}?`)) {
                         let idx = this.projectList.findIndex(p => p.kodeProject === kode);
-                        if(idx !== -1) {
-                            this.projectList.splice(idx, 1);
-                            alert('Project berhasil dihapus!');
-                        }
+                        if(idx !== -1) this.projectList.splice(idx, 1);
+                        this.showToast('Project berhasil dihapus.', 'success');
                     }
-                },
-
-                openTransactionModal() {
-                    let noDocument = prompt("Masukkan No Document Transaksi:");
-                    if (!noDocument) return;
-                    let tipe = prompt("Masukkan Tipe Transaksi (IN / OUT):")?.toUpperCase();
-                    if (tipe !== 'IN' && tipe !== 'OUT') {
-                        alert('Tipe transaksi harus IN atau OUT!');
-                        return;
-                    }
-                    let barangKode = prompt("Masukkan Kode Barang:");
-                    if (!barangKode) return;
-                    let qty = parseInt(prompt("Masukkan Qty:", "1")) || 1;
-
-                    // Update stok otomatis sesuai logika WMS
-                    let barang = this.barangList.find(b => b.kode === barangKode);
-                    if (barang) {
-                        if (tipe === 'IN') {
-                            barang.stok += qty;
-                        } else {
-                            if (barang.stok < qty) {
-                                alert('Stok barang tidak mencukupi untuk transaksi OUT!');
-                                return;
-                            }
-                            barang.stok -= qty;
-                        }
-                    }
-
-                    this.transactionList.push({ noDocument, tipe, barangKode, qty });
-                    alert('Transaksi berhasil disimpan & stok diperbarui!');
-                    this.$nextTick(() => lucide.createIcons());
                 },
 
                 deleteTransaction(noDocument) {
                     if(confirm(`Hapus transaksi dengan No Document ${noDocument}?`)) {
                         let idx = this.transactionList.findIndex(t => t.noDocument === noDocument);
-                        if(idx !== -1) {
-                            this.transactionList.splice(idx, 1);
-                            alert('Transaksi berhasil dihapus!');
-                        }
+                        if(idx !== -1) this.transactionList.splice(idx, 1);
+                        this.showToast('Transaksi berhasil dihapus!', 'success');
                     }
                 }
             }
