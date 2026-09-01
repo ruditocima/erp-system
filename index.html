@@ -209,7 +209,8 @@
                                         </td>
                                         <td class="p-3 text-slate-600" x-text="g.lokasi"></td>
                                         <td class="p-3 text-slate-700 font-medium" x-text="g.pic"></td>
-                                        <td class="p-3 text-right" x-show="role === 'Admin'">
+                                        <td class="p-3 text-right space-x-1" x-show="role === 'Admin'">
+                                            <button @click="editGudang(g)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Gudang"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
                                             <button @click="deleteGudang(g.kode)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Gudang"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
@@ -718,7 +719,7 @@ CREATE TABLE master_project (
                 </div>
                 <div class="flex justify-end space-x-2 pt-3">
                     <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
-                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Gudang</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" x-text="isEditGudangMode ? 'Simpan Perubahan' : 'Simpan Gudang'"></button>
                 </div>
             </form>
 
@@ -880,6 +881,8 @@ CREATE TABLE master_project (
                 selectedProjectFilter: '',
                 isEditMode: false,
                 originalKode: '',
+                isEditGudangMode: false,
+                originalGudangKode: '',
                 isEditProjectMode: false,
                 originalProjectKode: '',
                 
@@ -1096,7 +1099,12 @@ CREATE TABLE master_project (
                         this.modalTitle = 'Tambah Master Barang Baru';
                         this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' };
                     }
-                    if(type === 'gudang') this.modalTitle = 'Tambah Master Gudang Baru';
+                    if(type === 'gudang') {
+                        this.isEditGudangMode = false;
+                        this.originalGudangKode = '';
+                        this.modalTitle = 'Tambah Master Gudang Baru';
+                        this.modalGudang = { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' };
+                    }
                     if(type === 'project') {
                         this.isEditProjectMode = false;
                         this.originalProjectKode = '';
@@ -1113,6 +1121,16 @@ CREATE TABLE master_project (
                     this.isEditMode = true;
                     this.originalKode = item.kode;
                     this.modalBarang = { ...item };
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
+                editGudang(g) {
+                    this.modalType = 'gudang';
+                    this.modalTitle = 'Edit Master Gudang';
+                    this.isEditGudangMode = true;
+                    this.originalGudangKode = g.kode;
+                    this.modalGudang = { ...g };
                     this.showModal = true;
                     setTimeout(() => lucide.createIcons(), 100);
                 },
@@ -1138,8 +1156,10 @@ CREATE TABLE master_project (
                 closeModal() {
                     this.showModal = false;
                     this.isEditMode = false;
+                    this.isEditGudangMode = false;
                     this.isEditProjectMode = false;
                     this.originalKode = '';
+                    this.originalGudangKode = '';
                     this.originalProjectKode = '';
                 },
 
@@ -1166,13 +1186,25 @@ CREATE TABLE master_project (
                 },
 
                 saveGudang() {
-                    if(this.gudangList.some(g => g.kode.toLowerCase() === this.modalGudang.kode.toLowerCase())) {
-                        return alert('Kode gudang sudah terdaftar!');
+                    if (this.isEditGudangMode) {
+                        if (this.modalGudang.kode !== this.originalGudangKode && this.gudangList.some(g => g.kode.toLowerCase() === this.modalGudang.kode.toLowerCase())) {
+                            return alert('Kode gudang baru sudah terdaftar!');
+                        }
+                        let idx = this.gudangList.findIndex(g => g.kode === this.originalGudangKode);
+                        if (idx !== -1) {
+                            this.gudangList[idx] = { ...this.modalGudang };
+                        }
+                        alert('Gudang berhasil diperbarui!');
+                    } else {
+                        if(this.gudangList.some(g => g.kode.toLowerCase() === this.modalGudang.kode.toLowerCase())) {
+                            return alert('Kode gudang sudah terdaftar!');
+                        }
+                        this.gudangList.push({...this.modalGudang});
+                        alert('Gudang berhasil ditambahkan!');
                     }
-                    this.gudangList.push({...this.modalGudang});
                     this.modalGudang = { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' };
+                    this.originalGudangKode = '';
                     this.closeModal();
-                    alert('Gudang berhasil ditambahkan!');
                 },
 
                 saveProject() {
