@@ -139,10 +139,10 @@
                         <table class="w-full text-left border-collapse">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
-                                    <th class="p-3">Kode Barang</th>
-                                    <th class="p-3">Nama Barang</th>
                                     <th class="p-3">Kategori</th>
                                     <th class="p-3">Jenis</th>
+                                    <th class="p-3">Kode Barang</th>
+                                    <th class="p-3">Nama Barang</th>
                                     <th class="p-3">Satuan</th>
                                     <th class="p-3 text-right" x-show="role === 'Admin'">Aksi</th>
                                 </tr>
@@ -150,14 +150,15 @@
                             <tbody class="divide-y divide-slate-100">
                                 <template x-for="item in filteredBarang" :key="item.kode">
                                     <tr class="hover:bg-slate-50/50">
-                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="item.kode"></td>
-                                        <td class="p-3 font-medium text-slate-900" x-text="item.nama"></td>
                                         <td class="p-3">
                                             <span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium text-2xs" x-text="item.kategori"></span>
                                         </td>
                                         <td class="p-3 text-slate-600" x-text="item.jenis"></td>
+                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="item.kode"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="item.nama"></td>
                                         <td class="p-3 text-slate-600" x-text="item.satuan || 'Pcs'"></td>
-                                        <td class="p-3 text-right" x-show="role === 'Admin'">
+                                        <td class="p-3 text-right space-x-1" x-show="role === 'Admin'">
+                                            <button @click="editBarang(item)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Barang"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
                                             <button @click="deleteBarang(item.kode)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Barang"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
@@ -645,7 +646,7 @@ CREATE TABLE master_project (
             <form x-show="modalType === 'barang'" @submit.prevent="saveBarang()" class="space-y-3">
                 <div>
                     <label class="block font-medium text-slate-700 mb-1">Kode Barang</label>
-                    <input type="text" x-model="modalBarang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: MAT-FIBER-001">
+                    <input type="text" x-model="modalBarang.kode" :readonly="isEditMode" :class="isEditMode ? 'bg-slate-100 text-slate-500' : ''" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: MAT-FIBER-001">
                 </div>
                 <div>
                     <label class="block font-medium text-slate-700 mb-1">Nama Barang</label>
@@ -665,7 +666,7 @@ CREATE TABLE master_project (
                 </div>
                 <div class="flex justify-end space-x-2 pt-3">
                     <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
-                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Barang</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" x-text="isEditMode ? 'Simpan Perubahan' : 'Simpan Barang'"></button>
                 </div>
             </form>
 
@@ -777,6 +778,7 @@ CREATE TABLE master_project (
                 searchBarang: '',
                 selectedGudangFilter: '',
                 selectedProjectFilter: '',
+                isEditMode: false,
                 
                 tabs: [
                     { id: 'master_barang', name: 'Master Barang', icon: 'package' },
@@ -884,7 +886,6 @@ CREATE TABLE master_project (
                     if(!this.newItemQty || this.newItemQty <= 0) return alert('Jumlah Qty harus lebih dari 0!');
                     let b = this.barangList.find(x => x.kode === this.newItemBarang);
                     if(b) {
-                        // Check if item already added in transaction list, increment qty
                         let existing = this.newTransaction.items.find(x => x.kode === b.kode);
                         if(existing) {
                             existing.qty += this.newItemQty;
@@ -903,7 +904,6 @@ CREATE TABLE master_project (
                 submitTransaction() {
                     if(this.newTransaction.items.length === 0) return alert('Tambahkan minimal 1 item barang!');
                     
-                    // Validasi transfer antar gudang
                     if(this.newTransaction.tipe === 'Transfer') {
                         if(this.newTransaction.gudangAsal === '-' || this.newTransaction.gudangTujuan === '-') {
                             return alert('Untuk transaksi Transfer, Gudang Asal dan Gudang Tujuan harus dipilih!');
@@ -913,7 +913,6 @@ CREATE TABLE master_project (
                         }
                     }
 
-                    // Proses update stok gudang secara real-time
                     this.newTransaction.items.forEach(it => {
                         let b = this.barangList.find(x => x.kode === it.kode);
                         let namaBarang = b ? b.nama : it.nama;
@@ -935,12 +934,10 @@ CREATE TABLE master_project (
                                 }
                             }
                         } else if (this.newTransaction.tipe === 'Transfer') {
-                            // Kurangi di asal
                             let stokAsal = this.stokGudangList.find(s => s.gudang === this.newTransaction.gudangAsal && s.kodeBarang === it.kode);
                             if (stokAsal) {
                                 stokAsal.qty = Math.max(0, stokAsal.qty - it.qty);
                             }
-                            // Tambah di tujuan
                             let stokTujuan = this.stokGudangList.find(s => s.gudang === this.newTransaction.gudangTujuan && s.kodeBarang === it.kode);
                             if (stokTujuan) {
                                 stokTujuan.qty += it.qty;
@@ -950,10 +947,8 @@ CREATE TABLE master_project (
                         }
                     });
 
-                    // Simpan transaksi
                     this.transactionList.unshift(JSON.parse(JSON.stringify(this.newTransaction)));
                     
-                    // Push to project usage if project is selected
                     if(this.newTransaction.kodeProject && this.newTransaction.kodeProject !== '-') {
                         this.newTransaction.items.forEach(it => {
                             let b = this.barangList.find(x => x.kode === it.kode);
@@ -970,7 +965,6 @@ CREATE TABLE master_project (
 
                     alert('Transaksi berhasil disimpan dan stok gudang diperbarui!');
                     
-                    // Reset form
                     this.newTransaction = {
                         noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
                         tanggal: new Date().toISOString().split('T')[0],
@@ -995,25 +989,47 @@ CREATE TABLE master_project (
 
                 openModal(type) {
                     this.modalType = type;
-                    if(type === 'barang') this.modalTitle = 'Tambah Master Barang Baru';
+                    if(type === 'barang') {
+                        this.isEditMode = false;
+                        this.modalTitle = 'Tambah Master Barang Baru';
+                        this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' };
+                    }
                     if(type === 'gudang') this.modalTitle = 'Tambah Master Gudang Baru';
                     if(type === 'project') this.modalTitle = 'Tambah Master Project Baru';
                     this.showModal = true;
                     setTimeout(() => lucide.createIcons(), 100);
                 },
 
+                editBarang(item) {
+                    this.modalType = 'barang';
+                    this.modalTitle = 'Edit Master Barang';
+                    this.isEditMode = true;
+                    this.modalBarang = { ...item };
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
                 closeModal() {
                     this.showModal = false;
+                    this.isEditMode = false;
                 },
 
                 saveBarang() {
-                    if(this.barangList.some(b => b.kode.toLowerCase() === this.modalBarang.kode.toLowerCase())) {
-                        return alert('Kode barang sudah terdaftar!');
+                    if (this.isEditMode) {
+                        let idx = this.barangList.findIndex(b => b.kode === this.modalBarang.kode);
+                        if (idx !== -1) {
+                            this.barangList[idx] = { ...this.modalBarang };
+                        }
+                        alert('Barang berhasil diperbarui!');
+                    } else {
+                        if(this.barangList.some(b => b.kode.toLowerCase() === this.modalBarang.kode.toLowerCase())) {
+                            return alert('Kode barang sudah terdaftar!');
+                        }
+                        this.barangList.push({...this.modalBarang});
+                        alert('Barang berhasil ditambahkan!');
                     }
-                    this.barangList.push({...this.modalBarang});
                     this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' };
                     this.closeModal();
-                    alert('Barang berhasil ditambahkan!');
                 },
 
                 saveGudang() {
@@ -1051,7 +1067,6 @@ CREATE TABLE master_project (
             }
         }
         
-        // Initialize lucide icons on load
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => lucide.createIcons(), 200);
         });
