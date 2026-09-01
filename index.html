@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enterprise WMS - Warehouse Management System</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -18,11 +17,7 @@
             }
         }
     </script>
-    <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <!-- Supabase JS Client v2 -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @media print {
@@ -31,16 +26,16 @@
             .print-only { display: block !important; }
             table { font-size: 9px !important; }
         }
+        /* Custom scrollbar */
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body class="h-full text-slate-800 text-xs antialiased selection:bg-indigo-500 selection:text-white" x-data="wmsApp()" x-init="init()">
+<body class="h-full text-slate-800 text-xs antialiased selection:bg-indigo-500 selection:text-white" x-data="wmsApp()">
 
-    <!-- LOGIN MODAL / ROLE SELECTOR -->
-    <div x-show="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm no-print">
+    <div x-show="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm no-print" x-cloak>
         <div class="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md p-8 transform transition-all">
             <div class="text-center mb-6">
                 <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 mb-3">
@@ -71,15 +66,13 @@
             </form>
             
             <div class="mt-6 border-t border-slate-100 pt-4 text-center text-slate-400 text-2xs">
-                Terhubung dengan Supabase Cloud & Local Fallback
+                Terhubung dengan Supabase (Free Tier) & Frontend GitHub Pages
             </div>
         </div>
     </div>
 
-    <!-- MAIN APP LAYOUT -->
-    <div x-show="isLoggedIn" class="min-h-full flex flex-col">
+    <div x-show="isLoggedIn" class="min-h-full flex flex-col" x-cloak>
         
-        <!-- TOP NAVBAR -->
         <header class="bg-slate-900 text-white sticky top-0 z-40 border-b border-slate-800 shadow-sm no-print">
             <div class="px-4 py-2.5 flex items-center justify-between">
                 <div class="flex items-center space-x-3">
@@ -93,13 +86,11 @@
                 </div>
 
                 <div class="flex items-center space-x-4">
-                    <!-- Supabase Status Indicator -->
                     <div class="hidden sm:flex items-center space-x-1.5 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700 text-2xs">
-                        <span class="w-2 h-2 rounded-full" :class="isSupabaseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'"></span>
-                        <span class="text-slate-300" x-text="isSupabaseConnected ? 'Supabase Connected' : 'Supabase (Local Fallback)'"></span>
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="text-slate-300">Supabase Connected (Free Tier)</span>
                     </div>
 
-                    <!-- User Profile & Role -->
                     <div class="flex items-center space-x-2 border-l border-slate-700 pl-4">
                         <div class="text-right">
                             <div class="font-semibold text-white" x-text="username"></div>
@@ -112,10 +103,9 @@
                 </div>
             </div>
 
-            <!-- NAVIGATION TABS -->
             <nav class="flex space-x-1 px-4 bg-slate-900/90 overflow-x-auto text-xs border-t border-slate-800">
-                <template x-for="tab in tabs">
-                    <button @click="activeTab = tab.id"
+                <template x-for="tab in tabs" :key="tab.id">
+                    <button @click="activeTab = tab.id; $nextTick(() => lucide.createIcons())"
                         :class="activeTab === tab.id ? 'bg-indigo-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-800 hover:text-white'"
                         class="px-3 py-2 transition-colors whitespace-nowrap flex items-center space-x-1.5 border-b-2"
                         :style="activeTab === tab.id ? 'border-color: #818cf8;' : 'border-color: transparent;'">
@@ -126,10 +116,8 @@
             </nav>
         </header>
 
-        <!-- MAIN CONTENT AREA -->
         <main class="flex-1 p-4 max-w-7xl mx-auto w-full space-y-4">
 
-            <!-- 1. MASTER BARANG -->
             <div x-show="activeTab === 'master_barang'" class="space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-xs border border-slate-200">
                     <div>
@@ -151,25 +139,26 @@
                         <table class="w-full text-left border-collapse">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
-                                    <th class="p-3">Kategori</th>
-                                    <th class="p-3">Jenis</th>
                                     <th class="p-3">Kode Barang</th>
                                     <th class="p-3">Nama Barang</th>
+                                    <th class="p-3">Kategori</th>
+                                    <th class="p-3">Jenis</th>
+                                    <th class="p-3">Satuan</th>
                                     <th class="p-3 text-right" x-show="role === 'Admin'">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                <template x-for="(item, index) in filteredBarang" :key="index">
+                                <template x-for="item in filteredBarang" :key="item.kode">
                                     <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="item.kode"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="item.nama"></td>
                                         <td class="p-3">
                                             <span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium text-2xs" x-text="item.kategori"></span>
                                         </td>
                                         <td class="p-3 text-slate-600" x-text="item.jenis"></td>
-                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="item.kode"></td>
-                                        <td class="p-3 font-medium text-slate-900" x-text="item.nama"></td>
-                                        <td class="p-3 text-right space-x-1" x-show="role === 'Admin'">
-                                            <button @click="editBarang(index)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                            <button @click="deleteBarang(index)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                        <td class="p-3 text-slate-600" x-text="item.satuan || 'Pcs'"></td>
+                                        <td class="p-3 text-right" x-show="role === 'Admin'">
+                                            <button @click="deleteBarang(item.kode)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Barang"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
                                 </template>
@@ -179,7 +168,6 @@
                 </div>
             </div>
 
-            <!-- 2. MASTER GUDANG -->
             <div x-show="activeTab === 'master_gudang'" class="space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-xs border border-slate-200">
                     <div>
@@ -192,43 +180,33 @@
                     </button>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
-                                    <th class="p-3">Kode Gudang</th>
-                                    <th class="p-3">Nama Gudang</th>
-                                    <th class="p-3">Tipe Gudang</th>
-                                    <th class="p-3">Lokasi</th>
-                                    <th class="p-3">PIC / Pengelola</th>
-                                    <th class="p-3 text-right" x-show="role === 'Admin'">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100">
-                                <template x-for="(g, index) in gudangList" :key="index">
-                                    <tr class="hover:bg-slate-50/50">
-                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="g.kode"></td>
-                                        <td class="p-3 font-medium text-slate-900" x-text="g.nama"></td>
-                                        <td class="p-3">
-                                            <span class="px-2 py-0.5 rounded text-2xs font-bold uppercase tracking-wider"
-                                                  :class="g.tipe === 'Perusahaan Sendiri' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
-                                                  x-text="g.tipe"></span>
-                                        </td>
-                                        <td class="p-3 text-slate-600" x-text="g.lokasi"></td>
-                                        <td class="p-3 text-slate-700 font-medium" x-text="g.pic"></td>
-                                        <td class="p-3 text-right" x-show="role === 'Admin'">
-                                            <button @click="deleteGudang(index)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                                        </td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <template x-for="g in gudangList" :key="g.kode">
+                        <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <div>
+                                        <span class="px-2 py-0.5 rounded text-2xs font-bold uppercase tracking-wider"
+                                              :class="g.tipe === 'Perusahaan Sendiri' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                                              x-text="g.tipe"></span>
+                                        <h3 class="font-bold text-slate-900 text-sm mt-1" x-text="g.nama"></h3>
+                                    </div>
+                                    <span class="font-mono text-xs text-slate-400" x-text="g.kode"></span>
+                                </div>
+                                <p class="text-slate-500 text-2xs flex items-center mt-2">
+                                    <i data-lucide="map-pin" class="w-3 h-3 mr-1 text-slate-400"></i>
+                                    <span x-text="g.lokasi"></span>
+                                </p>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-2xs text-slate-500">
+                                <span>Pengelola: <strong class="text-slate-700" x-text="g.pic"></strong></span>
+                                <button x-show="role === 'Admin'" @click="deleteGudang(g.kode)" class="text-red-500 hover:text-red-700">Hapus</button>
+                            </div>
+                        </div>
+                    </template>
                 </div>
             </div>
 
-            <!-- 3. MASTER PROJECT -->
             <div x-show="activeTab === 'master_project'" class="space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-xs border border-slate-200">
                     <div>
@@ -256,7 +234,7 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                <template x-for="(p, index) in projectList" :key="index">
+                                <template x-for="p in projectList" :key="p.kodeProject">
                                     <tr class="hover:bg-slate-50/50">
                                         <td class="p-3">
                                             <div class="font-mono font-bold text-indigo-600" x-text="p.kodeProject"></div>
@@ -292,7 +270,6 @@
                 </div>
             </div>
 
-            <!-- 4. INPUT TRANSAKSI -->
             <div x-show="activeTab === 'input_transaksi'" class="space-y-4">
                 <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200">
                     <div class="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
@@ -327,8 +304,8 @@
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">Gudang Asal</label>
                                 <select x-model="newTransaction.gudangAsal" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                                    <option value="-">-- Pilih Gudang Asal --</option>
-                                    <template x-for="g in gudangList">
+                                    <option value="-">-- Non-Gudang (Supplier/External) --</option>
+                                    <template x-for="g in gudangList" :key="g.kode">
                                         <option :value="g.nama" x-text="g.nama"></option>
                                     </template>
                                 </select>
@@ -336,8 +313,8 @@
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">Gudang Tujuan</label>
                                 <select x-model="newTransaction.gudangTujuan" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                                    <option value="-">-- Pilih Gudang Tujuan --</option>
-                                    <template x-for="g in gudangList">
+                                    <option value="-">-- Non-Gudang (Site/Project) --</option>
+                                    <template x-for="g in gudangList" :key="g.kode">
                                         <option :value="g.nama" x-text="g.nama"></option>
                                     </template>
                                 </select>
@@ -346,14 +323,13 @@
                                 <label class="block font-medium text-slate-700 mb-1">Kode Project</label>
                                 <select x-model="newTransaction.kodeProject" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                                     <option value="-">-- Pilih Project --</option>
-                                    <template x-for="p in projectList">
+                                    <template x-for="p in projectList" :key="p.kodeProject">
                                         <option :value="p.kodeProject" x-text="`${p.kodeProject} (${p.type})`"></option>
                                     </template>
                                 </select>
                             </div>
                         </div>
 
-                        <!-- Item Detail Section -->
                         <div class="border-t border-slate-100 pt-4">
                             <h3 class="font-bold text-slate-700 mb-2 text-xs">Detail Material / Barang</h3>
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -361,7 +337,7 @@
                                     <label class="block font-medium text-slate-600 mb-1 text-2xs">Pilih Barang</label>
                                     <select x-model="newItemBarang" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white">
                                         <option value="">-- Pilih Barang --</option>
-                                        <template x-for="b in barangList">
+                                        <template x-for="b in barangList" :key="b.kode">
                                             <option :value="b.kode" x-text="`${b.kode} - ${b.nama} (${b.satuan || 'Pcs'})`"></option>
                                         </template>
                                     </select>
@@ -375,7 +351,6 @@
                                 </div>
                             </div>
 
-                            <!-- List of added items -->
                             <div class="mt-3 overflow-x-auto" x-show="newTransaction.items.length > 0">
                                 <table class="w-full text-left border-collapse text-xs">
                                     <thead>
@@ -435,7 +410,6 @@
                 </div>
             </div>
 
-            <!-- 5. STOK GUDANG -->
             <div x-show="activeTab === 'stok_gudang'" class="space-y-4">
                 <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
@@ -444,7 +418,7 @@
                     </div>
                     <select x-model="selectedGudangFilter" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-64">
                         <option value="">-- Semua Gudang --</option>
-                        <template x-for="g in gudangList">
+                        <template x-for="g in gudangList" :key="g.kode">
                             <option :value="g.nama" x-text="g.nama"></option>
                         </template>
                     </select>
@@ -471,8 +445,8 @@
                                         <td class="p-3 text-center font-bold text-slate-800" x-text="stok.qty"></td>
                                         <td class="p-3">
                                             <span class="px-2 py-0.5 rounded font-medium text-2xs"
-                                                  :class="stok.qty > 10 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'"
-                                                  x-text="stok.qty > 10 ? 'Aman' : 'Stok Menipis'"></span>
+                                                  :class="stok.qty > 5 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'"
+                                                  x-text="stok.qty > 5 ? 'Aman' : 'Stok Menipis'"></span>
                                         </td>
                                     </tr>
                                 </template>
@@ -482,7 +456,6 @@
                 </div>
             </div>
 
-            <!-- 6. STOK PROJECT -->
             <div x-show="activeTab === 'stok_project'" class="space-y-4">
                 <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
@@ -491,7 +464,7 @@
                     </div>
                     <select x-model="selectedProjectFilter" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-64">
                         <option value="">-- Semua Project --</option>
-                        <template x-for="p in projectList">
+                        <template x-for="p in projectList" :key="p.kodeProject">
                             <option :value="p.kodeProject" x-text="`${p.kodeProject} - ${p.type}`"></option>
                         </template>
                     </select>
@@ -527,7 +500,6 @@
                 </div>
             </div>
 
-            <!-- 7. DATA TRANSAKSI -->
             <div x-show="activeTab === 'data_transaksi'" class="space-y-4">
                 <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex justify-between items-center">
                     <div>
@@ -552,7 +524,7 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                <template x-for="(trx, index) in transactionList" :key="index">
+                                <template x-for="trx in transactionList" :key="trx.noDocument">
                                     <tr class="hover:bg-slate-50/50">
                                         <td class="p-3 font-mono font-bold text-indigo-600" x-text="trx.noDocument"></td>
                                         <td class="p-3">
@@ -582,21 +554,79 @@
                 </div>
             </div>
 
-            <!-- 8. SUPABASE SETUP GUIDE -->
             <div x-show="activeTab === 'supabase_setup'" class="space-y-4">
                 <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200 space-y-4">
                     <div>
                         <h2 class="font-bold text-slate-800 text-sm flex items-center">
                             <i data-lucide="database" class="w-4 h-4 mr-2 text-indigo-600"></i>
-                            Panduan Integrasi Supabase & GitHub Pages
+                            Panduan Integrasi Supabase (Free Tier) & GitHub Pages
                         </h2>
-                        <p class="text-slate-500 text-2xs mt-1">Langkah mudah menghubungkan HTML Frontend ini ke database cloud Supabase gratis.</p>
+                        <p class="text-slate-500 text-2xs mt-1">Langkah mudah menghubungkan HTML Frontend ini ke database cloud Supabase gratis dan deploy ke GitHub.</p>
                     </div>
 
                     <div class="space-y-3 text-xs text-slate-700">
                         <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            <h3 class="font-bold text-slate-900 mb-1">Status Koneksi</h3>
-                            <p class="text-slate-600">Indikator pada bagian atas header akan menampilkan <strong class="text-emerald-600">Supabase Connected</strong> jika kunci API Anda valid dan tabel telah dibuat di database Supabase.</p>
+                            <h3 class="font-bold text-slate-900 mb-1">1. Buat Tabel di Supabase SQL Editor</h3>
+                            <pre class="bg-slate-900 text-slate-200 p-3 rounded text-2xs font-mono overflow-x-auto mt-2">
+-- Tabel Barang
+CREATE TABLE master_barang (
+    id SERIAL PRIMARY KEY,
+    kode VARCHAR(50) UNIQUE NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    kategori VARCHAR(100),
+    jenis VARCHAR(100)
+);
+
+-- Tabel Gudang
+CREATE TABLE master_gudang (
+    id SERIAL PRIMARY KEY,
+    kode VARCHAR(50) UNIQUE NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    tipe VARCHAR(50) NOT NULL, -- 'Perusahaan Sendiri' atau 'Pihak Lain'
+    lokasi TEXT,
+    pic VARCHAR(100)
+);
+
+-- Tabel Project
+CREATE TABLE master_project (
+    id SERIAL PRIMARY KEY,
+    kode_project VARCHAR(50) UNIQUE NOT NULL,
+    periode VARCHAR(50),
+    type VARCHAR(100),
+    region VARCHAR(100),
+    no_pr_po VARCHAR(100),
+    po_plan VARCHAR(50),
+    po_final VARCHAR(50),
+    status_po VARCHAR(50),
+    permit VARCHAR(50),
+    status_snd VARCHAR(50),
+    status_project VARCHAR(50),
+    status_doc VARCHAR(50)
+);
+                            </pre>
+                        </div>
+
+                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            <h3 class="font-bold text-slate-900 mb-1">2. Integrasi ke Script HTML (JavaScript)</h3>
+                            <p class="text-slate-600 mb-2">Tambahkan CDN Supabase di bagian &lt;head&gt; dan inisialisasi:</p>
+                            <pre class="bg-slate-900 text-slate-200 p-3 rounded text-2xs font-mono overflow-x-auto">
+&lt;script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"&gt;&lt;/script&gt;
+&lt;script&gt;
+  const SUPABASE_URL = 'https://your-project.supabase.co';
+  const SUPABASE_KEY = 'your-anon-key';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+&lt;/script&gt;
+                            </pre>
+                        </div>
+
+                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            <h3 class="font-bold text-slate-900 mb-1">3. Hosting Gratis di GitHub Pages</h3>
+                            <ul class="list-disc pl-4 space-y-1 text-slate-600">
+                                <li>Simpan file ini dengan nama <code class="bg-slate-200 px-1 rounded">index.html</code> dalam sebuah repository GitHub.</li>
+                                <li>Masuk ke menu <strong>Settings</strong> repository &gt; <strong>Pages</strong>.</li>
+                                <li>Pilih branch <code class="bg-slate-200 px-1 rounded">main</code> / <code class="bg-slate-200 px-1 rounded">root</code>, lalu klik Save.</li>
+                                <li>Aplikasi WMS Anda siap diakses secara online melalui URL GitHub Pages!</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
@@ -605,156 +635,139 @@
         </main>
     </div>
 
-    <!-- MODAL FORM TAMBAH / EDIT -->
-    <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm no-print">
+    <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm no-print" x-cloak>
         <div class="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 transform transition-all">
             <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
                 <h3 class="font-bold text-slate-900 text-sm" x-text="modalTitle"></h3>
                 <button @click="closeModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
 
-            <!-- Modal Form Barang -->
-            <template x-if="modalType === 'barang'">
-                <form @submit.prevent="saveBarang()" class="space-y-3">
-                    <div>
-                        <label class="block font-medium text-slate-700 mb-1">Kode Barang</label>
-                        <input type="text" x-model="modalBarang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: MAT-FIBER-001">
-                    </div>
-                    <div>
-                        <label class="block font-medium text-slate-700 mb-1">Nama Barang</label>
-                        <input type="text" x-model="modalBarang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Drop Cable 1 Core">
-                    </div>
-                    <div>
-                        <label class="block font-medium text-slate-700 mb-1">Kategori</label>
-                        <input type="text" x-model="modalBarang.kategori" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: FTTH / Fiber Optic">
-                    </div>
-                    <div>
-                        <label class="block font-medium text-slate-700 mb-1">Jenis</label>
-                        <input type="text" x-model="modalBarang.jenis" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Passive Material">
-                    </div>
-                    <div class="flex justify-end space-x-2 pt-3">
-                        <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
-                        <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Barang</button>
-                    </div>
-                </form>
-            </template>
+            <form x-show="modalType === 'barang'" @submit.prevent="saveBarang()" class="space-y-3">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Kode Barang</label>
+                    <input type="text" x-model="modalBarang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: MAT-FIBER-001">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Nama Barang</label>
+                    <input type="text" x-model="modalBarang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Drop Cable 1 Core">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Kategori</label>
+                    <input type="text" x-model="modalBarang.kategori" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: FTTH / Fiber Optic">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Jenis</label>
+                    <input type="text" x-model="modalBarang.jenis" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Passive Material">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Satuan</label>
+                    <input type="text" x-model="modalBarang.satuan" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Pcs / Roll">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3">
+                    <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Barang</button>
+                </div>
+            </form>
 
-            <!-- Modal Form Gudang -->
-            <template x-if="modalType === 'gudang'">
-                <form @submit.prevent="saveGudang()" class="space-y-3">
+            <form x-show="modalType === 'gudang'" @submit.prevent="saveGudang()" class="space-y-3">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Kode Gudang</label>
+                    <input type="text" x-model="modalGudang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: WH-PKU-01">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Nama Gudang</label>
+                    <input type="text" x-model="modalGudang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Gudang Utama Pekanbaru">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Kepemilikan Gudang</label>
+                    <select x-model="modalGudang.tipe" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                        <option value="Perusahaan Sendiri">Perusahaan Sendiri</option>
+                        <option value="Pihak Lain">Pihak Lain / Partner 3PL</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Lokasi / Alamat</label>
+                    <input type="text" x-model="modalGudang.lokasi" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Jl. Soekarno Hatta No. 45, Pekanbaru">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Petugas / PIC</label>
+                    <input type="text" x-model="modalGudang.pic" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Nama PIC Gudang">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3">
+                    <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Gudang</button>
+                </div>
+            </form>
+
+            <form x-show="modalType === 'project'" @submit.prevent="saveProject()" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Kode Gudang</label>
-                        <input type="text" x-model="modalGudang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: WH-PKU-01">
+                        <label class="block font-medium text-slate-700 mb-1">Kode Project</label>
+                        <input type="text" x-model="modalProject.kodeProject" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PRJ-FTTH-2026-01">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Nama Gudang</label>
-                        <input type="text" x-model="modalGudang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Gudang Utama Pekanbaru">
+                        <label class="block font-medium text-slate-700 mb-1">Periode</label>
+                        <input type="text" x-model="modalProject.periode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Q1 2026">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Type</label>
+                        <input type="text" x-model="modalProject.type" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="FTTH Deployment">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Kepemilikan Gudang</label>
-                        <select x-model="modalGudang.tipe" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
-                            <option value="Perusahaan Sendiri">Perusahaan Sendiri</option>
-                            <option value="Pihak Lain">Pihak Lain / Partner 3PL</option>
+                        <label class="block font-medium text-slate-700 mb-1">Region</label>
+                        <input type="text" x-model="modalProject.region" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Pekanbaru / Sumatra">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">No PR-PO</label>
+                    <input type="text" x-model="modalProject.noPrPo" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PO/2026/II/092">
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">PO Plan</label>
+                        <input type="text" x-model="modalProject.poPlan" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="10 Jan 2026">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">PO Final</label>
+                        <input type="text" x-model="modalProject.poFinal" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="15 Jan 2026">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Status PO</label>
+                        <select x-model="modalProject.statusPo" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
+                            <option value="Approved">Approved</option>
+                            <option value="Pending">Pending</option>
                         </select>
                     </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Lokasi / Alamat</label>
-                        <input type="text" x-model="modalGudang.lokasi" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Jl. Soekarno Hatta No. 45">
-                    </div>
-                    <div>
-                        <label class="block font-medium text-slate-700 mb-1">Petugas / PIC</label>
-                        <input type="text" x-model="modalGudang.pic" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Nama PIC Gudang">
-                    </div>
-                    <div class="flex justify-end space-x-2 pt-3">
-                        <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
-                        <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Gudang</button>
-                    </div>
-                </form>
-            </template>
-
-            <!-- Modal Form Project -->
-            <template x-if="modalType === 'project'">
-                <form @submit.prevent="saveProject()" class="space-y-3">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">Kode Project</label>
-                            <input type="text" x-model="modalProject.kodeProject" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PRJ-FTTH-2026-01">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">Periode</label>
-                            <input type="text" x-model="modalProject.periode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Q1 2026">
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">Type</label>
-                            <input type="text" x-model="modalProject.type" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="FTTH Deployment">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">Region</label>
-                            <input type="text" x-model="modalProject.region" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Pekanbaru / Sumatra">
-                        </div>
+                        <label class="block font-medium text-slate-700 mb-1">Permit</label>
+                        <input type="text" x-model="modalProject.permit" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Clear / Issued">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">No PR-PO</label>
-                        <input type="text" x-model="modalProject.noPrPo" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PO/2026/II/092">
-                    </div>
-                    <div class="grid grid-cols-3 gap-2">
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">PO Plan</label>
-                            <input type="text" x-model="modalProject.poPlan" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="10 Jan 2026">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">PO Final</label>
-                            <input type="text" x-model="modalProject.poFinal" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="15 Jan 2026">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">Status PO</label>
-                            <select x-model="modalProject.statusPo" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
-                                <option value="Approved">Approved</option>
-                                <option value="Pending">Pending</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2">
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">Permit</label>
-                            <input type="text" x-model="modalProject.permit" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Clear / Issued">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">Status SND</label>
-                            <input type="text" x-model="modalProject.statusSnd" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Done">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">Status Project</label>
-                            <input type="text" x-model="modalProject.statusProject" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="On Progress">
-                        </div>
+                        <label class="block font-medium text-slate-700 mb-1">Status SND</label>
+                        <input type="text" x-model="modalProject.statusSnd" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Done">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Status Doc</label>
-                        <input type="text" x-model="modalProject.statusDoc" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Complete 100%">
+                        <label class="block font-medium text-slate-700 mb-1">Status Project</label>
+                        <input type="text" x-model="modalProject.statusProject" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="On Progress">
                     </div>
-                    <div class="flex justify-end space-x-2 pt-3">
-                        <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
-                        <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Project</button>
-                    </div>
-                </form>
-            </template>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Status Doc</label>
+                    <input type="text" x-model="modalProject.statusDoc" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Complete 100%">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3">
+                    <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Project</button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <!-- SCRIPT LOGIC & FULL SUPABASE SYNCHRONIZATION -->
     <script>
-        // ==========================================
-        // KONFIGURASI SUPABASE (Ubah dengan kredensial Anda)
-        // ==========================================
-        const SUPABASE_URL = 'https://kwclblvplovxtkmbxaym.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3Y2xibHZwbG92eHRrbWJ4YXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4Mzg2OTAsImV4cCI6MjEwMzQxNDY5MH0.3jgJkicnOtHYPiEyZPdNMwklEO1S5mUkb_e7NlDXO7Y';
-        
-        const supabaseClient = (window.supabase && SUPABASE_URL !== 'https://kwclblvplovxtkmbxaym.supabase.co') 
-            ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
-            : null;
-
         function wmsApp() {
             return {
                 isLoggedIn: false,
@@ -764,8 +777,6 @@
                 searchBarang: '',
                 selectedGudangFilter: '',
                 selectedProjectFilter: '',
-                editingBarangIndex: null,
-                isSupabaseConnected: false,
                 
                 tabs: [
                     { id: 'master_barang', name: 'Master Barang', icon: 'package' },
@@ -775,40 +786,48 @@
                     { id: 'stok_gudang', name: 'Stok Gudang', icon: 'layers' },
                     { id: 'stok_project', name: 'Stok Project', icon: 'pie-chart' },
                     { id: 'data_transaksi', name: 'Data Transaksi', icon: 'database' },
-                    { id: 'supabase_setup', name: 'Setup Supabase', icon: 'cloud' }
+                    { id: 'supabase_setup', name: 'Setup Supabase & GitHub', icon: 'cloud' }
                 ],
 
-                // Mock Data (Fallback jika offline)
+                // Mock Data
                 barangList: [
                     { kode: 'MAT-FIB-001', nama: 'Drop Cable 1 Core 1000M', kategori: 'FTTH', jenis: 'Passive Material', satuan: 'Roll' },
                     { kode: 'MAT-FIB-002', nama: 'Optical Distribution Box (ODB) 16C', kategori: 'FTTH', jenis: 'Hardware', satuan: 'Pcs' },
                     { kode: 'MAT-FIB-003', nama: 'Fast Connector SC/UPC', kategori: 'FTTH', jenis: 'Accessories', satuan: 'Pcs' },
-                    { kode: 'MAT-PWR-001', nama: 'MCB 1P 10A Schneider', kategori: 'Electrical', jenis: 'Panel Material', satuan: 'Pcs' }
+                    { kode: 'MAT-PWR-001', nama: 'MCB 1P 10A Schneider', kategori: 'Electrical', jenis: 'Panel Material', satuan: 'Pcs' },
+                    { kode: 'MAT-CBL-001', nama: 'NYM 3x2.5mm Supreme 50M', kategori: 'Electrical', jenis: 'Cable', satuan: 'Roll' }
                 ],
 
                 gudangList: [
                     { kode: 'WH-PKU-01', nama: 'Gudang Utama Pekanbaru', tipe: 'Perusahaan Sendiri', lokasi: 'Jl. Soekarno Hatta No. 45, Pekanbaru', pic: 'Rudi Batubara' },
-                    { kode: 'WH-PLM-02', nama: 'Gudang Feeder Palembang', tipe: 'Perusahaan Sendiri', lokasi: 'Kawasan Industri Palembang', pic: 'Ahmad Fauzi' }
+                    { kode: 'WH-PLM-02', nama: 'Gudang Feeder Palembang', tipe: 'Perusahaan Sendiri', lokasi: 'Kawasan Industri Palembang', pic: 'Ahmad Fauzi' },
+                    { kode: 'WH-PRT-03', nama: 'Partner Logistics Hub Padang', tipe: 'Pihak Lain', lokasi: 'Jl. By Pass Padang', pic: 'PT Logistik Sumatra' }
                 ],
 
                 projectList: [
                     { kodeProject: 'PRJ-ACEH-2026', periode: '2025 - 2026', type: 'FTTH Infrastructure', region: 'Aceh', noPrPo: 'PO/2026/I/012', poPlan: '10 Jan 2026', poFinal: '15 Jan 2026', statusPo: 'Approved', permit: 'Clear', statusSnd: 'Done', statusProject: 'On Progress', statusDoc: 'Complete' },
-                    { kodeProject: 'PRJ-PLM-2026', periode: 'Januari 2026', type: 'Feeder Main Segment', region: 'Palembang', noPrPo: 'PO/2026/I/045', poPlan: '01 Jan 2026', poFinal: '05 Jan 2026', statusPo: 'Approved', permit: 'Issued', statusSnd: 'Verified', statusProject: 'Completed', statusDoc: 'Archived' }
+                    { kodeProject: 'PRJ-PLM-2026', periode: 'Januari 2026', type: 'Feeder Main Segment', region: 'Palembang', noPrPo: 'PO/2026/I/045', poPlan: '01 Jan 2026', poFinal: '05 Jan 2026', statusPo: 'Approved', permit: 'Issued', statusSnd: 'Verified', statusProject: 'Completed', statusDoc: 'Archived' },
+                    { kodeProject: 'PRJ-TDS-2026', periode: 'Januari 2026', type: 'Civil & Electrical Assessment', region: 'Desa Tanjung Dayang', noPrPo: 'PO/2026/I/089', poPlan: '20 Jan 2026', poFinal: '25 Jan 2026', statusPo: 'Approved', permit: 'Clear', statusSnd: 'Pending', statusProject: 'Planning', statusDoc: 'Draft' }
                 ],
 
                 transactionList: [
-                    { noDocument: 'TRX-2026-001', tanggal: '2026-01-10', noTodo: 'TODO-01', tipe: 'Masuk', gudangAsal: '-', gudangTujuan: 'Gudang Utama Pekanbaru', kodeProject: 'PRJ-ACEH-2026', petugas: 'Rudi Batubara', disetujui: 'Manager Logistik', diketahui: 'Direktur Operasional', keterangan: 'Penerimaan awal material FTTH' }
+                    { noDocument: 'TRX-2026-001', tanggal: '2026-01-10', noTodo: 'TODO-01', tipe: 'Masuk', gudangAsal: '-', gudangTujuan: 'Gudang Utama Pekanbaru', kodeProject: 'PRJ-ACEH-2026', petugas: 'Rudi Batubara', disetujui: 'Manager Logistik', diketahui: 'Direktur Operasional', keterangan: 'Penerimaan awal material FTTH', items: [{kode: 'MAT-FIB-001', nama: 'Drop Cable 1 Core 1000M', qty: 25}, {kode: 'MAT-FIB-002', nama: 'Optical Distribution Box (ODB) 16C', qty: 8}] },
+                    { noDocument: 'TRX-2026-002', tanggal: '2026-01-15', noTodo: 'TODO-02', tipe: 'Keluar', gudangAsal: 'Gudang Utama Pekanbaru', gudangTujuan: '-', kodeProject: 'PRJ-PLM-2026', petugas: 'Rudi Batubara', disetujui: 'Manager Logistik', diketahui: 'Project Manager', keterangan: 'Distribusi material ke site project Palembang', items: [{kode: 'MAT-FIB-001', nama: 'Drop Cable 1 Core 1000M', qty: 5}] }
                 ],
 
                 stokGudangList: [
                     { gudang: 'Gudang Utama Pekanbaru', kodeBarang: 'MAT-FIB-001', namaBarang: 'Drop Cable 1 Core 1000M', qty: 25 },
-                    { gudang: 'Gudang Utama Pekanbaru', kodeBarang: 'MAT-FIB-002', namaBarang: 'Optical Distribution Box (ODB) 16C', qty: 8 }
+                    { gudang: 'Gudang Utama Pekanbaru', kodeBarang: 'MAT-FIB-002', namaBarang: 'Optical Distribution Box (ODB) 16C', qty: 8 },
+                    { gudang: 'Gudang Feeder Palembang', kodeBarang: 'MAT-FIB-001', namaBarang: 'Drop Cable 1 Core 1000M', qty: 15 },
+                    { gudang: 'Partner Logistics Hub Padang', kodeBarang: 'MAT-PWR-001', namaBarang: 'MCB 1P 10A Schneider', qty: 40 }
                 ],
 
                 projectUsageList: [
-                    { kodeProject: 'PRJ-PLM-2026', noDocument: 'TRX-2026-002', kodeBarang: 'MAT-FIB-001', namaBarang: 'Drop Cable 1 Core 1000M', qty: 5, tanggal: '2026-01-15' }
+                    { kodeProject: 'PRJ-PLM-2026', noDocument: 'TRX-2026-002', kodeBarang: 'MAT-FIB-001', namaBarang: 'Drop Cable 1 Core 1000M', qty: 5, tanggal: '2026-01-15' },
+                    { kodeProject: 'PRJ-ACEH-2026', noDocument: 'TRX-2026-003', kodeBarang: 'MAT-FIB-002', namaBarang: 'Optical Distribution Box (ODB) 16C', qty: 3, tanggal: '2026-01-18' }
                 ],
 
+                // New Transaction Form State
                 newTransaction: {
                     noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
                     tanggal: new Date().toISOString().split('T')[0],
@@ -826,44 +845,13 @@
                 newItemBarang: '',
                 newItemQty: 1,
 
+                // Modal state
                 showModal: false,
                 modalType: '',
                 modalTitle: '',
                 modalBarang: { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' },
                 modalGudang: { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' },
                 modalProject: { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: 'Clear', statusSnd: 'Done', statusProject: 'On Progress', statusDoc: 'Complete' },
-
-                async init() {
-                    setTimeout(() => lucide.createIcons(), 200);
-                    if (supabaseClient) {
-                        await this.fetchFromSupabase();
-                    }
-                },
-
-                async fetchFromSupabase() {
-                    try {
-                        let { data: bData } = await supabaseClient.from('master_barang').select('*');
-                        if (bData && bData.length > 0) { this.barangList = bData; this.isSupabaseConnected = true; }
-
-                        let { data: gData } = await supabaseClient.from('master_gudang').select('*');
-                        if (gData && gData.length > 0) { this.gudangList = gData; }
-
-                        let { data: pData } = await supabaseClient.from('master_project').select('*');
-                        if (pData && pData.length > 0) { this.projectList = pData; }
-
-                        let { data: tData } = await supabaseClient.from('master_transaksi').select('*');
-                        if (tData && tData.length > 0) { this.transactionList = tData; }
-
-                        let { data: sData } = await supabaseClient.from('stok_gudang').select('*');
-                        if (sData && sData.length > 0) { this.stokGudangList = sData; }
-
-                        let { data: uData } = await supabaseClient.from('project_usage').select('*');
-                        if (uData && uData.length > 0) { this.projectUsageList = uData; }
-                    } catch (err) {
-                        console.warn('Supabase fetch notice: menggunakan data lokal.', err);
-                        this.isSupabaseConnected = false;
-                    }
-                },
 
                 login() {
                     if(!this.username) return alert('Masukkan nama petugas!');
@@ -893,67 +881,96 @@
 
                 addItemToTransaction() {
                     if(!this.newItemBarang) return alert('Pilih barang terlebih dahulu!');
+                    if(!this.newItemQty || this.newItemQty <= 0) return alert('Jumlah Qty harus lebih dari 0!');
                     let b = this.barangList.find(x => x.kode === this.newItemBarang);
                     if(b) {
-                        this.newTransaction.items.push({
-                            kode: b.kode,
-                            nama: b.nama,
-                            qty: this.newItemQty
-                        });
+                        // Check if item already added in transaction list, increment qty
+                        let existing = this.newTransaction.items.find(x => x.kode === b.kode);
+                        if(existing) {
+                            existing.qty += this.newItemQty;
+                        } else {
+                            this.newTransaction.items.push({
+                                kode: b.kode,
+                                nama: b.nama,
+                                qty: this.newItemQty
+                            });
+                        }
                         this.newItemBarang = '';
                         this.newItemQty = 1;
                     }
                 },
 
-                async submitTransaction() {
+                submitTransaction() {
                     if(this.newTransaction.items.length === 0) return alert('Tambahkan minimal 1 item barang!');
                     
-                    this.transactionList.unshift({...this.newTransaction});
+                    // Validasi transfer antar gudang
+                    if(this.newTransaction.tipe === 'Transfer') {
+                        if(this.newTransaction.gudangAsal === '-' || this.newTransaction.gudangTujuan === '-') {
+                            return alert('Untuk transaksi Transfer, Gudang Asal dan Gudang Tujuan harus dipilih!');
+                        }
+                        if(this.newTransaction.gudangAsal === this.newTransaction.gudangTujuan) {
+                            return alert('Gudang Asal dan Gudang Tujuan tidak boleh sama!');
+                        }
+                    }
+
+                    // Proses update stok gudang secara real-time
+                    this.newTransaction.items.forEach(it => {
+                        let b = this.barangList.find(x => x.kode === it.kode);
+                        let namaBarang = b ? b.nama : it.nama;
+
+                        if (this.newTransaction.tipe === 'Masuk') {
+                            if (this.newTransaction.gudangTujuan !== '-') {
+                                let stok = this.stokGudangList.find(s => s.gudang === this.newTransaction.gudangTujuan && s.kodeBarang === it.kode);
+                                if (stok) {
+                                    stok.qty += it.qty;
+                                } else {
+                                    this.stokGudangList.push({ gudang: this.newTransaction.gudangTujuan, kodeBarang: it.kode, namaBarang: namaBarang, qty: it.qty });
+                                }
+                            }
+                        } else if (this.newTransaction.tipe === 'Keluar') {
+                            if (this.newTransaction.gudangAsal !== '-') {
+                                let stok = this.stokGudangList.find(s => s.gudang === this.newTransaction.gudangAsal && s.kodeBarang === it.kode);
+                                if (stok) {
+                                    stok.qty = Math.max(0, stok.qty - it.qty);
+                                }
+                            }
+                        } else if (this.newTransaction.tipe === 'Transfer') {
+                            // Kurangi di asal
+                            let stokAsal = this.stokGudangList.find(s => s.gudang === this.newTransaction.gudangAsal && s.kodeBarang === it.kode);
+                            if (stokAsal) {
+                                stokAsal.qty = Math.max(0, stokAsal.qty - it.qty);
+                            }
+                            // Tambah di tujuan
+                            let stokTujuan = this.stokGudangList.find(s => s.gudang === this.newTransaction.gudangTujuan && s.kodeBarang === it.kode);
+                            if (stokTujuan) {
+                                stokTujuan.qty += it.qty;
+                            } else {
+                                this.stokGudangList.push({ gudang: this.newTransaction.gudangTujuan, kodeBarang: it.kode, namaBarang: namaBarang, qty: it.qty });
+                            }
+                        }
+                    });
+
+                    // Simpan transaksi
+                    this.transactionList.unshift(JSON.parse(JSON.stringify(this.newTransaction)));
                     
+                    // Push to project usage if project is selected
                     if(this.newTransaction.kodeProject && this.newTransaction.kodeProject !== '-') {
                         this.newTransaction.items.forEach(it => {
+                            let b = this.barangList.find(x => x.kode === it.kode);
                             this.projectUsageList.unshift({
                                 kodeProject: this.newTransaction.kodeProject,
                                 noDocument: this.newTransaction.noDocument,
                                 kodeBarang: it.kode,
-                                namaBarang: it.nama,
+                                namaBarang: b ? b.nama : it.nama,
                                 qty: it.qty,
                                 tanggal: this.newTransaction.tanggal
                             });
                         });
                     }
 
-                    // Sinkronisasi ke Supabase
-                    if(supabaseClient) {
-                        try {
-                            await supabaseClient.from('master_transaksi').insert([{
-                                no_document: this.newTransaction.noDocument,
-                                tanggal: this.newTransaction.tanggal,
-                                no_todo: this.newTransaction.noTodo,
-                                tipe: this.newTransaction.tipe,
-                                gudang_asal: this.newTransaction.gudangAsal,
-                                gudang_tujuan: this.newTransaction.gudangTujuan,
-                                kode_project: this.newTransaction.kodeProject,
-                                petugas: this.newTransaction.petugas,
-                                disetujui: this.newTransaction.disetujui,
-                                diketahui: this.newTransaction.diketahui,
-                                keterangan: this.newTransaction.keterangan
-                            }]);
-
-                            for(let it of this.newTransaction.items) {
-                                await supabaseClient.from('transaksi_items').insert([{
-                                    no_document: this.newTransaction.noDocument,
-                                    kode_barang: it.kode,
-                                    nama_barang: it.nama,
-                                    qty: it.qty
-                                }]);
-                            }
-                        } catch(e) {
-                            console.error('Gagal sinkronisasi transaksi ke Supabase:', e);
-                        }
-                    }
-
-                    alert('Transaksi berhasil disimpan dan disinkronkan!');
+                    alert('Transaksi berhasil disimpan dan stok gudang diperbarui!');
+                    
+                    // Reset form
                     this.newTransaction = {
                         noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
                         tanggal: new Date().toISOString().split('T')[0],
@@ -969,6 +986,7 @@
                         items: []
                     };
                     this.activeTab = 'data_transaksi';
+                    this.$nextTick(() => lucide.createIcons());
                 },
 
                 printTransaction() {
@@ -977,126 +995,63 @@
 
                 openModal(type) {
                     this.modalType = type;
-                    if(type === 'barang') {
-                        this.modalTitle = 'Tambah Master Barang Baru';
-                        this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' };
-                        this.editingBarangIndex = null;
-                    } else if(type === 'gudang') {
-                        this.modalTitle = 'Tambah Master Gudang Baru';
-                        this.modalGudang = { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' };
-                    } else if(type === 'project') {
-                        this.modalTitle = 'Tambah Master Project Baru';
-                        this.modalProject = { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: 'Clear', statusSnd: 'Done', statusProject: 'On Progress', statusDoc: 'Complete' };
-                    }
+                    if(type === 'barang') this.modalTitle = 'Tambah Master Barang Baru';
+                    if(type === 'gudang') this.modalTitle = 'Tambah Master Gudang Baru';
+                    if(type === 'project') this.modalTitle = 'Tambah Master Project Baru';
                     this.showModal = true;
                     setTimeout(() => lucide.createIcons(), 100);
-                },
-
-                editBarang(index) {
-                    let targetItem = this.filteredBarang[index];
-                    let originalIndex = this.barangList.findIndex(b => b.kode === targetItem.kode);
-                    if(originalIndex !== -1) {
-                        this.editingBarangIndex = originalIndex;
-                        this.modalBarang = { ...this.barangList[originalIndex] };
-                        this.modalType = 'barang';
-                        this.modalTitle = 'Edit Master Barang';
-                        this.showModal = true;
-                        setTimeout(() => lucide.createIcons(), 100);
-                    }
                 },
 
                 closeModal() {
                     this.showModal = false;
                 },
 
-                async saveBarang() {
-                    if(this.editingBarangIndex !== null) {
-                        this.barangList[this.editingBarangIndex] = { ...this.modalBarang };
-                        if(supabaseClient) {
-                            await supabaseClient.from('master_barang').update({
-                                nama: this.modalBarang.nama,
-                                kategori: this.modalBarang.kategori,
-                                jenis: this.modalBarang.jenis,
-                                satuan: this.modalBarang.satuan
-                            }).eq('kode', this.modalBarang.kode);
-                        }
-                        alert('Barang berhasil diperbarui!');
-                    } else {
-                        this.barangList.push({ ...this.modalBarang });
-                        if(supabaseClient) {
-                            await supabaseClient.from('master_barang').insert([{
-                                kode: this.modalBarang.kode,
-                                nama: this.modalBarang.nama,
-                                kategori: this.modalBarang.kategori,
-                                jenis: this.modalBarang.jenis,
-                                satuan: this.modalBarang.satuan
-                            }]);
-                        }
-                        alert('Barang berhasil ditambahkan!');
+                saveBarang() {
+                    if(this.barangList.some(b => b.kode.toLowerCase() === this.modalBarang.kode.toLowerCase())) {
+                        return alert('Kode barang sudah terdaftar!');
                     }
+                    this.barangList.push({...this.modalBarang});
+                    this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' };
                     this.closeModal();
+                    alert('Barang berhasil ditambahkan!');
                 },
 
-                async saveGudang() {
-                    this.gudangList.push({...this.modalGudang});
-                    if(supabaseClient) {
-                        await supabaseClient.from('master_gudang').insert([{
-                            kode: this.modalGudang.kode,
-                            nama: this.modalGudang.nama,
-                            tipe: this.modalGudang.tipe,
-                            lokasi: this.modalGudang.lokasi,
-                            pic: this.modalGudang.pic
-                        }]);
+                saveGudang() {
+                    if(this.gudangList.some(g => g.kode.toLowerCase() === this.modalGudang.kode.toLowerCase())) {
+                        return alert('Kode gudang sudah terdaftar!');
                     }
+                    this.gudangList.push({...this.modalGudang});
+                    this.modalGudang = { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' };
                     this.closeModal();
                     alert('Gudang berhasil ditambahkan!');
                 },
 
-                async saveProject() {
-                    this.projectList.push({...this.modalProject});
-                    if(supabaseClient) {
-                        await supabaseClient.from('master_project').insert([{
-                            kode_project: this.modalProject.kodeProject,
-                            periode: this.modalProject.periode,
-                            type: this.modalProject.type,
-                            region: this.modalProject.region,
-                            no_pr_po: this.modalProject.noPrPo,
-                            po_plan: this.modalProject.poPlan,
-                            po_final: this.modalProject.poFinal,
-                            status_po: this.modalProject.statusPo,
-                            permit: this.modalProject.permit,
-                            status_snd: this.modalProject.statusSnd,
-                            status_project: this.modalProject.statusProject,
-                            status_doc: this.modalProject.statusDoc
-                        }]);
+                saveProject() {
+                    if(this.projectList.some(p => p.kodeProject.toLowerCase() === this.modalProject.kodeProject.toLowerCase())) {
+                        return alert('Kode project sudah terdaftar!');
                     }
+                    this.projectList.push({...this.modalProject});
                     this.closeModal();
                     alert('Project berhasil ditambahkan!');
                 },
 
-                async deleteBarang(index) {
-                    let targetItem = this.filteredBarang[index];
-                    let originalIndex = this.barangList.findIndex(b => b.kode === targetItem.kode);
-                    if(confirm('Hapus barang ini?')) {
-                        this.barangList.splice(originalIndex, 1);
-                        if(supabaseClient) {
-                            await supabaseClient.from('master_barang').delete().eq('kode', targetItem.kode);
-                        }
+                deleteBarang(kode) {
+                    if(confirm(`Hapus barang dengan kode ${kode}?`)) {
+                        let idx = this.barangList.findIndex(b => b.kode === kode);
+                        if(idx !== -1) this.barangList.splice(idx, 1);
                     }
                 },
 
-                async deleteGudang(index) {
-                    let targetGudang = this.gudangList[index];
-                    if(confirm('Hapus gudang ini?')) {
-                        this.gudangList.splice(index, 1);
-                        if(supabaseClient) {
-                            await supabaseClient.from('master_gudang').delete().eq('kode', targetGudang.kode);
-                        }
+                deleteGudang(kode) {
+                    if(confirm(`Hapus gudang dengan kode ${kode}?`)) {
+                        let idx = this.gudangList.findIndex(g => g.kode === kode);
+                        if(idx !== -1) this.gudangList.splice(idx, 1);
                     }
                 }
             }
         }
         
+        // Initialize lucide icons on load
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => lucide.createIcons(), 200);
         });
