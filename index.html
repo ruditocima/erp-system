@@ -26,7 +26,6 @@
             .print-only { display: block !important; }
             table { font-size: 9px !important; }
         }
-        /* Custom scrollbar */
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -646,7 +645,7 @@ CREATE TABLE master_project (
             <form x-show="modalType === 'barang'" @submit.prevent="saveBarang()" class="space-y-3">
                 <div>
                     <label class="block font-medium text-slate-700 mb-1">Kode Barang</label>
-                    <input type="text" x-model="modalBarang.kode" :readonly="isEditMode" :class="isEditMode ? 'bg-slate-100 text-slate-500' : ''" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: MAT-FIBER-001">
+                    <input type="text" x-model="modalBarang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: MAT-FIB-001">
                 </div>
                 <div>
                     <label class="block font-medium text-slate-700 mb-1">Nama Barang</label>
@@ -779,6 +778,7 @@ CREATE TABLE master_project (
                 selectedGudangFilter: '',
                 selectedProjectFilter: '',
                 isEditMode: false,
+                originalKode: '',
                 
                 tabs: [
                     { id: 'master_barang', name: 'Master Barang', icon: 'package' },
@@ -791,7 +791,6 @@ CREATE TABLE master_project (
                     { id: 'supabase_setup', name: 'Setup Supabase & GitHub', icon: 'cloud' }
                 ],
 
-                // Mock Data
                 barangList: [
                     { kode: 'MAT-FIB-001', nama: 'Drop Cable 1 Core 1000M', kategori: 'FTTH', jenis: 'Passive Material', satuan: 'Roll' },
                     { kode: 'MAT-FIB-002', nama: 'Optical Distribution Box (ODB) 16C', kategori: 'FTTH', jenis: 'Hardware', satuan: 'Pcs' },
@@ -829,7 +828,6 @@ CREATE TABLE master_project (
                     { kodeProject: 'PRJ-ACEH-2026', noDocument: 'TRX-2026-003', kodeBarang: 'MAT-FIB-002', namaBarang: 'Optical Distribution Box (ODB) 16C', qty: 3, tanggal: '2026-01-18' }
                 ],
 
-                // New Transaction Form State
                 newTransaction: {
                     noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
                     tanggal: new Date().toISOString().split('T')[0],
@@ -847,7 +845,6 @@ CREATE TABLE master_project (
                 newItemBarang: '',
                 newItemQty: 1,
 
-                // Modal state
                 showModal: false,
                 modalType: '',
                 modalTitle: '',
@@ -991,6 +988,7 @@ CREATE TABLE master_project (
                     this.modalType = type;
                     if(type === 'barang') {
                         this.isEditMode = false;
+                        this.originalKode = '';
                         this.modalTitle = 'Tambah Master Barang Baru';
                         this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' };
                     }
@@ -1004,6 +1002,7 @@ CREATE TABLE master_project (
                     this.modalType = 'barang';
                     this.modalTitle = 'Edit Master Barang';
                     this.isEditMode = true;
+                    this.originalKode = item.kode;
                     this.modalBarang = { ...item };
                     this.showModal = true;
                     setTimeout(() => lucide.createIcons(), 100);
@@ -1012,11 +1011,15 @@ CREATE TABLE master_project (
                 closeModal() {
                     this.showModal = false;
                     this.isEditMode = false;
+                    this.originalKode = '';
                 },
 
                 saveBarang() {
                     if (this.isEditMode) {
-                        let idx = this.barangList.findIndex(b => b.kode === this.modalBarang.kode);
+                        if (this.modalBarang.kode !== this.originalKode && this.barangList.some(b => b.kode.toLowerCase() === this.modalBarang.kode.toLowerCase())) {
+                            return alert('Kode barang baru sudah terdaftar!');
+                        }
+                        let idx = this.barangList.findIndex(b => b.kode === this.originalKode);
                         if (idx !== -1) {
                             this.barangList[idx] = { ...this.modalBarang };
                         }
@@ -1029,6 +1032,7 @@ CREATE TABLE master_project (
                         alert('Barang berhasil ditambahkan!');
                     }
                     this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' };
+                    this.originalKode = '';
                     this.closeModal();
                 },
 
