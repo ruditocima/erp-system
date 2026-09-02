@@ -22,6 +22,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <!-- Supabase JavaScript Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         [x-cloak] { display: none !important; }
         @media print {
@@ -1109,11 +1111,233 @@ CREATE TABLE master_project (
     <script>
         function wmsApp() {
             return {
+                supabaseUrl: 'https://kwclblvplovxtkmbxaym.supabase.co',
+                supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3Y2xibHZwbG92eHRrbWJ4YXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4Mzg2OTAsImV4cCI6MjEwMzQxNDY5MH0.3jgJkicnOtHYPiEyZPdNMwklEO1S5mUkb_e7NlDXO7Y',
+                supabaseClient: null,
+                
                 isLoggedIn: false,
                 username: '',
                 role: 'Admin',
                 activeTab: 'master_barang',
                 toasts: [],
+                barangList: [],
+                gudangList: [],
+                projectList: [],
+                stokGudangList: [],
+                projectUsageList: [],
+                transactionList: [],
+
+                async init() {
+            // Inisialisasi Supabase Client
+            this.supabaseClient = supabase.createClient(this.supabaseUrl, this.supabaseKey);
+            
+            // Ambil semua data dari database cloud
+            await this.loadAllData();
+            
+            // Setup real-time listener jika diperlukan
+            this.setupRealtimeSync();
+        },
+
+        async loadAllData() {
+            try {
+                // 1. Fetch Master Barang
+                let { data: barang } = await this.supabaseClient.from('master_barang').select('*');
+                if (barang) this.barangList = barang;
+
+                // 2. Fetch Master Gudang
+                let { data: gudang } = await this.supabaseClient.from('master_gudang').select('*');
+                if (gudang) this.gudangList = gudang;
+
+                // 3. Fetch Master Project
+                let { data: project } = await this.supabaseClient.from('master_project').select('*');
+                if (project) this.projectList = project;
+
+                // 4. Fetch Stok Gudang
+                let { data: stok } = await this.supabaseClient.from('stok_gudang').select('*');
+                if (stok) this.stokGudangList = stok;
+
+                // 5. Fetch Transaksi & Detail Items
+                let { data: trx } = await this.supabaseClient.from('transactions').select('*').order('created_at', { ascending: false });
+                if (trx) {
+                    for (let t of trx) {
+                        let { data: items } = await this.supabaseClient.from('transaction_items').select('*').eq('no_document', t.no_document);
+                        t.items = items || [];
+                        // Mapping snake_case database ke camelCase aplikasi
+                        t.noDocument = t.no_document;
+                        t.noTodo = t.no_todo;
+                        t.gudangAsal = t.gudang_asal;
+                        t.gudangTujuan = t.gudang_tujuan;
+                        t.kodeProject = t.kode_project;
+                    }
+                    this.transactionList = trx;
+                }
+
+                // 6. Fetch Material Usage (Dari transaksi keluar/transfer yang approved ke project)
+                this.refreshProjectUsage();
+
+                this.showToast('Data berhasil disinkronkan dari Supabase!', 'success');
+            } catch (error) {
+                console.error('Gagal memuat data:', error);
+                this.showToast('Gagal terhubung ke database Supabase.', 'error');
+            }
+        },
+
+        refreshProjectUsage() {
+            let usages = [];
+            this.transactionList.forEach(t => {
+                if (t.status === 'Approved' && t.kodeProject && t.kodeProject !== '-') {
+                    t.items.forEach(it => {
+                        usages.push({
+                            kodeProject: t.kodeProject,
+                            noDocument: t.noDocument,
+                            kodeBarang: it.kode_barang || it.kode,
+                            namaBarang: it.nama_barang || it.nama,
+                            qty: it.qty,
+                            tanggal: t.tanggal
+                        });
+                    });
+                }
+            });
+            this.projectUsageList = usages;
+        },
+
+            async saveBarang() {
+    if (this.isEditMode) {
+        // Update ke Supabase
+        let { error } = await this.supabaseClient
+            .from('master_barang')
+            .update({
+                nama: this.modalBarang.nama,
+                kategori: this.modalBarang.kategori,
+                jenis: this.modalBarang.jenis,
+                satuan: this.modalBarang.satuan
+            })
+            .eq('kode', this.originalKode);
+
+        if (error) {
+            this.showToast('Gagal mengupdate barang: ' + error.message, 'error');
+            return;
+        }
+        this.showToast('Barang berhasil diperbarui!', 'success');
+    } else {
+        // Insert ke Supabase
+        let { error } = await this.supabaseClient
+            .from('master_barang')
+            .insert([this.modalBarang]);
+
+        if (error) {
+            this.showToast('Gagal menambah barang: ' + error.message, 'error');
+            return;
+        }
+        this.showToast('Barang berhasil ditambahkan!', 'success');
+    }
+    
+    this.closeModal();
+    await this.loadAllData();
+},
+
+async deleteBarang(kode) {
+    if (!confirm('Apakah Anda yakin ingin menghapus barang ini?')) return;
+    
+    let { error } = await this.supabaseClient.from('master_barang').delete().eq('kode', kode);
+    if (error) {
+        this.showToast('Gagal menghapus: ' + error.message, 'error');
+        return;
+    }
+    this.showToast('Barang berhasil dihapus.', 'success');
+    await this.loadAllData();
+}
+
+async submitTransaction() {
+    if (this.newTransaction.items.length === 0) {
+        this.showToast('Tambahkan minimal 1 item barang!', 'error');
+        return;
+    }
+    
+    let trxData = {
+        no_document: this.newTransaction.noDocument,
+        tanggal: this.newTransaction.tanggal,
+        no_todo: this.newTransaction.noTodo,
+        tipe: this.newTransaction.tipe,
+        gudang_asal: this.newTransaction.gudangAsal,
+        gudang_tujuan: this.newTransaction.gudangTujuan,
+        kode_project: this.newTransaction.kodeProject,
+        petugas: this.username,
+        disetujui: '',
+        diketahui: this.newTransaction.diketahui,
+        keterangan: this.newTransaction.keterangan,
+        status: 'Pending'
+    };
+
+    // 1. Insert Header Transaksi
+    let { error: errTrx } = await this.supabaseClient.from('transactions').insert([trxData]);
+    if (errTrx) {
+        this.showToast('Gagal menyimpan transaksi: ' + errTrx.message, 'error');
+        return;
+    }
+
+    // 2. Insert Items Transaksi
+    let itemsToInsert = this.newTransaction.items.map(it => ({
+        no_document: this.newTransaction.noDocument,
+        kode_barang: it.kode,
+        nama_barang: it.nama,
+        qty: it.qty
+    }));
+
+    let { error: errItems } = await this.supabaseClient.from('transaction_items').insert(itemsToInsert);
+    if (errItems) {
+        this.showToast('Gagal menyimpan item transaksi.', 'error');
+        return;
+    }
+
+    this.showToast('Transaksi berhasil diajukan (Pending Approval)!', 'success');
+    this.activeTab = 'approval_transaksi';
+    await this.loadAllData();
+},
+
+async approveTransaction(trx) {
+    if (this.role !== 'Approver' && this.role !== 'Admin') {
+        this.showToast('Hanya Approver atau Admin yang dapat menyetujui transaksi!', 'error');
+        return;
+    }
+
+    // Update status transaksi di database menjadi 'Approved'
+    let { error } = await this.supabaseClient
+        .from('transactions')
+        .update({ status: 'Approved', disetujui: this.username })
+        .eq('no_document', trx.noDocument);
+
+    if (error) {
+        this.showToast('Gagal menyetujui transaksi.', 'error');
+        return;
+    }
+
+    // Update stok gudang (Logika Penambahan / Pengurangan Stok)
+    // ... (sinkronkan perubahan qty ke tabel stok_gudang di Supabase)
+
+    this.showToast(`Transaksi ${trx.noDocument} berhasil disetujui dan stok diperbarui!`, 'success');
+    await this.loadAllData();
+}
+
+                setupRealtimeSync() {
+    this.supabaseClient
+        .channel('public-db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public' }, payload => {
+            console.log('Perubahan database terdeteksi:', payload);
+            this.loadAllData();
+        })
+        .subscribe();
+}
+
+                setupRealtimeSync() {
+    this.supabaseClient
+        .channel('public-db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public' }, payload => {
+            console.log('Perubahan database terdeteksi:', payload);
+            this.loadAllData();
+        })
+        .subscribe();
+}
                 
                 searchBarang: '',
                 searchGudang: '',
