@@ -859,6 +859,11 @@ CREATE TABLE master_project (
     status_project VARCHAR(50),
     status_doc VARCHAR(50)
 );
+
+-- Nonaktifkan RLS agar terhindar dari Error 401 Unauthorized
+ALTER TABLE master_barang DISABLE ROW LEVEL SECURITY;
+ALTER TABLE master_gudang DISABLE ROW LEVEL SECURITY;
+ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                         </pre>
                     </div>
                 </div>
@@ -1194,19 +1199,24 @@ CREATE TABLE master_project (
 
                 async loadAllData() {
                     try {
-                        let { data: barang } = await this.supabaseClient.from('master_barang').select('*');
+                        let { data: barang, error: errBarang } = await this.supabaseClient.from('master_barang').select('*');
+                        if (errBarang) console.error('Error master_barang:', errBarang.message);
                         if (barang) this.barangList = barang;
 
-                        let { data: gudang } = await this.supabaseClient.from('master_gudang').select('*');
+                        let { data: gudang, error: errGudang } = await this.supabaseClient.from('master_gudang').select('*');
+                        if (errGudang) console.error('Error master_gudang:', errGudang.message);
                         if (gudang) this.gudangList = gudang;
 
-                        let { data: project } = await this.supabaseClient.from('master_project').select('*');
+                        let { data: project, error: errProj } = await this.supabaseClient.from('master_project').select('*');
+                        if (errProj) console.error('Error master_project:', errProj.message);
                         if (project) this.projectList = project;
 
-                        let { data: stok } = await this.supabaseClient.from('stok_gudang').select('*');
+                        let { data: stok, error: errStok } = await this.supabaseClient.from('stok_gudang').select('*');
+                        if (errStok) console.error('Error stok_gudang:', errStok.message);
                         if (stok) this.stokGudangList = stok;
 
-                        let { data: trx } = await this.supabaseClient.from('transactions').select('*').order('created_at', { ascending: false });
+                        let { data: trx, error: errTrx } = await this.supabaseClient.from('transactions').select('*').order('created_at', { ascending: false });
+                        if (errTrx) console.error('Error transactions:', errTrx.message);
                         if (trx) {
                             for (let t of trx) {
                                 let { data: items } = await this.supabaseClient.from('transaction_items').select('*').eq('no_document', t.no_document);
@@ -1224,7 +1234,7 @@ CREATE TABLE master_project (
                         this.showToast('Data berhasil disinkronkan dari Supabase!', 'success');
                     } catch (error) {
                         console.error('Gagal memuat data:', error);
-                        this.showToast('Gagal terhubung ke database Supabase.', 'error');
+                        this.showToast('Gagal terhubung ke database Supabase (Cek RLS / 401 Unauthorized).', 'error');
                     }
                 },
 
