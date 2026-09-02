@@ -784,13 +784,6 @@
                                         </td>
                                         <td class="p-3 text-slate-700 font-medium" x-text="trx.disetujui || '-'"></td>
                                         <td class="p-3 text-right space-x-1">
-                                            <!-- Tombol Print Preview / Cetak PDF (Hanya aktif/bisa dicetak jika Approved) -->
-                                            <button @click="printSpecificTransaction(trx)" 
-                                                    :class="trx.status === 'Approved' ? 'text-slate-400 hover:text-indigo-600' : 'text-slate-300 cursor-not-allowed'" 
-                                                    :title="trx.status === 'Approved' ? 'Print Preview / Cetak PDF' : 'Belum Approved (Tidak dapat dicetak)'" 
-                                                    class="p-1">
-                                                <i data-lucide="printer" class="w-3.5 h-3.5"></i>
-                                            </button>
                                             <button @click="editTransaction(trx)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Catatan"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
                                             <button @click="deleteTransaction(trx.noDocument)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Transaksi"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
@@ -1074,8 +1067,8 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                     <template x-for="(it, index) in newTransaction.items" :key="index">
                         <tr>
                             <td class="border border-slate-300 p-2 text-center" x-text="index + 1"></td>
-                            <td class="border border-slate-300 p-2 font-mono" x-text="it.kode || it.kode_barang"></td>
-                            <td class="border border-slate-300 p-2 font-medium" x-text="it.nama || it.nama_barang"></td>
+                            <td class="border border-slate-300 p-2 font-mono" x-text="it.kode"></td>
+                            <td class="border border-slate-300 p-2 font-medium" x-text="it.nama"></td>
                             <td class="border border-slate-300 p-2 text-center font-bold" x-text="it.qty"></td>
                         </tr>
                     </template>
@@ -1193,47 +1186,10 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                 newItemBarang: '',
                 newItemQty: 1,
 
-                showToast(message, type = 'info') {
-                    const id = Date.now();
-                    this.toasts.push({ id, message, type });
-                    setTimeout(() => {
-                        this.toasts = this.toasts.filter(toast => toast.id !== id);
-                    }, 3000);
-                },
-
-                // FITUR PERBAIKAN: Fungsi addItemToTransaction ditambahkan ke sini
-                addItemToTransaction() {
-                    if (!this.newItemBarang) {
-                        this.showToast('Pilih barang terlebih dahulu!', 'error');
-                        return;
-                    }
-                    if (!this.newItemQty || this.newItemQty <= 0) {
-                        this.showToast('Jumlah (Qty) harus lebih dari 0!', 'error');
-                        return;
-                    }
-
-                    const selectedItem = this.barangList.find(b => b.kode === this.newItemBarang);
-                    if (selectedItem) {
-                        // Cek apakah barang sudah ada di keranjang transaksi
-                        const existingIndex = this.newTransaction.items.findIndex(item => item.kode === this.newItemBarang);
-                        if(existingIndex !== -1) {
-                            // Jika sudah ada, cukup tambahkan kuantitasnya
-                            this.newTransaction.items[existingIndex].qty += parseInt(this.newItemQty);
-                        } else {
-                            // Jika belum ada, push sebagai item baru
-                            this.newTransaction.items.push({
-                                kode: selectedItem.kode,
-                                nama: selectedItem.nama,
-                                qty: parseInt(this.newItemQty)
-                            });
-                        }
-                        
-                        // Reset form input item
-                        this.newItemBarang = '';
-                        this.newItemQty = 1;
-                        this.showToast('Barang berhasil ditambahkan ke daftar transaksi.', 'success');
-                    }
-                },
+                modalBarang: { kode: '', nama: '', kategori: '', jenis: '', satuan: '' },
+                modalGudang: { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' },
+                modalProject: { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: '', statusSnd: '', statusProject: '', statusDoc: '' },
+                modalTransaction: { noDocument: '', tanggal: '', noTodo: '', tipe: 'Keluar', gudangAsal: '-', gudangTujuan: '-', kodeProject: '-', petugas: '', disetujui: '', diketahui: '', keterangan: '', items: [], status: 'Pending' },
 
                 async init() {
                     this.supabaseClient = supabase.createClient(this.supabaseUrl, this.supabaseKey);
@@ -1542,18 +1498,6 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                     }, 300);
                 },
 
-                // Fungsi Print Preview / Cetak PDF khusus dari Data Transaksi dengan validasi status Approved
-                printSpecificTransaction(trx) {
-                    if (trx.status !== 'Approved') {
-                        this.showToast(`Transaksi ${trx.noDocument} belum di-approve! Hanya transaksi berstatus Approved yang dapat dicetak.`, 'error');
-                        return;
-                    }
-                    this.newTransaction = { ...trx };
-                    this.$nextTick(() => {
-                        this.printTransaction();
-                    });
-                },
-
                 exportToExcel(tableId, filename = 'laporan.csv') {
                     let table = document.getElementById(tableId);
                     if (!table) {
@@ -1744,52 +1688,77 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                     return this.transactionList.filter(t => t.noDocument.toLowerCase().includes(this.searchTransaction.toLowerCase()) || t.noTodo.toLowerCase().includes(this.searchTransaction.toLowerCase()));
                 },
 
+                get totalPagesBarang() { return Math.ceil(this.filteredBarang.length / this.perPageBarang) || 1; },
                 get paginatedBarang() {
+                    if (this.pageBarang > this.totalPagesBarang) this.pageBarang = this.totalPagesBarang;
                     let start = (this.pageBarang - 1) * this.perPageBarang;
                     return this.filteredBarang.slice(start, start + this.perPageBarang);
                 },
-                get totalPagesBarang() {
-                    return Math.ceil(this.filteredBarang.length / this.perPageBarang) || 1;
-                },
 
+                get totalPagesGudang() { return Math.ceil(this.filteredGudangList.length / this.perPageGudang) || 1; },
                 get paginatedGudangList() {
+                    if (this.pageGudang > this.totalPagesGudang) this.pageGudang = this.totalPagesGudang;
                     let start = (this.pageGudang - 1) * this.perPageGudang;
                     return this.filteredGudangList.slice(start, start + this.perPageGudang);
                 },
-                get totalPagesGudang() {
-                    return Math.ceil(this.filteredGudangList.length / this.perPageGudang) || 1;
-                },
 
+                get totalPagesProject() { return Math.ceil(this.filteredProjectList.length / this.perPageProject) || 1; },
                 get paginatedProjectList() {
+                    if (this.pageProject > this.totalPagesProject) this.pageProject = this.totalPagesProject;
                     let start = (this.pageProject - 1) * this.perPageProject;
                     return this.filteredProjectList.slice(start, start + this.perPageProject);
                 },
-                get totalPagesProject() {
-                    return Math.ceil(this.filteredProjectList.length / this.perPageProject) || 1;
-                },
 
+                get totalPagesStokGudang() { return Math.ceil(this.filteredStokGudang.length / this.perPageStokGudang) || 1; },
                 get paginatedStokGudang() {
+                    if (this.pageStokGudang > this.totalPagesStokGudang) this.pageStokGudang = this.totalPagesStokGudang;
                     let start = (this.pageStokGudang - 1) * this.perPageStokGudang;
                     return this.filteredStokGudang.slice(start, start + this.perPageStokGudang);
                 },
-                get totalPagesStokGudang() {
-                    return Math.ceil(this.filteredStokGudang.length / this.perPageStokGudang) || 1;
-                },
 
+                get totalPagesProjectUsage() { return Math.ceil(this.filteredProjectUsage.length / this.perPageProjectUsage) || 1; },
                 get paginatedProjectUsage() {
+                    if (this.pageProjectUsage > this.totalPagesProjectUsage) this.pageProjectUsage = this.totalPagesProjectUsage;
                     let start = (this.pageProjectUsage - 1) * this.perPageProjectUsage;
                     return this.filteredProjectUsage.slice(start, start + this.perPageProjectUsage);
                 },
-                get totalPagesProjectUsage() {
-                    return Math.ceil(this.filteredProjectUsage.length / this.perPageProjectUsage) || 1;
-                },
 
+                get totalPagesTransaction() { return Math.ceil(this.filteredTransactionList.length / this.perPageTransaction) || 1; },
                 get paginatedTransactionList() {
+                    if (this.pageTransaction > this.totalPagesTransaction) this.pageTransaction = this.totalPagesTransaction;
                     let start = (this.pageTransaction - 1) * this.perPageTransaction;
                     return this.filteredTransactionList.slice(start, start + this.perPageTransaction);
                 },
-                get totalPagesTransaction() {
-                    return Math.ceil(this.filteredTransactionList.length / this.perPageTransaction) || 1;
+
+                showToast(message, type = 'success') {
+                    let id = Date.now();
+                    this.toasts.push({ id, message, type });
+                    setTimeout(() => {
+                        this.toasts = this.toasts.filter(t => t.id !== id);
+                    }, 3500);
+                },
+
+                addItemToTransaction() {
+                    if(!this.newItemBarang) {
+                        this.showToast('Pilih barang terlebih dahulu!', 'error');
+                        return;
+                    }
+                    if(this.newItemQty < 1) {
+                        this.showToast('Jumlah qty minimal 1!', 'error');
+                        return;
+                    }
+                    let b = this.barangList.find(x => x.kode === this.newItemBarang);
+                    if(b) {
+                        let existing = this.newTransaction.items.find(x => x.kode === b.kode);
+                        if(existing) {
+                            existing.qty += this.newItemQty;
+                        } else {
+                            this.newTransaction.items.push({ kode: b.kode, nama: b.nama, qty: this.newItemQty });
+                        }
+                        this.newItemBarang = '';
+                        this.newItemQty = 1;
+                        this.showToast('Item berhasil ditambahkan ke transaksi.', 'success');
+                    }
                 }
             }
         }
