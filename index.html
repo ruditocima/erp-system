@@ -24,12 +24,9 @@
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
-        /* TAMBAHAN UNTUK SURAT JALAN & BSTM */
         @media print {
             body { background-color: white !important; margin: 0; padding: 0; }
-            /* Sembunyikan seluruh tampilan aplikasi saat print */
             body > div:not(#printable-surat-jalan) { display: none !important; }
-            /* Tampilkan HANYA form surat jalan saat print */
             #printable-surat-jalan { 
                 display: block !important; 
                 width: 100%; 
@@ -88,7 +85,7 @@
             </form>
             
             <div class="mt-6 border-t border-slate-100 pt-4 text-center text-slate-400 text-2xs">
-                Terhubung dengan Supabase (Free Tier) & Frontend GitHub Pages
+                Enterprise WMS with Real Approval Workflow
             </div>
         </div>
     </div>
@@ -110,7 +107,7 @@
                 <div class="flex items-center space-x-4">
                     <div class="hidden sm:flex items-center space-x-1.5 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700 text-2xs">
                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span class="text-slate-300">Supabase Connected (Free Tier)</span>
+                        <span class="text-slate-300">Live System Active</span>
                     </div>
 
                     <div class="flex items-center space-x-2 border-l border-slate-700 pl-4">
@@ -129,10 +126,11 @@
                 <template x-for="tab in tabs" :key="tab.id">
                     <button @click="activeTab = tab.id; $nextTick(() => lucide.createIcons())"
                         :class="activeTab === tab.id ? 'bg-indigo-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-800 hover:text-white'"
-                        class="px-3 py-2 transition-colors whitespace-nowrap flex items-center space-x-1.5 border-b-2"
+                        class="px-3 py-2 transition-colors whitespace-nowrap flex items-center space-x-1.5 border-b-2 relative"
                         :style="activeTab === tab.id ? 'border-color: #818cf8;' : 'border-color: transparent;'">
                         <i :data-lucide="tab.icon" class="w-3.5 h-3.5"></i>
                         <span x-text="tab.name"></span>
+                        <span x-show="tab.id === 'approval_transaksi' && pendingCount > 0" class="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full text-3xs px-1.5 py-0.2 font-bold animate-pulse" x-text="pendingCount"></span>
                     </button>
                 </template>
             </nav>
@@ -189,7 +187,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <!-- Paginasi Footer -->
                     <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
                         <div class="flex items-center space-x-2">
                             <span>Tampilkan</span>
@@ -261,7 +258,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <!-- Paginasi Footer -->
                     <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
                         <div class="flex items-center space-x-2">
                             <span>Tampilkan</span>
@@ -352,7 +348,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <!-- Paginasi Footer -->
                     <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
                         <div class="flex items-center space-x-2">
                             <span>Tampilkan</span>
@@ -379,7 +374,7 @@
                     <div class="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
                         <div>
                             <h2 class="font-bold text-slate-800 text-sm">Form Input Transaksi Gudang</h2>
-                            <p class="text-slate-500 text-2xs">Catat pergerakan material keluar, masuk, atau transfer antar gudang/project. (Dilengkapi Validasi Stok & Sinkronisasi Otomatis)</p>
+                            <p class="text-slate-500 text-2xs">Transaksi baru akan berstatus <span class="font-bold text-amber-600">Pending Approval</span> dan baru akan memotong/menambah stok setelah disetujui oleh Approver.</p>
                         </div>
                         <span class="bg-indigo-50 text-indigo-600 font-mono px-2.5 py-1 rounded-lg text-xs" x-text="newTransaction.noDocument"></span>
                     </div>
@@ -488,7 +483,7 @@
                             </div>
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">Disetujui Oleh</label>
-                                <input type="text" x-model="newTransaction.disetujui" placeholder="Nama Approver" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                <input type="text" x-model="newTransaction.disetujui" placeholder="Diisi otomatis saat Approve" readonly class="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 rounded-lg text-xs text-slate-500">
                             </div>
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">Diketahui Oleh</label>
@@ -507,10 +502,90 @@
                                 <span>Print PDF / Cetak</span>
                             </button>
                             <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
-                                Simpan Transaksi
+                                Ajukan Transaksi (Pending Approval)
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- APPROVAL TRANSAKSI (NEW TAB) -->
+            <div x-show="activeTab === 'approval_transaksi'" class="space-y-4">
+                <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Pusat Persetujuan Transaksi (Approval Hub)</h2>
+                        <p class="text-slate-500 text-2xs">Setujui atau tolak transaksi yang masuk. Stok gudang akan otomatis diperbarui hanya setelah transaksi disetujui oleh Approver/Admin.</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg font-medium text-2xs">
+                            Pending: <span class="font-bold" x-text="pendingCount"></span> transaksi
+                        </span>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">No Document</th>
+                                    <th class="p-3">Tanggal & TO-DO</th>
+                                    <th class="p-3">Tipe</th>
+                                    <th class="p-3">Rute (Asal → Tujuan)</th>
+                                    <th class="p-3">Pemohon</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3 text-right">Aksi Approval</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="trx in transactionList" :key="trx.noDocument">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-bold text-indigo-600" x-text="trx.noDocument"></td>
+                                        <td class="p-3">
+                                            <div class="text-slate-800 font-medium" x-text="trx.tanggal"></div>
+                                            <div class="text-slate-400 text-2xs font-mono" x-text="trx.noTodo"></div>
+                                        </td>
+                                        <td class="p-3">
+                                            <span class="px-2 py-0.5 rounded font-medium text-2xs"
+                                                  :class="trx.tipe === 'Masuk' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.tipe === 'Keluar' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200')"
+                                                  x-text="trx.tipe"></span>
+                                        </td>
+                                        <td class="p-3 text-slate-700">
+                                            <span x-text="trx.gudangAsal"></span> → <span x-text="trx.gudangTujuan"></span>
+                                        </td>
+                                        <td class="p-3 text-slate-700 font-medium" x-text="trx.petugas"></td>
+                                        <td class="p-3">
+                                            <span class="px-2 py-0.5 rounded font-bold text-2xs uppercase tracking-wider"
+                                                  :class="trx.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.status === 'Rejected' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse')"
+                                                  x-text="trx.status"></span>
+                                        </td>
+                                        <td class="p-3 text-right space-x-1">
+                                            <template x-if="trx.status === 'Pending'">
+                                                <div class="inline-flex space-x-1">
+                                                    <button @click="approveTransaction(trx)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded font-medium text-2xs shadow-xs transition-colors flex items-center space-x-1">
+                                                        <i data-lucide="check" class="w-3 h-3"></i>
+                                                        <span>Setujui</span>
+                                                    </button>
+                                                    <button @click="rejectTransaction(trx)" class="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded font-medium text-2xs shadow-xs transition-colors flex items-center space-x-1">
+                                                        <i data-lucide="x" class="w-3 h-3"></i>
+                                                        <span>Tolak</span>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            <template x-if="trx.status !== 'Pending'">
+                                                <span class="text-slate-400 text-2xs italic font-medium" x-text="`Oleh: ${trx.disetujui}`"></span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="transactionList.length === 0">
+                                    <tr>
+                                        <td colspan="7" class="p-6 text-center text-slate-400">Belum ada transaksi yang diajukan.</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -519,7 +594,7 @@
                 <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                         <h2 class="font-bold text-slate-800 text-sm">Stok Gudang</h2>
-                        <p class="text-slate-500 text-2xs">Pilih gudang untuk melihat ketersediaan material secara real-time.</p>
+                        <p class="text-slate-500 text-2xs">Pilih gudang untuk melihat ketersediaan material secara real-time (Hanya terupdate setelah Approved).</p>
                     </div>
                     <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
                         <select x-model="selectedGudangFilter" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-48">
@@ -564,7 +639,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <!-- Paginasi Footer -->
                     <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
                         <div class="flex items-center space-x-2">
                             <span>Tampilkan</span>
@@ -633,7 +707,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <!-- Paginasi Footer -->
                     <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
                         <div class="flex items-center space-x-2">
                             <span>Tampilkan</span>
@@ -659,7 +732,7 @@
                 <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                         <h2 class="font-bold text-slate-800 text-sm">Data Transaksi Gudang</h2>
-                        <p class="text-slate-500 text-2xs">Riwayat lengkap seluruh transaksi masuk, keluar, dan transfer material.</p>
+                        <p class="text-slate-500 text-2xs">Riwayat lengkap seluruh transaksi masuk, keluar, transfer, dan status approval.</p>
                     </div>
                     <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
                         <input type="text" x-model="searchTransaction" placeholder="Cari No Dokumen / TO-DO..." class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-48 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
@@ -680,8 +753,8 @@
                                     <th class="p-3">Tipe</th>
                                     <th class="p-3">Rute (Asal → Tujuan)</th>
                                     <th class="p-3">Project</th>
-                                    <th class="p-3">Petugas</th>
-                                    <th class="p-3">Approval</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3">Disetujui Oleh</th>
                                     <th class="p-3 text-right">Aksi</th>
                                 </tr>
                             </thead>
@@ -702,13 +775,14 @@
                                             <span x-text="trx.gudangAsal"></span> → <span x-text="trx.gudangTujuan"></span>
                                         </td>
                                         <td class="p-3 font-mono text-slate-600" x-text="trx.kodeProject"></td>
-                                        <td class="p-3 text-slate-700" x-text="trx.petugas"></td>
                                         <td class="p-3">
-                                            <div class="text-slate-700">Disetujui: <span class="font-medium" x-text="trx.disetujui || '-'"></span></div>
-                                            <div class="text-slate-400 text-2xs">Diketahui: <span x-text="trx.diketahui || '-'"></span></div>
+                                            <span class="px-2 py-0.5 rounded font-bold text-2xs uppercase tracking-wider"
+                                                  :class="trx.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.status === 'Rejected' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200')"
+                                                  x-text="trx.status"></span>
                                         </td>
+                                        <td class="p-3 text-slate-700 font-medium" x-text="trx.disetujui || '-'"></td>
                                         <td class="p-3 text-right space-x-1">
-                                            <button @click="editTransaction(trx)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Transaksi"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="editTransaction(trx)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Catatan"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
                                             <button @click="deleteTransaction(trx.noDocument)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Transaksi"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
@@ -716,7 +790,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <!-- Paginasi Footer -->
                     <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
                         <div class="flex items-center space-x-2">
                             <span>Tampilkan</span>
@@ -785,10 +858,6 @@ CREATE TABLE master_project (
     status_doc VARCHAR(50)
 );
                         </pre>
-                    </div>
-                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <h3 class="font-bold text-slate-900 mb-1">2. Integrasi ke Frontend</h3>
-                        <p class="text-slate-600">Impor skrip klien Supabase CDN pada bagian `<head>` dan inisialisasi menggunakan URL serta Anon Key project Anda.</p>
                     </div>
                 </div>
             </div>
@@ -933,10 +1002,6 @@ CREATE TABLE master_project (
                     <input type="text" x-model="modalTransaction.noDocument" readonly class="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 rounded-lg text-xs text-slate-600">
                 </div>
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Disetujui Oleh</label>
-                    <input type="text" x-model="modalTransaction.disetujui" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
-                </div>
-                <div>
                     <label class="block font-medium text-slate-700 mb-1">Diketahui Oleh</label>
                     <input type="text" x-model="modalTransaction.diketahui" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs">
                 </div>
@@ -1057,7 +1122,6 @@ CREATE TABLE master_project (
                 selectedGudangFilter: '',
                 selectedProjectFilter: '',
 
-                // PAGINATION STATES (Paginasi)
                 pageBarang: 1, perPageBarang: 10,
                 pageGudang: 1, perPageGudang: 10,
                 pageProject: 1, perPageProject: 10,
@@ -1080,6 +1144,7 @@ CREATE TABLE master_project (
                     { id: 'master_gudang', name: 'Master Gudang', icon: 'warehouse' },
                     { id: 'master_project', name: 'Master Project', icon: 'briefcase' },
                     { id: 'input_transaksi', name: 'Input Transaksi', icon: 'file-text' },
+                    { id: 'approval_transaksi', name: 'Approval Transaksi', icon: 'check-square' },
                     { id: 'stok_gudang', name: 'Stok Gudang', icon: 'layers' },
                     { id: 'stok_project', name: 'Material Usage', icon: 'pie-chart' },
                     { id: 'data_transaksi', name: 'Data Transaksi', icon: 'database' },
@@ -1102,7 +1167,23 @@ CREATE TABLE master_project (
                     { gudang: 'Gudang Utama Pekanbaru', kodeBarang: 'MAT-FIB-002', namaBarang: 'Optical Distribution Box (ODB) 16C', qty: 4 }
                 ],
                 projectUsageList: [],
-                transactionList: [],
+                transactionList: [
+                    {
+                        noDocument: 'TRX-2026-999',
+                        tanggal: new Date().toISOString().split('T')[0],
+                        noTodo: 'TODO-2026-001',
+                        tipe: 'Masuk',
+                        gudangAsal: '-',
+                        gudangTujuan: 'Gudang Utama Pekanbaru',
+                        kodeProject: '-',
+                        petugas: 'Requester Demo',
+                        disetujui: 'Admin (System)',
+                        diketahui: 'Manager',
+                        keterangan: 'Contoh transaksi ter-approve awal',
+                        items: [{ kode: 'MAT-FIB-002', nama: 'Optical Distribution Box (ODB) 16C', qty: 2 }],
+                        status: 'Approved'
+                    }
+                ],
 
                 newTransaction: {
                     noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
@@ -1116,7 +1197,8 @@ CREATE TABLE master_project (
                     disetujui: '',
                     diketahui: '',
                     keterangan: '',
-                    items: []
+                    items: [],
+                    status: 'Pending'
                 },
                 newItemBarang: '',
                 newItemQty: 1,
@@ -1124,7 +1206,7 @@ CREATE TABLE master_project (
                 modalBarang: { kode: '', nama: '', kategori: '', jenis: '', satuan: '' },
                 modalGudang: { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' },
                 modalProject: { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: '', statusSnd: '', statusProject: '', statusDoc: '' },
-                modalTransaction: { noDocument: '', tanggal: '', noTodo: '', tipe: 'Keluar', gudangAsal: '-', gudangTujuan: '-', kodeProject: '-', petugas: '', disetujui: '', diketahui: '', keterangan: '', items: [] },
+                modalTransaction: { noDocument: '', tanggal: '', noTodo: '', tipe: 'Keluar', gudangAsal: '-', gudangTujuan: '-', kodeProject: '-', petugas: '', disetujui: '', diketahui: '', keterangan: '', items: [], status: 'Pending' },
 
                 login() {
                     if(!this.username) {
@@ -1141,7 +1223,10 @@ CREATE TABLE master_project (
                     this.showToast('Anda telah keluar dari sistem.', 'info');
                 },
 
-                // FILTER GETTERS
+                get pendingCount() {
+                    return this.transactionList.filter(t => t.status === 'Pending').length;
+                },
+
                 get filteredBarang() {
                     if(!this.searchBarang) return this.barangList;
                     return this.barangList.filter(b => b.kode.toLowerCase().includes(this.searchBarang.toLowerCase()) || b.nama.toLowerCase().includes(this.searchBarang.toLowerCase()));
@@ -1167,7 +1252,6 @@ CREATE TABLE master_project (
                     return this.transactionList.filter(t => t.noDocument.toLowerCase().includes(this.searchTransaction.toLowerCase()) || t.noTodo.toLowerCase().includes(this.searchTransaction.toLowerCase()));
                 },
 
-                // PAGINATED GETTERS & TOTAL PAGES (Dilengkapi Auto-Clamping agar tidak kosong saat filter)
                 get totalPagesBarang() { return Math.ceil(this.filteredBarang.length / this.perPageBarang) || 1; },
                 get paginatedBarang() {
                     if (this.pageBarang > this.totalPagesBarang) this.pageBarang = this.totalPagesBarang;
@@ -1241,6 +1325,7 @@ CREATE TABLE master_project (
                     }
                 },
 
+                // SUBMIT: HANYA MENYIMPAN TRANSAKSI DENGAN STATUS PENDING (BELUM POTONG/TAMBAH STOK)
                 submitTransaction() {
                     if(this.newTransaction.items.length === 0) {
                         this.showToast('Tambahkan minimal 1 item barang!', 'error');
@@ -1261,13 +1346,46 @@ CREATE TABLE master_project (
                         }
                     }
 
-                    if(this.newTransaction.tipe === 'Keluar' || this.newTransaction.tipe === 'Transfer') {
-                        let gudangCek = this.newTransaction.gudangAsal;
-                        if(gudangCek === '-') {
-                            this.showToast('Gudang Asal harus ditentukan untuk transaksi Keluar!', 'error');
-                            return;
-                        }
-                        for(let it of this.newTransaction.items) {
+                    let trxCopy = JSON.parse(JSON.stringify(this.newTransaction));
+                    trxCopy.status = 'Pending';
+                    trxCopy.disetujui = '';
+                    this.transactionList.unshift(trxCopy);
+
+                    this.showToast('Transaksi berhasil diajukan dengan status Pending Approval!', 'success');
+                    this.newTransaction = {
+                        noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
+                        tanggal: new Date().toISOString().split('T')[0],
+                        noTodo: '',
+                        tipe: 'Masuk',
+                        gudangAsal: '-',
+                        gudangTujuan: 'Gudang Utama Pekanbaru',
+                        kodeProject: '-',
+                        petugas: this.username,
+                        disetujui: '',
+                        diketahui: '',
+                        keterangan: '',
+                        items: [],
+                        status: 'Pending'
+                    };
+                    this.activeTab = 'approval_transaksi';
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                // APPROVAL: DIJALANKAN OLEH APPROVER / ADMIN UNTUK MEMPROSES STOK GUDANG
+                approveTransaction(trx) {
+                    if (this.role !== 'Approver' && this.role !== 'Admin') {
+                        this.showToast('Hanya akun dengan role Approver atau Admin yang dapat menyetujui transaksi!', 'error');
+                        return;
+                    }
+                    if (trx.status !== 'Pending') {
+                        this.showToast('Transaksi ini sudah diproses sebelumnya!', 'error');
+                        return;
+                    }
+
+                    // Validasi stok jika Keluar atau Transfer
+                    if(trx.tipe === 'Keluar' || trx.tipe === 'Transfer') {
+                        let gudangCek = trx.gudangAsal;
+                        for(let it of trx.items) {
                             let stokRecord = this.stokGudangList.find(s => s.gudang === gudangCek && s.kodeBarang === it.kode);
                             let currentQty = stokRecord ? stokRecord.qty : 0;
                             if(currentQty < it.qty) {
@@ -1277,14 +1395,11 @@ CREATE TABLE master_project (
                         }
                     }
 
-                    // PROSES SIMPAN TRANSAKSI & UPDATE STOK
-                    let trxCopy = JSON.parse(JSON.stringify(this.newTransaction));
-                    this.transactionList.unshift(trxCopy);
-
-                    if(this.newTransaction.tipe === 'Masuk') {
-                        let gTujuan = this.newTransaction.gudangTujuan;
+                    // Eksekusi penambahan / pengurangan stok
+                    if(trx.tipe === 'Masuk') {
+                        let gTujuan = trx.gudangTujuan;
                         if(gTujuan !== '-') {
-                            this.newTransaction.items.forEach(it => {
+                            trx.items.forEach(it => {
                                 let s = this.stokGudangList.find(x => x.gudang === gTujuan && x.kodeBarang === it.kode);
                                 if(s) {
                                     s.qty += it.qty;
@@ -1294,26 +1409,26 @@ CREATE TABLE master_project (
                                 }
                             });
                         }
-                    } else if(this.newTransaction.tipe === 'Keluar') {
-                        let gAsal = this.newTransaction.gudangAsal;
-                        this.newTransaction.items.forEach(it => {
+                    } else if(trx.tipe === 'Keluar') {
+                        let gAsal = trx.gudangAsal;
+                        trx.items.forEach(it => {
                             let s = this.stokGudangList.find(x => x.gudang === gAsal && x.kodeBarang === it.kode);
                             if(s) s.qty -= it.qty;
                             
                             let b = this.barangList.find(x => x.kode === it.kode);
                             this.projectUsageList.unshift({
-                                kodeProject: this.newTransaction.kodeProject,
-                                noDocument: this.newTransaction.noDocument,
+                                kodeProject: trx.kodeProject,
+                                noDocument: trx.noDocument,
                                 kodeBarang: it.kode,
                                 namaBarang: b ? b.nama : it.nama,
                                 qty: it.qty,
-                                tanggal: this.newTransaction.tanggal
+                                tanggal: trx.tanggal
                             });
                         });
-                    } else if(this.newTransaction.tipe === 'Transfer') {
-                        let gAsal = this.newTransaction.gudangAsal;
-                        let gTujuan = this.newTransaction.gudangTujuan;
-                        this.newTransaction.items.forEach(it => {
+                    } else if(trx.tipe === 'Transfer') {
+                        let gAsal = trx.gudangAsal;
+                        let gTujuan = trx.gudangTujuan;
+                        trx.items.forEach(it => {
                             let sAsal = this.stokGudangList.find(x => x.gudang === gAsal && x.kodeBarang === it.kode);
                             if(sAsal) sAsal.qty -= it.qty;
 
@@ -1327,22 +1442,24 @@ CREATE TABLE master_project (
                         });
                     }
 
-                    this.showToast('Transaksi berhasil disimpan & stok gudang diperbarui!', 'success');
-                    this.newTransaction = {
-                        noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
-                        tanggal: new Date().toISOString().split('T')[0],
-                        noTodo: '',
-                        tipe: 'Masuk',
-                        gudangAsal: '-',
-                        gudangTujuan: 'Gudang Utama Pekanbaru',
-                        kodeProject: '-',
-                        petugas: this.username,
-                        disetujui: '',
-                        diketahui: '',
-                        keterangan: '',
-                        items: []
-                    };
-                    this.activeTab = 'data_transaksi';
+                    trx.status = 'Approved';
+                    trx.disetujui = this.username;
+                    this.showToast(`Transaksi ${trx.noDocument} berhasil disetujui & stok gudang diperbarui!`, 'success');
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                rejectTransaction(trx) {
+                    if (this.role !== 'Approver' && this.role !== 'Admin') {
+                        this.showToast('Hanya akun dengan role Approver atau Admin yang dapat menolak transaksi!', 'error');
+                        return;
+                    }
+                    if (trx.status !== 'Pending') {
+                        this.showToast('Transaksi ini sudah diproses sebelumnya!', 'error');
+                        return;
+                    }
+                    trx.status = 'Rejected';
+                    trx.disetujui = this.username + ' (Ditolak)';
+                    this.showToast(`Transaksi ${trx.noDocument} telah ditolak.`, 'info');
                     this.$nextTick(() => lucide.createIcons());
                 },
 
@@ -1378,7 +1495,7 @@ CREATE TABLE master_project (
                     document.body.appendChild(downloadLink);
                     downloadLink.click();
                     document.body.removeChild(downloadLink);
-                    this.showToast('Data berhasil diexport ke file CSV yang stabil!', 'success');
+                    this.showToast('Data berhasil diexport ke file CSV!', 'success');
                 },
 
                 openModal(type) {
@@ -1529,10 +1646,9 @@ CREATE TABLE master_project (
                 saveTransaction() {
                     let idx = this.transactionList.findIndex(t => t.noDocument === this.modalTransaction.noDocument);
                     if(idx !== -1) {
-                        this.transactionList[idx].disetujui = this.modalTransaction.disetujui;
                         this.transactionList[idx].diketahui = this.modalTransaction.diketahui;
                         this.transactionList[idx].keterangan = this.modalTransaction.keterangan;
-                        this.showToast('Transaksi berhasil diperbarui!', 'success');
+                        this.showToast('Catatan transaksi berhasil diperbarui!', 'success');
                     }
                     this.closeModal();
                 },
