@@ -1571,25 +1571,73 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                 },
 
                 async approveTransaction(trx) {
-                    if (this.role !== 'Approver' && this.role !== 'Admin') {
-                        this.showToast('Hanya Approver atau Admin yang dapat menyetujui transaksi!', 'error');
-                        return;
-                    }
+    if (this.role !== 'Approver' && this.role !== 'Admin') {
+        this.showToast('Hanya Approver atau Admin yang dapat menyetujui transaksi!', 'error');
+        return;
+    }
 
-                    let { error } = await this.supabaseClient
-                        .from('transactions')
-                        .update({ status: 'Approved', disetujui: this.username })
-                        .eq('no_document', trx.noDocument);
+    // 1. Update status transaksi menjadi Approved
+    let { error } = await this.supabaseClient
+        .from('transactions')
+        .update({ status: 'Approved', disetujui: this.username })
+        .eq('no_document', trx.noDocument);
 
-                    if (error) {
-                        this.showToast('Gagal menyetujui transaksi.', 'error');
-                        return;
-                    }
+    if (error) {
+        this.showToast('Gagal menyetujui transaksi: ' + error.message, 'error');
+        return;
+    }
 
-                    this.showToast(`Transaksi ${trx.noDocument} berhasil disetujui dan stok diperbarui!`, 'success');
-                    await this.loadAllData();
-                },
+    // 2. Loop setiap item untuk memperbarui stok gudang secara otomatis
+    for (let it of trx.items) {
+        let qty = it.qty;
+        let kodeBarang = it.kode_barang || it.kode;
+        let namaBarang = it.nama_barang || it.nama;
 
+        if (trx.tipe === 'Masuk') {
+            await this.updateStokGudang(trx.gudangTujuan, kodeBarang, namaBarang, qty, 'tambah');
+        } else if (trx.tipe === 'Keluar') {
+            await this.updateStokGudang(trx.gudangAsal, kodeBarang, namaBarang, qty, 'kurang');
+        } else if (trx.tipe === 'Transfer') {
+            await this.updateStokGudang(trx.gudangAsal, kodeBarang, namaBarang, qty, 'kurang');
+            await this.updateStokGudang(trx.gudangTujuan, kodeBarang, namaBarang, qty, 'tambah');
+        }
+    }
+
+    this.showToast(`Transaksi ${trx.noDocument} disetujui dan stok gudang berhasil diperbarui!`, 'success');
+    await this.loadAllData();
+},
+
+// Helper function untuk memanipulasi stok di tabel stok_gudang
+async updateStokGudang(namaGudang, kodeBarang, namaBarang, qty, aksi) {
+    if (!namaGudang || namaGudang === '-') return;
+
+    let { data: existingStok } = await this.supabaseClient
+        .from('stok_gudang')
+        .select('*')
+        .eq('gudang', namaGudang)
+        .eq('kode_barang', kodeBarang)
+        .single();
+
+    let currentQty = existingStok ? existingStok.qty : 0;
+    let newQty = aksi === 'tambah' ? currentQty + qty : Math.max(0, currentQty - qty);
+
+    if (existingStok) {
+        await this.supabaseClient
+            .from('stok_gudang')
+            .update({ qty: newQty })
+            .eq('gudang', namaGudang)
+            .eq('kode_barang', kodeBarang);
+    } else {
+        await this.supabaseClient
+            .from('stok_gudang')
+            .insert([{
+                gudang: namaGudang,
+                kode_barang: kodeBarang,
+                nama_barang: namaBarang,
+                qty: newQty
+            }]);
+    }
+}
                 rejectTransaction(trx) {
                     if (this.role !== 'Approver' && this.role !== 'Admin') {
                         this.showToast('Hanya Approver atau Admin yang dapat menolak transaksi!', 'error');
