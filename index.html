@@ -1193,19 +1193,46 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                 newItemBarang: '',
                 newItemQty: 1,
 
-                modalBarang: { kode: '', nama: '', kategori: '', jenis: '', satuan: '' },
-                modalGudang: { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' },
-                modalProject: { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: '', statusSnd: '', statusProject: '', statusDoc: '' },
-                modalTransaction: { noDocument: '', tanggal: '', noTodo: '', tipe: 'Keluar', gudangAsal: '-', gudangTujuan: '-', kodeProject: '-', petugas: '', disetujui: '', diketahui: '', keterangan: '', items: [], status: 'Pending' },
-
-                // Perbaikan: Fungsi showToast ditambahkan di sini
                 showToast(message, type = 'info') {
                     const id = Date.now();
                     this.toasts.push({ id, message, type });
-                    // Hapus otomatis setelah 3 detik
                     setTimeout(() => {
                         this.toasts = this.toasts.filter(toast => toast.id !== id);
                     }, 3000);
+                },
+
+                // FITUR PERBAIKAN: Fungsi addItemToTransaction ditambahkan ke sini
+                addItemToTransaction() {
+                    if (!this.newItemBarang) {
+                        this.showToast('Pilih barang terlebih dahulu!', 'error');
+                        return;
+                    }
+                    if (!this.newItemQty || this.newItemQty <= 0) {
+                        this.showToast('Jumlah (Qty) harus lebih dari 0!', 'error');
+                        return;
+                    }
+
+                    const selectedItem = this.barangList.find(b => b.kode === this.newItemBarang);
+                    if (selectedItem) {
+                        // Cek apakah barang sudah ada di keranjang transaksi
+                        const existingIndex = this.newTransaction.items.findIndex(item => item.kode === this.newItemBarang);
+                        if(existingIndex !== -1) {
+                            // Jika sudah ada, cukup tambahkan kuantitasnya
+                            this.newTransaction.items[existingIndex].qty += parseInt(this.newItemQty);
+                        } else {
+                            // Jika belum ada, push sebagai item baru
+                            this.newTransaction.items.push({
+                                kode: selectedItem.kode,
+                                nama: selectedItem.nama,
+                                qty: parseInt(this.newItemQty)
+                            });
+                        }
+                        
+                        // Reset form input item
+                        this.newItemBarang = '';
+                        this.newItemQty = 1;
+                        this.showToast('Barang berhasil ditambahkan ke daftar transaksi.', 'success');
+                    }
                 },
 
                 async init() {
