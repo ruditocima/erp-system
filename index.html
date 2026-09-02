@@ -1905,5 +1905,380 @@ async approveTransaction(trx) {
             setTimeout(() => lucide.createIcons(), 200);
         });
     </script>
+    <!-- Script Inisialisasi Alpine.js WMS App -->
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('wmsApp', () => ({
+                isLoggedIn: false,
+                username: '',
+                role: 'Admin',
+                toasts: [],
+                activeTab: 'master_barang',
+                tabs: [
+                    { id: 'master_barang', name: 'Master Barang', icon: 'package' },
+                    { id: 'master_gudang', name: 'Master Gudang', icon: 'warehouse' },
+                    { id: 'master_project', name: 'Master Project', icon: 'briefcase' },
+                    { id: 'input_transaksi', name: 'Input Transaksi', icon: 'file-plus' },
+                    { id: 'approval_transaksi', name: 'Approval Hub', icon: 'check-circle' },
+                    { id: 'stok_gudang', name: 'Stok Gudang', icon: 'layers' },
+                    { id: 'stok_project', name: 'Material Usage', icon: 'activity' },
+                    { id: 'data_transaksi', name: 'Data Transaksi', icon: 'database' },
+                    { id: 'supabase_setup', name: 'Supabase Setup', icon: 'server' }
+                ],
+                
+                // Master Barang
+                searchBarang: '',
+                pageBarang: 1,
+                perPageBarang: 10,
+                barangList: [
+                    { kode: 'MAT-FIB-001', nama: 'Drop Cable 1 Core', kategori: 'Fiber Optic', jenis: 'Cable', satuan: 'Roll' },
+                    { kode: 'MAT-FIB-002', nama: 'Splicer Machine Fujikura', kategori: 'Tools', jenis: 'Equipment', satuan: 'Unit' }
+                ],
+                
+                // Master Gudang
+                searchGudang: '',
+                pageGudang: 1,
+                perPageGudang: 10,
+                gudangList: [
+                    { kode: 'WH-PKU-01', nama: 'Gudang Utama Pekanbaru', tipe: 'Perusahaan Sendiri', lokasi: 'Jl. Soekarno Hatta No. 12', pic: 'Rudi Batubara' },
+                    { kode: 'WH-PDG-01', nama: 'Gudang Regional Padang', tipe: 'Perusahaan Sendiri', lokasi: 'Jl. Bypass Padang', pic: 'Ahmad' }
+                ],
+
+                // Master Project
+                searchProject: '',
+                pageProject: 1,
+                perPageProject: 10,
+                projectList: [
+                    { kodeProject: 'PRJ-FTTH-01', periode: '2025/2026', type: 'FTTH Rollout', region: 'Pekanbaru', noPrPo: 'PO-2025-001', poPlan: '100 Unit', poFinal: '95 Unit', statusPo: 'Approved', permit: 'Clear', statusSnd: 'Done', statusProject: 'On Progress', statusDoc: 'Complete' }
+                ],
+
+                // Transaksi & Approval
+                newTransaction: {
+                    noDocument: 'TRX-2026-001',
+                    tanggal: new Date().toISOString().split('T')[0],
+                    noTodo: '',
+                    tipe: 'Masuk',
+                    gudangAsal: '-',
+                    gudangTujuan: 'Gudang Utama Pekanbaru',
+                    kodeProject: 'PRJ-FTTH-01',
+                    items: [],
+                    petugas: '',
+                    disetujui: '',
+                    diketahui: '',
+                    keterangan: ''
+                },
+                newItemBarang: '',
+                newItemQty: 1,
+                transactionList: [],
+                
+                // Stok Gudang
+                selectedGudangFilter: '',
+                pageStokGudang: 1,
+                perPageStokGudang: 10,
+
+                // Stok Project / Usage
+                selectedProjectFilter: '',
+                pageProjectUsage: 1,
+                perPageProjectUsage: 10,
+
+                // Data Transaksi & Search
+                searchTransaction: '',
+                pageTransaction: 1,
+                perPageTransaction: 10,
+
+                // Modal State
+                isModalOpen: false,
+                modalTitle: '',
+                modalType: '',
+                isEditMode: false,
+                modalBarang: { kode: '', nama: '', kategori: '', jenis: '', satuan: '' },
+                isEditGudangMode: false,
+                modalGudang: { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' },
+                modalProject: { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Pending', permit: '', statusSnd: '', statusProject: '', statusDoc: '' },
+
+                init() {
+                    this.newTransaction.petugas = this.username || 'Petugas WMS';
+                },
+
+                login() {
+                    if (!this.username) {
+                        this.showToast('Masukkan nama pengguna!', 'error');
+                        return;
+                    }
+                    this.isLoggedIn = true;
+                    this.newTransaction.petugas = this.username;
+                    this.showToast(`Selamat datang, ${this.username} (${this.role})`, 'success');
+                    setTimeout(() => { if(window.lucide) lucide.createIcons(); }, 100);
+                },
+
+                logout() {
+                    this.isLoggedIn = false;
+                    this.username = '';
+                    this.showToast('Berhasil keluar sistem.', 'info');
+                },
+
+                showToast(message, type = 'success') {
+                    const id = Date.now();
+                    this.toasts.push({ id, message, type });
+                    setTimeout(() => {
+                        this.toasts = this.toasts.filter(t => t.id !== id);
+                    }, 3000);
+                    setTimeout(() => { if(window.lucide) lucide.createIcons(); }, 50);
+                },
+
+                get pendingCount() {
+                    return this.transactionList.filter(t => t.status === 'Pending').length;
+                },
+
+                // Filters & Pagination Getters
+                get filteredBarang() {
+                    return this.barangList.filter(b => 
+                        b.kode.toLowerCase().includes(this.searchBarang.toLowerCase()) || 
+                        b.nama.toLowerCase().includes(this.searchBarang.toLowerCase())
+                    );
+                },
+                get totalPagesBarang() { return Math.ceil(this.filteredBarang.length / this.perPageBarang) || 1; },
+                get paginatedBarang() {
+                    const start = (this.pageBarang - 1) * this.perPageBarang;
+                    return this.filteredBarang.slice(start, start + this.perPageBarang);
+                },
+
+                get filteredGudangList() {
+                    return this.gudangList.filter(g => 
+                        g.kode.toLowerCase().includes(this.searchGudang.toLowerCase()) || 
+                        g.nama.toLowerCase().includes(this.searchGudang.toLowerCase())
+                    );
+                },
+                get totalPagesGudang() { return Math.ceil(this.filteredGudangList.length / this.perPageGudang) || 1; },
+                get paginatedGudangList() {
+                    const start = (this.pageGudang - 1) * this.perPageGudang;
+                    return this.filteredGudangList.slice(start, start + this.perPageGudang);
+                },
+
+                get filteredProjectList() {
+                    return this.projectList.filter(p => 
+                        p.kodeProject.toLowerCase().includes(this.searchProject.toLowerCase()) || 
+                        p.noPrPo.toLowerCase().includes(this.searchProject.toLowerCase())
+                    );
+                },
+                get totalPagesProject() { return Math.ceil(this.filteredProjectList.length / this.perPageProject) || 1; },
+                get paginatedProjectList() {
+                    const start = (this.pageProject - 1) * this.perPageProject;
+                    return this.filteredProjectList.slice(start, start + this.perPageProject);
+                },
+
+                get filteredStokGudang() {
+                    let result = [];
+                    this.gudangList.forEach(g => {
+                        this.barangList.forEach(b => {
+                            result.push({ gudang: g.nama, kodeBarang: b.kode, namaBarang: b.nama, qty: 15 });
+                        });
+                    });
+                    if (this.selectedGudangFilter) {
+                        result = result.filter(s => s.gudang === this.selectedGudangFilter);
+                    }
+                    return result;
+                },
+                get totalPagesStokGudang() { return Math.ceil(this.filteredStokGudang.length / this.perPageStokGudang) || 1; },
+                get paginatedStokGudang() {
+                    const start = (this.pageStokGudang - 1) * this.perPageStokGudang;
+                    return this.filteredStokGudang.slice(start, start + this.perPageStokGudang);
+                },
+
+                get filteredProjectUsage() {
+                    let result = [];
+                    this.transactionList.filter(t => t.status === 'Approved').forEach(t => {
+                        t.items.forEach(it => {
+                            result.push({ kodeProject: t.kodeProject, noDocument: t.noDocument, kodeBarang: it.kode, namaBarang: it.nama, qty: it.qty, tanggal: t.tanggal });
+                        });
+                    });
+                    if (this.selectedProjectFilter) {
+                        result = result.filter(u => u.kodeProject === this.selectedProjectFilter);
+                    }
+                    return result;
+                },
+                get totalPagesProjectUsage() { return Math.ceil(this.filteredProjectUsage.length / this.perPageProjectUsage) || 1; },
+                get paginatedProjectUsage() {
+                    const start = (this.pageProjectUsage - 1) * this.perPageProjectUsage;
+                    return this.filteredProjectUsage.slice(start, start + this.perPageProjectUsage);
+                },
+
+                get filteredTransactionList() {
+                    return this.transactionList.filter(t => 
+                        t.noDocument.toLowerCase().includes(this.searchTransaction.toLowerCase()) || 
+                        t.noTodo.toLowerCase().includes(this.searchTransaction.toLowerCase())
+                    );
+                },
+                get totalPagesTransaction() { return Math.ceil(this.filteredTransactionList.length / this.perPageTransaction) || 1; },
+                get paginatedTransactionList() {
+                    const start = (this.pageTransaction - 1) * this.perPageTransaction;
+                    return this.filteredTransactionList.slice(start, start + this.perPageTransaction);
+                },
+
+                openModal(type) {
+                    this.modalType = type;
+                    this.isModalOpen = true;
+                    if(type === 'barang') {
+                        this.modalTitle = 'Tambah Barang Baru';
+                        this.isEditMode = false;
+                        this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: 'Pcs' };
+                    } else if(type === 'gudang') {
+                        this.modalTitle = 'Tambah Gudang Baru';
+                        this.isEditGudangMode = false;
+                        this.modalGudang = { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' };
+                    } else if(type === 'project') {
+                        this.modalTitle = 'Tambah Project Baru';
+                        this.modalProject = { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Pending', permit: '', statusSnd: '', statusProject: '', statusDoc: '' };
+                    }
+                    setTimeout(() => { if(window.lucide) lucide.createIcons(); }, 50);
+                },
+                closeModal() { this.isModalOpen = false; },
+
+                saveBarang() {
+                    if (this.isEditMode) {
+                        const idx = this.barangList.findIndex(b => b.kode === this.modalBarang.kode);
+                        if (idx !== -1) this.barangList[idx] = { ...this.modalBarang };
+                        this.showToast('Barang berhasil diperbarui', 'success');
+                    } else {
+                        this.barangList.push({ ...this.modalBarang });
+                        this.showToast('Barang baru berhasil ditambahkan', 'success');
+                    }
+                    this.closeModal();
+                },
+                editBarang(item) {
+                    this.modalType = 'barang';
+                    this.modalTitle = 'Edit Barang';
+                    this.isEditMode = true;
+                    this.modalBarang = { ...item };
+                    this.isModalOpen = true;
+                },
+                deleteBarang(kode) {
+                    if(confirm('Hapus barang ini?')) {
+                        this.barangList = this.barangList.filter(b => b.kode !== kode);
+                        this.showToast('Barang dihapus', 'info');
+                    }
+                },
+
+                saveGudang() {
+                    if (this.isEditGudangMode) {
+                        const idx = this.gudangList.findIndex(g => g.kode === this.modalGudang.kode);
+                        if (idx !== -1) this.gudangList[idx] = { ...this.modalGudang };
+                        this.showToast('Gudang berhasil diperbarui', 'success');
+                    } else {
+                        this.gudangList.push({ ...this.modalGudang });
+                        this.showToast('Gudang baru berhasil ditambahkan', 'success');
+                    }
+                    this.closeModal();
+                },
+                editGudang(g) {
+                    this.modalType = 'gudang';
+                    this.modalTitle = 'Edit Gudang';
+                    this.isEditGudangMode = true;
+                    this.modalGudang = { ...g };
+                    this.isModalOpen = true;
+                },
+                deleteGudang(kode) {
+                    if(confirm('Hapus gudang ini?')) {
+                        this.gudangList = this.gudangList.filter(g => g.kode !== kode);
+                        this.showToast('Gudang dihapus', 'info');
+                    }
+                },
+
+                saveProject() {
+                    this.projectList.push({ ...this.modalProject });
+                    this.showToast('Project berhasil ditambahkan', 'success');
+                    this.closeModal();
+                },
+                editProject(p) {
+                    this.modalType = 'project';
+                    this.modalTitle = 'Edit Project';
+                    this.modalProject = { ...p };
+                    this.isModalOpen = true;
+                },
+                deleteProject(kode) {
+                    if(confirm('Hapus project ini?')) {
+                        this.projectList = this.projectList.filter(p => p.kodeProject !== kode);
+                        this.showToast('Project dihapus', 'info');
+                    }
+                },
+
+                addItemToTransaction() {
+                    if(!this.newItemBarang || this.newItemQty <= 0) {
+                        this.showToast('Pilih barang dan masukkan qty yang valid', 'error');
+                        return;
+                    }
+                    const barang = this.barangList.find(b => b.kode === this.newItemBarang);
+                    if(barang) {
+                        this.newTransaction.items.push({
+                            kode: barang.kode,
+                            nama: barang.nama,
+                            qty: this.newItemQty
+                        });
+                        this.newItemBarang = '';
+                        this.newItemQty = 1;
+                    }
+                },
+
+                submitTransaction() {
+                    if(this.newTransaction.items.length === 0) {
+                        this.showToast('Tambahkan minimal 1 item barang', 'error');
+                        return;
+                    }
+                    this.transactionList.push({
+                        ...this.newTransaction,
+                        items: [...this.newTransaction.items],
+                        status: 'Pending'
+                    });
+                    this.showToast('Transaksi berhasil diajukan (Pending Approval)', 'success');
+                    this.newTransaction.noDocument = 'TRX-2026-' + String(Math.floor(Math.random() * 900 + 100));
+                    this.newTransaction.items = [];
+                    this.activeTab = 'approval_transaksi';
+                },
+
+                approveTransaction(trx) {
+                    trx.status = 'Approved';
+                    trx.disetujui = this.username || 'Admin/Approver';
+                    this.showToast(`Transaksi ${trx.noDocument} disetujui`, 'success');
+                },
+                rejectTransaction(trx) {
+                    trx.status = 'Rejected';
+                    trx.disetujui = this.username || 'Admin/Approver';
+                    this.showToast(`Transaksi ${trx.noDocument} ditolak`, 'info');
+                },
+
+                printTransaction() { window.print(); },
+
+                exportToExcel(tableId, filename) {
+                    const table = document.getElementById(tableId);
+                    if(!table) {
+                        this.showToast('Tabel tidak ditemukan untuk export', 'error');
+                        return;
+                    }
+                    let csv = [];
+                    const rows = table.querySelectorAll('tr');
+                    rows.forEach(row => {
+                        let cols = row.querySelectorAll('td, th');
+                        let data = [];
+                        cols.forEach(col => data.push('"' + col.innerText.replace(/"/g, '""') + '"'));
+                        csv.push(data.join(','));
+                    });
+                    const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = filename;
+                    link.click();
+                    this.showToast('Export CSV berhasil', 'success');
+                },
+
+                editTransaction(trx) { alert('Edit catatan transaksi: ' + trx.noDocument); },
+                deleteTransaction(noDoc) {
+                    if(confirm('Hapus transaksi ' + noDoc + '?')) {
+                        this.transactionList = this.transactionList.filter(t => t.noDocument !== noDoc);
+                        this.showToast('Transaksi dihapus', 'info');
+                    }
+                }
+            }));
+        });
+    </script>
 </body>
 </html>
