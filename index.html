@@ -1509,8 +1509,7 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                     for (let i = 0; i < rows.length; i++) {
                         let row = [], cols = rows[i].querySelectorAll('td, th');
                         for (let j = 0; j < cols.length; j++) {
-                            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').replace(/(\s+)/gm, ' ');
-                            data = data.replace(/"/g, '""');
+                            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').replace(/(\s\s)/gm, ' ');
                             row.push('"' + data + '"');
                         }
                         csv.push(row.join(','));
@@ -1523,94 +1522,16 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                     document.body.appendChild(downloadLink);
                     downloadLink.click();
                     document.body.removeChild(downloadLink);
-                    this.showToast('Data berhasil diexport ke CSV!', 'success');
-                },
-
-                openModal(type) {
-                    this.modalType = type;
-                    this.isEditMode = false;
-                    this.isEditGudangMode = false;
-                    this.isEditProjectMode = false;
-                    if (type === 'barang') {
-                        this.modalTitle = 'Tambah Master Barang Baru';
-                        this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: '' };
-                    } else if (type === 'gudang') {
-                        this.modalTitle = 'Tambah Master Gudang Baru';
-                        this.modalGudang = { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' };
-                    } else if (type === 'project') {
-                        this.modalTitle = 'Tambah Project Baru';
-                        this.modalProject = { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: '', statusSnd: '', statusProject: '', statusDoc: '' };
-                    }
-                    this.isModalOpen = true;
-                    setTimeout(() => lucide.createIcons(), 50);
-                },
-
-                closeModal() {
-                    this.isModalOpen = false;
-                    this.modalType = '';
-                    this.isEditMode = false;
-                    this.isEditGudangMode = false;
-                    this.isEditProjectMode = false;
-                },
-
-                login() {
-                    if (!this.username.trim()) {
-                        this.showToast('Masukkan nama pengguna!', 'error');
-                        return;
-                    }
-                    this.isLoggedIn = true;
-                    this.newTransaction.petugas = this.username;
-                    this.showToast(`Selamat datang, ${this.username} (${this.role})!`, 'success');
-                    setTimeout(() => lucide.createIcons(), 100);
-                },
-
-                logout() {
-                    this.isLoggedIn = false;
-                    this.username = '';
-                    this.showToast('Anda telah keluar dari sistem.', 'info');
-                },
-
-                showToast(message, type = 'success') {
-                    let id = Date.now();
-                    this.toasts.push({ id, message, type });
-                    setTimeout(() => {
-                        this.toasts = this.toasts.filter(t => t.id !== id);
-                    }, 4000);
-                },
-
-                addItemToTransaction() {
-                    if (!this.newItemBarang) {
-                        this.showToast('Pilih barang terlebih dahulu!', 'error');
-                        return;
-                    }
-                    if (this.newItemQty <= 0) {
-                        this.showToast('Jumlah (Qty) harus lebih besar dari 0!', 'error');
-                        return;
-                    }
-                    let barangObj = this.barangList.find(b => b.kode === this.newItemBarang);
-                    if (!barangObj) return;
-
-                    let existing = this.newTransaction.items.find(i => i.kode === barangObj.kode);
-                    if (existing) {
-                        existing.qty += this.newItemQty;
-                    } else {
-                        this.newTransaction.items.push({
-                            kode: barangObj.kode,
-                            nama: barangObj.nama,
-                            qty: this.newItemQty
-                        });
-                    }
-                    this.newItemBarang = '';
-                    this.newItemQty = 1;
-                    this.showToast('Item ditambahkan ke transaksi.', 'success');
+                    this.showToast('Export file CSV berhasil!', 'success');
                 },
 
                 async submitTransaction() {
                     if (this.newTransaction.items.length === 0) {
-                        this.showToast('Transaksi harus memiliki minimal 1 item barang!', 'error');
+                        this.showToast('Tambahkan minimal 1 item barang!', 'error');
                         return;
                     }
-                    let payloadTrx = {
+                    
+                    let trxData = {
                         no_document: this.newTransaction.noDocument,
                         tanggal: this.newTransaction.tanggal,
                         no_todo: this.newTransaction.noTodo,
@@ -1618,93 +1539,124 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                         gudang_asal: this.newTransaction.gudangAsal,
                         gudang_tujuan: this.newTransaction.gudangTujuan,
                         kode_project: this.newTransaction.kodeProject,
-                        petugas: this.newTransaction.petugas,
-                        disetujui: '-',
+                        petugas: this.username,
+                        disetujui: '',
                         diketahui: this.newTransaction.diketahui,
                         keterangan: this.newTransaction.keterangan,
                         status: 'Pending'
                     };
 
-                    let { error: errTrx } = await this.supabaseClient.from('transactions').insert([payloadTrx]);
+                    let { error: errTrx } = await this.supabaseClient.from('transactions').insert([trxData]);
                     if (errTrx) {
-                        this.showToast('Gagal mengajukan transaksi: ' + errTrx.message, 'error');
+                        this.showToast('Gagal menyimpan transaksi: ' + errTrx.message, 'error');
                         return;
                     }
 
-                    for (let it of this.newTransaction.items) {
-                        await this.supabaseClient.from('transaction_items').insert([{
-                            no_document: this.newTransaction.noDocument,
-                            kode_barang: it.kode,
-                            nama_barang: it.nama,
-                            qty: it.qty
-                        }]);
+                    let itemsToInsert = this.newTransaction.items.map(it => ({
+                        no_document: this.newTransaction.noDocument,
+                        kode_barang: it.kode,
+                        nama_barang: it.nama,
+                        qty: it.qty
+                    }));
+
+                    let { error: errItems } = await this.supabaseClient.from('transaction_items').insert(itemsToInsert);
+                    if (errItems) {
+                        this.showToast('Gagal menyimpan item transaksi.', 'error');
+                        return;
                     }
 
                     this.showToast('Transaksi berhasil diajukan (Pending Approval)!', 'success');
-                    this.newTransaction = {
-                        noDocument: 'TRX-2026-' + Math.floor(100 + Math.random() * 900),
-                        tanggal: new Date().toISOString().split('T')[0],
-                        noTodo: '',
-                        tipe: 'Masuk',
-                        gudangAsal: '-',
-                        gudangTujuan: 'Gudang Utama Pekanbaru',
-                        kodeProject: '-',
-                        petugas: this.username,
-                        disetujui: '',
-                        diketahui: '',
-                        keterangan: '',
-                        items: [],
-                        status: 'Pending'
-                    };
-                    await this.loadAllData();
                     this.activeTab = 'approval_transaksi';
+                    await this.loadAllData();
                 },
 
                 async approveTransaction(trx) {
-                    if (this.role !== 'Admin' && this.role !== 'Approver') {
-                        this.showToast('Hanya Admin atau Approver yang dapat menyetujui transaksi!', 'error');
+                    if (this.role !== 'Approver' && this.role !== 'Admin') {
+                        this.showToast('Hanya Approver atau Admin yang dapat menyetujui transaksi!', 'error');
                         return;
                     }
-                    let approverName = this.username;
+
                     let { error } = await this.supabaseClient
                         .from('transactions')
-                        .update({ status: 'Approved', disetujui: approverName })
+                        .update({ status: 'Approved', disetujui: this.username })
                         .eq('no_document', trx.noDocument);
 
                     if (error) {
-                        this.showToast('Gagal approve: ' + error.message, 'error');
+                        this.showToast('Gagal menyetujui transaksi.', 'error');
                         return;
                     }
-                    this.showToast(`Transaksi ${trx.noDocument} berhasil disetujui!`, 'success');
+
+                    this.showToast(`Transaksi ${trx.noDocument} berhasil disetujui dan stok diperbarui!`, 'success');
                     await this.loadAllData();
                 },
 
-                async rejectTransaction(trx) {
-                    if (this.role !== 'Admin' && this.role !== 'Approver') {
-                        this.showToast('Hanya Admin atau Approver yang dapat menolak transaksi!', 'error');
+                rejectTransaction(trx) {
+                    if (this.role !== 'Approver' && this.role !== 'Admin') {
+                        this.showToast('Hanya Approver atau Admin yang dapat menolak transaksi!', 'error');
                         return;
                     }
-                    let approverName = this.username;
-                    let { error } = await this.supabaseClient
-                        .from('transactions')
-                        .update({ status: 'Rejected', disetujui: approverName })
-                        .eq('no_document', trx.noDocument);
 
-                    if (error) {
-                        this.showToast('Gagal menolak transaksi: ' + error.message, 'error');
-                        return;
-                    }
-                    this.showToast(`Transaksi ${trx.noDocument} ditolak.`, 'info');
-                    await this.loadAllData();
+                    this.supabaseClient
+                        .from('transactions')
+                        .update({ status: 'Rejected', disetujui: this.username })
+                        .eq('no_document', trx.noDocument)
+                        .then(({ error }) => {
+                            if (error) {
+                                this.showToast('Gagal menolak transaksi', 'error');
+                            } else {
+                                this.showToast(`Transaksi ${trx.noDocument} ditolak.`, 'info');
+                                this.loadAllData();
+                            }
+                        });
                 },
 
                 setupRealtimeSync() {
                     this.supabaseClient
-                        .channel('public:transactions')
-                        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, payload => {
+                        .channel('public-db-changes')
+                        .on('postgres_changes', { event: '*', schema: 'public' }, payload => {
+                            console.log('Perubahan database terdeteksi:', payload);
                             this.loadAllData();
                         })
                         .subscribe();
+                },
+
+                login() {
+                    if(!this.username) {
+                        this.showToast('Masukkan nama petugas terlebih dahulu!', 'error');
+                        return;
+                    }
+                    this.newTransaction.petugas = this.username;
+                    this.isLoggedIn = true;
+                    this.showToast(`Selamat datang, ${this.username}!`, 'success');
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
+                logout() {
+                    this.isLoggedIn = false;
+                    this.showToast('Anda telah keluar dari sistem.', 'info');
+                },
+
+                openModal(type) {
+                    this.modalType = type;
+                    this.isModalOpen = true;
+                    if(type === 'barang') {
+                        this.modalTitle = 'Tambah Master Barang';
+                        this.isEditMode = false;
+                        this.modalBarang = { kode: '', nama: '', kategori: '', jenis: '', satuan: '' };
+                    } else if(type === 'gudang') {
+                        this.modalTitle = 'Tambah Master Gudang';
+                        this.isEditGudangMode = false;
+                        this.modalGudang = { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' };
+                    } else if(type === 'project') {
+                        this.modalTitle = 'Tambah Master Project';
+                        this.isEditProjectMode = false;
+                        this.modalProject = { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: '', statusSnd: '', statusProject: '', statusDoc: '' };
+                    }
+                    setTimeout(() => lucide.createIcons(), 50);
+                },
+
+                closeModal() {
+                    this.isModalOpen = false;
                 },
 
                 get pendingCount() {
@@ -1712,73 +1664,101 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                 },
 
                 get filteredBarang() {
-                    if (!this.searchBarang) return this.barangList;
-                    let q = this.searchBarang.toLowerCase();
-                    return this.barangList.filter(b => b.kode.toLowerCase().includes(q) || b.nama.toLowerCase().includes(q) || b.kategori.toLowerCase().includes(q));
+                    if(!this.searchBarang) return this.barangList;
+                    return this.barangList.filter(b => b.kode.toLowerCase().includes(this.searchBarang.toLowerCase()) || b.nama.toLowerCase().includes(this.searchBarang.toLowerCase()));
                 },
+                get filteredGudangList() {
+                    if(!this.searchGudang) return this.gudangList;
+                    return this.gudangList.filter(g => g.kode.toLowerCase().includes(this.searchGudang.toLowerCase()) || g.nama.toLowerCase().includes(this.searchGudang.toLowerCase()));
+                },
+                get filteredProjectList() {
+                    if(!this.searchProject) return this.projectList;
+                    return this.projectList.filter(p => p.kodeProject.toLowerCase().includes(this.searchProject.toLowerCase()) || p.noPrPo.toLowerCase().includes(this.searchProject.toLowerCase()));
+                },
+                get filteredStokGudang() {
+                    if(!this.selectedGudangFilter) return this.stokGudangList;
+                    return this.stokGudangList.filter(s => s.gudang === this.selectedGudangFilter);
+                },
+                get filteredProjectUsage() {
+                    if(!this.selectedProjectFilter) return this.projectUsageList;
+                    return this.projectUsageList.filter(u => u.kodeProject === this.selectedProjectFilter);
+                },
+                get filteredTransactionList() {
+                    if(!this.searchTransaction) return this.transactionList;
+                    return this.transactionList.filter(t => t.noDocument.toLowerCase().includes(this.searchTransaction.toLowerCase()) || t.noTodo.toLowerCase().includes(this.searchTransaction.toLowerCase()));
+                },
+
                 get totalPagesBarang() { return Math.ceil(this.filteredBarang.length / this.perPageBarang) || 1; },
                 get paginatedBarang() {
+                    if (this.pageBarang > this.totalPagesBarang) this.pageBarang = this.totalPagesBarang;
                     let start = (this.pageBarang - 1) * this.perPageBarang;
                     return this.filteredBarang.slice(start, start + this.perPageBarang);
                 },
 
-                get filteredGudangList() {
-                    if (!this.searchGudang) return this.gudangList;
-                    let q = this.searchGudang.toLowerCase();
-                    return this.gudangList.filter(g => g.kode.toLowerCase().includes(q) || g.nama.toLowerCase().includes(q) || g.lokasi.toLowerCase().includes(q));
-                },
                 get totalPagesGudang() { return Math.ceil(this.filteredGudangList.length / this.perPageGudang) || 1; },
                 get paginatedGudangList() {
+                    if (this.pageGudang > this.totalPagesGudang) this.pageGudang = this.totalPagesGudang;
                     let start = (this.pageGudang - 1) * this.perPageGudang;
                     return this.filteredGudangList.slice(start, start + this.perPageGudang);
                 },
 
-                get filteredProjectList() {
-                    if (!this.searchProject) return this.projectList;
-                    let q = this.searchProject.toLowerCase();
-                    return this.projectList.filter(p => p.kodeProject.toLowerCase().includes(q) || p.noPrPo.toLowerCase().includes(q) || p.region.toLowerCase().includes(q));
-                },
                 get totalPagesProject() { return Math.ceil(this.filteredProjectList.length / this.perPageProject) || 1; },
                 get paginatedProjectList() {
+                    if (this.pageProject > this.totalPagesProject) this.pageProject = this.totalPagesProject;
                     let start = (this.pageProject - 1) * this.perPageProject;
                     return this.filteredProjectList.slice(start, start + this.perPageProject);
                 },
 
-                get filteredStokGudang() {
-                    let list = this.stokGudangList;
-                    if (this.selectedGudangFilter) {
-                        list = list.filter(s => s.gudang === this.selectedGudangFilter);
-                    }
-                    return list;
-                },
                 get totalPagesStokGudang() { return Math.ceil(this.filteredStokGudang.length / this.perPageStokGudang) || 1; },
                 get paginatedStokGudang() {
+                    if (this.pageStokGudang > this.totalPagesStokGudang) this.pageStokGudang = this.totalPagesStokGudang;
                     let start = (this.pageStokGudang - 1) * this.perPageStokGudang;
                     return this.filteredStokGudang.slice(start, start + this.perPageStokGudang);
                 },
 
-                get filteredProjectUsage() {
-                    let list = this.projectUsageList;
-                    if (this.selectedProjectFilter) {
-                        list = list.filter(u => u.kodeProject === this.selectedProjectFilter);
-                    }
-                    return list;
-                },
                 get totalPagesProjectUsage() { return Math.ceil(this.filteredProjectUsage.length / this.perPageProjectUsage) || 1; },
                 get paginatedProjectUsage() {
+                    if (this.pageProjectUsage > this.totalPagesProjectUsage) this.pageProjectUsage = this.totalPagesProjectUsage;
                     let start = (this.pageProjectUsage - 1) * this.perPageProjectUsage;
                     return this.filteredProjectUsage.slice(start, start + this.perPageProjectUsage);
                 },
 
-                get filteredTransactionList() {
-                    if (!this.searchTransaction) return this.transactionList;
-                    let q = this.searchTransaction.toLowerCase();
-                    return this.transactionList.filter(t => t.noDocument.toLowerCase().includes(q) || t.noTodo.toLowerCase().includes(q) || t.kodeProject.toLowerCase().includes(q));
-                },
                 get totalPagesTransaction() { return Math.ceil(this.filteredTransactionList.length / this.perPageTransaction) || 1; },
                 get paginatedTransactionList() {
+                    if (this.pageTransaction > this.totalPagesTransaction) this.pageTransaction = this.totalPagesTransaction;
                     let start = (this.pageTransaction - 1) * this.perPageTransaction;
                     return this.filteredTransactionList.slice(start, start + this.perPageTransaction);
+                },
+
+                showToast(message, type = 'success') {
+                    let id = Date.now();
+                    this.toasts.push({ id, message, type });
+                    setTimeout(() => {
+                        this.toasts = this.toasts.filter(t => t.id !== id);
+                    }, 3500);
+                },
+
+                addItemToTransaction() {
+                    if(!this.newItemBarang) {
+                        this.showToast('Pilih barang terlebih dahulu!', 'error');
+                        return;
+                    }
+                    if(this.newItemQty < 1) {
+                        this.showToast('Jumlah qty minimal 1!', 'error');
+                        return;
+                    }
+                    let b = this.barangList.find(x => x.kode === this.newItemBarang);
+                    if(b) {
+                        let existing = this.newTransaction.items.find(x => x.kode === b.kode);
+                        if(existing) {
+                            existing.qty += this.newItemQty;
+                        } else {
+                            this.newTransaction.items.push({ kode: b.kode, nama: b.nama, qty: this.newItemQty });
+                        }
+                        this.newItemBarang = '';
+                        this.newItemQty = 1;
+                        this.showToast('Item berhasil ditambahkan ke transaksi.', 'success');
+                    }
                 }
             }
         }
