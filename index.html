@@ -1170,10 +1170,14 @@ ALTER TABLE stok_gudang DISABLE ROW LEVEL SECURITY;
                 modalTransaction: { noDocument: '', keterangan: '', diketahui: '' },
 
                 newTransaction: {
-                    noDocument: '', tanggal: new Date().toISOString().split('T')[0], noTodo: '', tipe: 'Masuk',
+                    noDocument: '', tanggal: new Date().toISOString().split('T')[0], noTodo: '', tipe: 'Keluar',
                     gudangAsal: '-', gudangTujuan: '-', kodeProject: '-', items: [], petugas: '', disetujui: '', diketahui: '', keterangan: ''
                 },
-                newItemBarang: '', newItemQty: 1,
+                newItemBarang: '', 
+                newItemQty: 1,
+                newItemDrum: '', // Tambahan input nomor/kode drum spesifik
+
+                
 
                 init() {
                     let localUser = localStorage.getItem('wms_user');
@@ -1367,22 +1371,29 @@ ALTER TABLE stok_gudang DISABLE ROW LEVEL SECURITY;
                 },
 
                 addItemToTransaction() {
-                    if (!this.newItemBarang || this.newItemQty < 1) {
-                        this.showToast('Pilih barang dan isi Qty minimal 1', 'error');
-                        return;
-                    }
-                    const brg = this.barangList.find(b => b.kode === this.newItemBarang);
-                    if (brg) {
-                        const existing = this.newTransaction.items.find(i => i.kode === brg.kode);
-                        if (existing) {
-                            existing.qty += this.newItemQty;
-                        } else {
-                            this.newTransaction.items.push({ kode: brg.kode, nama: brg.nama, qty: this.newItemQty });
-                        }
-                        this.newItemBarang = '';
-                        this.newItemQty = 1;
-                    }
-                },
+    if (!this.newItemBarang || this.newItemQty < 1) {
+        this.showToast('Pilih barang dan isi Qty minimal 1', 'error');
+        return;
+    }
+    const brg = this.barangList.find(b => b.kode === this.newItemBarang);
+    if (brg) {
+        // Validasi khusus kabel ADSS-024 jika melebihi kapasitas max 3000 meter per drum
+        if (brg.jenis === 'ADSS-024' && this.newItemQty > 3000) {
+            this.showToast('Melahirkan error: 1 drum maksimal 3000 meter!', 'error');
+            return;
+        }
+        
+        this.newTransaction.items.push({ 
+            kode: brg.kode, 
+            nama: brg.nama, 
+            qty: this.newItemQty,
+            drumId: this.newItemDrum || 'DRM-GENERAL' // Melacak ID Drum fisik
+        });
+        this.newItemBarang = '';
+        this.newItemQty = 1;
+        this.newItemDrum = '';
+    }
+},
 
                 submitTransaction() {
                     if (this.newTransaction.items.length === 0) {
