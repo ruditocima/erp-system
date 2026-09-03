@@ -52,8 +52,13 @@ export function exportTableToCSV(tableId, filename) {
     for (let i = 0; i < table.rows.length; i++) {
         let row = [], cols = table.rows[i].querySelectorAll("td, th");
         for (let j = 0; j < cols.length; j++) {
-            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""');
-            row.push('"' + data + '"');
+            // Replace newlines with space, then escape quotes
+            let text = cols[j].innerText;
+            text = text.replace(new RegExp(String.fromCharCode(13, 10), "g"), " "); // \r\n
+            text = text.replace(new RegExp(String.fromCharCode(10), "g"), " ");      // \n
+            text = text.replace(new RegExp(String.fromCharCode(13), "g"), " ");      // \r
+            text = text.replace(new RegExp('"', "g"), '""');
+            row.push('"' + text + '"');
         }
         csv.push(row.join(","));
     }
