@@ -1,4 +1,4 @@
-import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/module.esm.js';
+import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/module.esm.js';
 
 import { createWmsApp } from './app.js';
 import { dashboardTab } from './tabs/dashboard.js';
@@ -13,6 +13,7 @@ import { materialUsageTab } from './tabs/materialUsage.js';
 import { stockOpnameTab } from './tabs/stockOpname.js';
 import { backupRestoreTab } from './tabs/backupRestore.js';
 
+// Register all Alpine data components BEFORE starting
 document.addEventListener('alpine:init', () => {
     Alpine.data('wmsApp', createWmsApp);
     Alpine.data('dashboardTab', dashboardTab);
@@ -28,4 +29,15 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('backupRestoreTab', backupRestoreTab);
 });
 
+// Expose Alpine globally for debugging
+window.Alpine = Alpine;
+
+// Manually start Alpine after all imports and registrations are done
 Alpine.start();
+
+// Initialize Lucide icons after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+    }
+});
