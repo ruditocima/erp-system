@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise WMS v2.0 - Warehouse Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 900: '#312e81' },
+                        slate: { 850: '#1e293b', 900: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Enterprise WMS">
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiRW50ZXJwcmlzZSBXTVMiLCJzaG9ydF9uYW1lIjoiV01TIiwic3RhcnRfdXJsIjoiLiIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiNmZmZmZmYiLCJ0aGVtZV9jb2xvciI6IiM0ZjQ2ZTUiLCJpY29ucyI6W3sic3JjIjoiZGF0YTppbWFnZS9zdmcreG1sLCUzQ3N2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA1MTIgNTEyJyBmaWxsPSclMjM0ZjQ2ZTUnJTNFJTNDcGF0aCBkPSdNNDgwIDMyMGgtNDhWMTkyYTMyIDMyIDAgMCAwLTMyLTMySDMxN1Y2NGEzMiAzMiAwIDAgMC02NCAwdjMySDE2MGEzMiAzMiAwIDAgMC0zMiAzMnYxMjhINjRhMzIgMzIgMCAwIDAgMCA2NGg0OHYxMjhhMzIgMzIgMCAwIDAgMzIgMzJoMTIxdjY0YTMyIDMyIDAgMCAwIDY0IDB2LTY0aDEyMWEzMiAzMiAwIDAgMCAzMi0zMlYzODRoNDhhMzIgMzIgMCAwIDAgMC02NHonLyUzRSUzQy9zdmclM0UiLCJzaXplcyI6IjE5MngxOTIiLCJ0eXBlIjoiaW1hZ2Uvc3ZnK3htbCJ9XX0=">
+    <base target="_blank">
+</head>
+<body class="h-full text-slate-800 text-xs antialiased selection:bg-indigo-500 selection:text-white" x-data="wmsApp" x-init="init()">
+
+<!-- TOASTS -->
+<div class="fixed top-4 right-4 z-50 space-y-2 no-print" x-cloak>
+    <template x-for="toast in toasts" :key="toast.id">
+        <div :class="toast.type === 'success' ? 'bg-emerald-600 text-white' : (toast.type === 'error' ? 'bg-red-600 text-white' : (toast.type === 'warning' ? 'bg-amber-500 text-white' : 'bg-slate-800 text-white'))"
+             class="px-4 py-3 rounded-xl shadow-lg flex items-center space-x-2 text-xs font-medium transition-all transform duration-300 animate-enter">
+            <i :data-lucide="toast.type === 'success' ? 'check-circle' : (toast.type === 'error' ? 'alert-circle' : (toast.type === 'warning' ? 'alert-triangle' : 'info'))" class="w-4 h-4"></i>
+            <span x-text="toast.message"></span>
+        </div>
+    </template>
+</div>
+
+<!-- CUSTOM CONFIRM MODAL -->
+<div x-show="confirmModal.show" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" x-cloak x-transition>
+    <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm p-6 space-y-4">
+        <div class="text-center">
+            <div class="inline-flex items-center justify-center w-10 h-10 rounded-full mb-3" :class="confirmModal.type === 'danger' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'">
+                <i :data-lucide="confirmModal.type === 'danger' ? 'trash-2' : 'alert-triangle'" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-bold text-slate-900 text-sm" x-text="confirmModal.title"></h3>
+            <p class="text-slate-500 text-xs mt-1" x-text="confirmModal.message"></p>
+        </div>
+        <div class="flex space-x-2 pt-2">
+            <button @click="confirmModal.show=false; confirmModal.onCancel()" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 text-xs font-medium">Batal</button>
+            <button @click="confirmModal.show=false; confirmModal.onConfirm()" :class="confirmModal.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'" class="flex-1 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors" x-text="confirmModal.confirmText"></button>
+        </div>
+    </div>
+</div>
+
+<!-- LOGIN -->
+<div x-show="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm no-print" x-cloak x-transition>
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md p-8 transform transition-all">
+        <div class="text-center mb-6">
+            <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 mb-3">
+                <i data-lucide="warehouse" class="w-6 h-6"></i>
+            </div>
+            <h2 class="text-lg font-bold text-slate-900">Warehouse Management System</h2>
+            <p class="text-slate-500 text-xs mt-1">Silakan pilih peran akun untuk masuk ke sistem</p>
+        </div>
+        <form @submit.prevent="login()" class="space-y-4">
+            <div>
+                <label class="block font-medium text-slate-700 mb-1">Nama Pengguna / Petugas</label>
+                <input type="text" x-model="username" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Masukkan nama Anda...">
+            </div>
+            <div>
+                <label class="block font-medium text-slate-700 mb-1">Peran Akses (Role)</label>
+                <select x-model="role" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    <option value="Admin">Admin (Full Access & Master Data)</option>
+                    <option value="Approver">Approver (Approval Transaksi & PO)</option>
+                    <option value="Requester">Requester (Input Transaksi & Pemohon)</option>
+                </select>
+            </div>
+            <div class="pt-2">
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors shadow-sm text-xs">Masuk ke Sistem WMS</button>
+            </div>
+        </form>
+        <div class="mt-6 border-t border-slate-100 pt-4 text-center text-slate-400 text-2xs">Enterprise WMS v2.0 &mdash; Data tersimpan di browser lokal</div>
+    </div>
+</div>
+
+<!-- IDLE WARNING -->
+<div x-show="idleWarning" class="fixed inset-0 z-[55] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" x-cloak x-transition>
+    <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm p-6 text-center">
+        <div class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-amber-50 text-amber-600 mb-3">
+            <i data-lucide="clock" class="w-5 h-5"></i>
+        </div>
+        <h3 class="font-bold text-slate-900 text-sm">Sesi Akan Berakhir</h3>
+        <p class="text-slate-500 text-xs mt-1">Anda tidak aktif selama 25 menit. Sistem akan logout otomatis dalam <span class="font-bold text-amber-600" x-text="idleCountdown"></span> detik.</p>
+        <button @click="resetIdleTimer()" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-medium">Tetap Masuk</button>
+    </div>
+</div>
+
+<!-- MAIN APP -->
+<div x-show="isLoggedIn" class="min-h-full flex flex-col" x-cloak x-transition>
+    <header class="bg-slate-900 text-white sticky top-0 z-40 border-b border-slate-800 shadow-sm no-print">
+        <div class="px-4 py-2.5 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-1.5 rounded-lg text-white"><i data-lucide="boxes" class="w-4 h-4"></i></div>
+                <div>
+                    <h1 class="font-bold text-sm tracking-wide">ENTERPRISE WMS</h1>
+                    <p class="text-2xs text-slate-400">Warehouse & Project Material Management</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="hidden sm:flex items-center space-x-1.5 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700 text-2xs">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-slate-300">Live System Active</span>
+                </div>
+                <div class="flex items-center space-x-2 border-l border-slate-700 pl-4">
+                    <div class="text-right">
+                        <div class="font-semibold text-white" x-text="username"></div>
+                        <div class="text-2xs text-indigo-400 uppercase tracking-wider font-medium" x-text="role"></div>
+                    </div>
+                    <button @click="logout()" class="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-red-400 transition-colors" title="Keluar"><i data-lucide="log-out" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+        </div>
+        <nav class="flex space-x-1 px-4 bg-slate-900/90 overflow-x-auto text-xs border-t border-slate-800">
+            <template x-for="tab in tabs" :key="tab.id">
+                <button @click="switchTab(tab.id)" :class="activeTab === tab.id ? 'bg-indigo-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" class="px-3 py-2 transition-colors whitespace-nowrap flex items-center space-x-1.5 border-b-2 relative" :style="activeTab === tab.id ? 'border-color: #818cf8;' : 'border-color: transparent;'">
+                    <i :data-lucide="tab.icon" class="w-3.5 h-3.5"></i>
+                    <span x-text="tab.name"></span>
+                    <span x-show="tab.id === 'approval_transaksi' && pendingCount > 0" class="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full text-3xs px-1.5 py-0.5 font-bold animate-pulse" x-text="pendingCount"></span>
+                </button>
+            </template>
+        </nav>
+    </header>
+
+    <main class="flex-1 p-4 max-w-7xl mx-auto w-full space-y-4">
+
+        <!-- DASHBOARD -->
+        <template x-if="activeTab === 'dashboard'">
+            <div class="space-y-4 animate-enter" x-data="dashboardTab" x-init="init()">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <h2 class="font-bold text-slate-800 text-sm">Dashboard Overview</h2>
+                    <p class="text-slate-500 text-2xs">Ringkasan sistem dan metrik kunci gudang hari ini.</p>
+                </div>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+                        <div class="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg"><i data-lucide="package" class="w-5 h-5"></i></div>
+                        <div><div class="text-2xs text-slate-500">Total SKU</div><div class="text-lg font-bold text-slate-900" x-text="$parent.barangList.length"></div></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+                        <div class="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg"><i data-lucide="warehouse" class="w-5 h-5"></i></div>
+                        <div><div class="text-2xs text-slate-500">Total Gudang</div><div class="text-lg font-bold text-slate-900" x-text="$parent.gudangList.length"></div></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+                        <div class="p-2.5 bg-amber-50 text-amber-600 rounded-lg"><i data-lucide="clock" class="w-5 h-5"></i></div>
+                        <div><div class="text-2xs text-slate-500">Pending Approval</div><div class="text-lg font-bold text-slate-900" x-text="$parent.pendingCount"></div></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+                        <div class="p-2.5 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="layers" class="w-5 h-5"></i></div>
+                        <div><div class="text-2xs text-slate-500">Total Stok Tersedia</div><div class="text-lg font-bold text-slate-900" x-text="$parent.totalStokGlobal"></div></div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                        <h3 class="font-bold text-slate-800 text-xs mb-3">Aktivitas Transaksi 7 Hari Terakhir</h3>
+                        <div class="h-56"><canvas id="dashboardChart"></canvas></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-bold text-slate-800 text-xs">Stok Menipis</h3>
+                            <span class="bg-red-50 text-red-600 text-3xs px-2 py-0.5 rounded-full font-bold" x-text="$parent.stokMenipisList.length + ' item'"></span>
+                        </div>
+                        <div class="space-y-2 max-h-56 overflow-y-auto">
+                            <template x-for="s in $parent.stokMenipisList" :key="s.kodeBarang + s.gudang">
+                                <div class="flex items-center justify-between p-2 bg-red-50 border border-red-100 rounded-lg">
+                                    <div class="min-w-0">
+                                        <div class="font-medium text-slate-800 text-2xs truncate" x-text="s.namaBarang"></div>
+                                        <div class="text-3xs text-slate-500" x-text="s.gudang + ' &bull; ' + s.kodeBarang"></div>
+                                    </div>
+                                    <div class="text-right shrink-0 ml-2">
+                                        <div class="font-bold text-red-600 text-xs" x-text="s.qty"></div>
+                                        <div class="text-3xs text-slate-500">min: <span x-text="s.stokMin"></span></div>
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="$parent.stokMenipisList.length === 0">
+                                <div class="text-center py-6 text-slate-400 text-2xs">
+                                    <i data-lucide="check-circle-2" class="w-6 h-6 mx-auto mb-1 text-emerald-400"></i>
+                                    Semua stok dalam kondisi aman
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-3 border-b border-slate-100 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-800 text-xs">Transaksi Terbaru</h3>
+                        <button @click="$parent.switchTab('data_transaksi')" class="text-indigo-600 text-2xs font-medium hover:underline">Lihat Semua</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">No Document</th><th class="p-3">Tanggal</th><th class="p-3">Tipe</th><th class="p-3">Rute</th><th class="p-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="trx in $parent.transactionList.slice(0, 5)" :key="trx.noDocument">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-bold text-indigo-600" x-text="trx.noDocument"></td>
+                                        <td class="p-3 text-slate-700" x-text="trx.tanggal"></td>
+                                        <td class="p-3"><span class="px-2 py-0.5 rounded font-medium text-2xs" :class="trx.tipe === 'Masuk' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.tipe === 'Keluar' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200')" x-text="trx.tipe"></span></td>
+                                        <td class="p-3 text-slate-700"><span x-text="trx.gudangAsal"></span> &rarr; <span x-text="trx.gudangTujuan"></span></td>
+                                        <td class="p-3"><span class="px-2 py-0.5 rounded font-bold text-2xs uppercase tracking-wider" :class="trx.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.status === 'Rejected' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse')" x-text="trx.status"></span></td>
+                                    </tr>
+                                </template>
+                                <template x-if="$parent.transactionList.length === 0">
+                                    <tr><td colspan="5" class="p-6 text-center text-slate-400 text-2xs">Belum ada transaksi.</td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- MASTER BARANG -->
+        <template x-if="activeTab === 'master_barang'">
+            <div class="space-y-4 animate-enter" x-data="masterBarangTab" x-init="init()">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Master Barang</h2>
+                        <p class="text-slate-500 text-2xs">Kelola data material, kategori, jenis, dan kode unik barang.</p>
+                    </div>
+                    <button x-show="$parent.role === 'Admin'" @click="openModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium flex items-center space-x-1 transition-colors shadow-sm">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i><span>Tambah Barang</span>
+                    </button>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-3 border-b border-slate-100 flex items-center justify-between">
+                        <input type="text" x-model="searchBarang" placeholder="Cari kode atau nama barang..." class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-64 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <span class="text-slate-400 text-2xs" x-text="`Total: ${filteredBarang.length} item`"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Kategori</th><th class="p-3">Jenis</th><th class="p-3">Kode Barang</th><th class="p-3">Nama Barang</th><th class="p-3">Satuan</th><th class="p-3 text-center">Stok Min</th><th class="p-3 text-right" x-show="$parent.role === 'Admin'">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="item in paginatedBarang" :key="item.kode">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium text-2xs" x-text="item.kategori"></span></td>
+                                        <td class="p-3 text-slate-600" x-text="item.jenis"></td>
+                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="item.kode"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="item.nama"></td>
+                                        <td class="p-3 text-slate-600" x-text="item.satuan || 'Pcs'"></td>
+                                        <td class="p-3 text-center"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-2xs font-mono" x-text="item.stokMin || 0"></span></td>
+                                        <td class="p-3 text-right space-x-1" x-show="$parent.role === 'Admin'">
+                                            <button @click="editItem(item)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Barang"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="$parent.confirmDelete('barang', item.kode)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Barang"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="paginatedBarang.length === 0">
+                                    <tr><td colspan="7" class="p-8 text-center text-slate-400"><i data-lucide="package-x" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i><p class="text-2xs">Tidak ada data barang</p></td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <span>Tampilkan</span>
+                            <select x-model.number="perPage" class="px-2 py-1 border border-slate-300 rounded text-2xs focus:outline-none bg-white"><option value="5">5</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+                            <span>baris dari <span class="font-medium text-slate-700" x-text="filteredBarang.length"></span> item</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <button @click="if(page > 1) page--" :disabled="page === 1" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Sebelumnya</button>
+                            <span class="px-2">Hal <span class="font-bold text-slate-700" x-text="page"></span> / <span class="font-bold text-slate-700" x-text="totalPages"></span></span>
+                            <button @click="if(page < totalPages) page++" :disabled="page >= totalPages" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Berikutnya</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- MASTER GUDANG -->
+        <template x-if="activeTab === 'master_gudang'">
+            <div class="space-y-4 animate-enter" x-data="masterGudangTab" x-init="init()">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Master Gudang</h2>
+                        <p class="text-slate-500 text-2xs">Daftar gudang milik perusahaan sendiri dan gudang pihak ketiga / partner.</p>
+                    </div>
+                    <button x-show="$parent.role === 'Admin'" @click="openModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium flex items-center space-x-1 transition-colors shadow-sm">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i><span>Tambah Gudang</span>
+                    </button>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-3 border-b border-slate-100 flex items-center justify-between">
+                        <input type="text" x-model="searchGudang" placeholder="Cari kode atau nama gudang..." class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-64 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <span class="text-slate-400 text-2xs" x-text="`Total: ${filteredGudangList.length} gudang`"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Kode Gudang</th><th class="p-3">Nama Gudang</th><th class="p-3">Tipe Kepemilikan</th><th class="p-3">Lokasi</th><th class="p-3">PIC</th><th class="p-3 text-right" x-show="$parent.role === 'Admin'">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="g in paginatedGudangList" :key="g.kode">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="g.kode"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="g.nama"></td>
+                                        <td class="p-3"><span class="px-2 py-0.5 rounded text-2xs font-bold uppercase tracking-wider" :class="g.tipe === 'Perusahaan Sendiri' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'" x-text="g.tipe"></span></td>
+                                        <td class="p-3 text-slate-600" x-text="g.lokasi"></td>
+                                        <td class="p-3 text-slate-700 font-medium" x-text="g.pic"></td>
+                                        <td class="p-3 text-right space-x-1" x-show="$parent.role === 'Admin'">
+                                            <button @click="editItem(g)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Gudang"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="$parent.confirmDelete('gudang', g.kode)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Gudang"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="paginatedGudangList.length === 0">
+                                    <tr><td colspan="6" class="p-8 text-center text-slate-400"><i data-lucide="warehouse" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i><p class="text-2xs">Tidak ada data gudang</p></td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <span>Tampilkan</span>
+                            <select x-model.number="perPage" class="px-2 py-1 border border-slate-300 rounded text-2xs focus:outline-none bg-white"><option value="5">5</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+                            <span>baris dari <span class="font-medium text-slate-700" x-text="filteredGudangList.length"></span> gudang</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <button @click="if(page > 1) page--" :disabled="page === 1" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Sebelumnya</button>
+                            <span class="px-2">Hal <span class="font-bold text-slate-700" x-text="page"></span> / <span class="font-bold text-slate-700" x-text="totalPages"></span></span>
+                            <button @click="if(page < totalPages) page++" :disabled="page >= totalPages" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Berikutnya</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- MASTER PROJECT -->
+        <template x-if="activeTab === 'master_project'">
+            <div class="space-y-4 animate-enter" x-data="masterProjectTab" x-init="init()">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Master Project</h2>
+                        <p class="text-slate-500 text-2xs">Pelacakan project, status PO, permit, SND, dan dokumen terkait.</p>
+                    </div>
+                    <button x-show="$parent.role === 'Admin' || $parent.role === 'Approver'" @click="openModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium flex items-center space-x-1 transition-colors shadow-sm">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i><span>Tambah Project</span>
+                    </button>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-3 border-b border-slate-100 flex items-center justify-between">
+                        <input type="text" x-model="searchProject" placeholder="Cari kode project atau No PR-PO..." class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-64 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <span class="text-slate-400 text-2xs" x-text="`Total: ${filteredProjectList.length} project`"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Kode / Periode</th><th class="p-3">Type & Region</th><th class="p-3">No PR-PO</th><th class="p-3">PO Plan / Final</th><th class="p-3">Status PO</th><th class="p-3">Permit & SND</th><th class="p-3">Status Project & Doc</th><th class="p-3 text-right" x-show="$parent.role === 'Admin' || $parent.role === 'Approver'">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="p in paginatedProjectList" :key="p.kodeProject">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3"><div class="font-mono font-bold text-indigo-600" x-text="p.kodeProject"></div><div class="text-slate-400 text-2xs" x-text="p.periode"></div></td>
+                                        <td class="p-3"><div class="font-medium text-slate-800" x-text="p.type"></div><div class="text-slate-500 text-2xs" x-text="p.region"></div></td>
+                                        <td class="p-3 font-mono text-slate-700" x-text="p.noPrPo"></td>
+                                        <td class="p-3"><div class="text-slate-700" x-text="p.poPlan"></div><div class="text-slate-500 text-2xs" x-text="p.poFinal"></div></td>
+                                        <td class="p-3"><span class="px-2 py-0.5 rounded font-medium text-2xs" :class="p.statusPo === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'" x-text="p.statusPo"></span></td>
+                                        <td class="p-3"><div class="text-slate-700">Permit: <span x-text="p.permit"></span></div><div class="text-slate-500 text-2xs">SND: <span x-text="p.statusSnd"></span></div></td>
+                                        <td class="p-3"><div class="font-medium text-slate-800" x-text="p.statusProject"></div><div class="text-indigo-600 text-2xs" x-text="p.statusDoc"></div></td>
+                                        <td class="p-3 text-right space-x-1" x-show="$parent.role === 'Admin' || $parent.role === 'Approver'">
+                                            <button @click="editItem(p)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Project"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="$parent.confirmDelete('project', p.kodeProject)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Project"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="paginatedProjectList.length === 0">
+                                    <tr><td colspan="8" class="p-8 text-center text-slate-400"><i data-lucide="briefcase" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i><p class="text-2xs">Tidak ada data project</p></td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <span>Tampilkan</span>
+                            <select x-model.number="perPage" class="px-2 py-1 border border-slate-300 rounded text-2xs focus:outline-none bg-white"><option value="5">5</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+                            <span>baris dari <span class="font-medium text-slate-700" x-text="filteredProjectList.length"></span> project</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <button @click="if(page > 1) page--" :disabled="page === 1" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Sebelumnya</button>
+                            <span class="px-2">Hal <span class="font-bold text-slate-700" x-text="page"></span> / <span class="font-bold text-slate-700" x-text="totalPages"></span></span>
+                            <button @click="if(page < totalPages) page++" :disabled="page >= totalPages" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Berikutnya</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- INPUT TRANSAKSI -->
+        <template x-if="activeTab === 'input_transaksi'">
+            <div class="space-y-4 animate-enter" x-data="transaksiInputTab" x-init="init()">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div class="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-sm">Form Input Transaksi Gudang</h2>
+                            <p class="text-slate-500 text-2xs">Transaksi baru akan berstatus <span class="font-bold text-amber-600">Pending Approval</span> dan baru akan memotong/menambah stok setelah disetujui oleh Approver.</p>
+                        </div>
+                        <span class="bg-indigo-50 text-indigo-600 font-mono px-2.5 py-1 rounded-lg text-xs" x-text="form.noDocument"></span>
+                    </div>
+                    <form @submit.prevent="submit()" class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div><label class="block font-medium text-slate-700 mb-1">Tanggal Transaksi</label><input type="date" x-model="form.tanggal" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
+                            <div><label class="block font-medium text-slate-700 mb-1">No TO-DO / Referensi</label><input type="text" x-model="form.noTodo" placeholder="Contoh: TODO-2026-089" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
+                            <div><label class="block font-medium text-slate-700 mb-1">Tipe Transaksi</label><select x-model="form.tipe" @change="generateDocNumber()" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="Masuk">Masuk (Inbound)</option><option value="Keluar">Keluar (Outbound)</option><option value="Transfer">Transfer (Antar Gudang)</option></select></div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div><label class="block font-medium text-slate-700 mb-1">Gudang Asal</label><select x-model="form.gudangAsal" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="-">-- Non-Gudang (Supplier/External) --</option><template x-for="g in $parent.gudangList" :key="g.kode"><option :value="g.nama" x-text="g.nama"></option></template></select></div>
+                            <div><label class="block font-medium text-slate-700 mb-1">Gudang Tujuan</label><select x-model="form.gudangTujuan" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="-">-- Non-Gudang (Site/Project) --</option><template x-for="g in $parent.gudangList" :key="g.kode"><option :value="g.nama" x-text="g.nama"></option></template></select></div>
+                            <div><label class="block font-medium text-slate-700 mb-1">Kode Project</label><select x-model="form.kodeProject" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="-">-- Pilih Project --</option><template x-for="p in $parent.projectList" :key="p.kodeProject"><option :value="p.kodeProject" x-text="`${p.kodeProject} (${p.type})`"></option></template></select></div>
+                        </div>
+                        <div class="border-t border-slate-100 pt-4">
+                            <h3 class="font-bold text-slate-700 mb-2 text-xs">Detail Material / Barang</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                <div class="sm:col-span-2">
+                                    <label class="block font-medium text-slate-600 mb-1 text-2xs">Pilih Barang</label>
+                                    <select x-model="newItemBarang" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"><option value="">-- Pilih Barang --</option><template x-for="b in $parent.barangList" :key="b.kode"><option :value="b.kode" x-text="`${b.kode} - ${b.nama} (${b.satuan || 'Pcs'})`"></option></template></select>
+                                </div>
+                                <div>
+                                    <label class="block font-medium text-slate-600 mb-1 text-2xs">Jumlah (Qty)</label>
+                                    <div class="flex space-x-2"><input type="number" x-model.number="newItemQty" min="1" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white" placeholder="Qty"><button type="button" @click="addItem()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs">Tambah</button></div>
+                                </div>
+                            </div>
+                            <div class="mt-3 overflow-x-auto" x-show="form.items.length > 0">
+                                <table class="w-full text-left border-collapse text-xs">
+                                    <thead><tr class="bg-slate-100 text-slate-600 border-b border-slate-200"><th class="p-2">Kode Barang</th><th class="p-2">Nama Barang</th><th class="p-2 text-center">Qty</th><th class="p-2 text-right">Aksi</th></tr></thead>
+                                    <tbody>
+                                        <template x-for="(it, idx) in form.items" :key="idx">
+                                            <tr class="border-b border-slate-100"><td class="p-2 font-mono" x-text="it.kode"></td><td class="p-2" x-text="it.nama"></td><td class="p-2 text-center font-bold" x-text="it.qty"></td><td class="p-2 text-right"><button type="button" @click="form.items.splice(idx, 1)" class="text-red-500 hover:text-red-700">Hapus</button></td></tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div x-show="form.items.length === 0" class="mt-3 p-4 text-center text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                <i data-lucide="shopping-cart" class="w-5 h-5 mx-auto mb-1 text-slate-300"></i><p class="text-2xs">Belum ada barang ditambahkan</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+                            <div><label class="block font-medium text-slate-700 mb-1">Petugas / Pembuat</label><input type="text" x-model="form.petugas" readonly class="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 rounded-lg text-xs text-slate-600"></div>
+                            <div><label class="block font-medium text-slate-700 mb-1">Disetujui Oleh</label><input type="text" x-model="form.disetujui" placeholder="Diisi otomatis saat Approve" readonly class="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 rounded-lg text-xs text-slate-500"></div>
+                            <div><label class="block font-medium text-slate-700 mb-1">Diketahui Oleh</label><input type="text" x-model="form.diketahui" placeholder="Nama Supervisor / Manager" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
+                        </div>
+                        <div><label class="block font-medium text-slate-700 mb-1">Keterangan / Catatan</label><textarea x-model="form.keterangan" rows="2" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Catatan tambahan transaksi..."></textarea></div>
+                        <div class="flex justify-end space-x-3 pt-2">
+                            <button type="button" @click="printForm()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-1 transition-colors"><i data-lucide="printer" class="w-3.5 h-3.5"></i><span>Print PDF / Cetak</span></button>
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">Ajukan Transaksi (Pending Approval)</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </template>
+
+        <!-- APPROVAL TRANSAKSI -->
+        <template x-if="activeTab === 'approval_transaksi'">
+            <div class="space-y-4 animate-enter" x-data="transaksiApprovalTab" x-init="init()">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Pusat Persetujuan Transaksi (Approval Hub)</h2>
+                        <p class="text-slate-500 text-2xs">Setujui atau tolak transaksi yang masuk. Stok gudang akan otomatis diperbarui hanya setelah transaksi disetujui oleh Approver/Admin.</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg font-medium text-2xs">Pending: <span class="font-bold" x-text="$parent.pendingCount"></span> transaksi</span>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">No Document</th><th class="p-3">Tanggal & TO-DO</th><th class="p-3">Tipe</th><th class="p-3">Rute (Asal &rarr; Tujuan)</th><th class="p-3">Pemohon</th><th class="p-3">Status</th><th class="p-3 text-right">Aksi Approval</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="trx in $parent.transactionList" :key="trx.noDocument">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-bold text-indigo-600" x-text="trx.noDocument"></td>
+                                        <td class="p-3"><div class="text-slate-800 font-medium" x-text="trx.tanggal"></div><div class="text-slate-400 text-2xs font-mono" x-text="trx.noTodo"></div></td>
+                                        <td class="p-3"><span class="px-2 py-0.5 rounded font-medium text-2xs" :class="trx.tipe === 'Masuk' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.tipe === 'Keluar' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200')" x-text="trx.tipe"></span></td>
+                                        <td class="p-3 text-slate-700"><span x-text="trx.gudangAsal"></span> &rarr; <span x-text="trx.gudangTujuan"></span></td>
+                                        <td class="p-3 text-slate-700 font-medium" x-text="trx.petugas"></td>
+                                        <td class="p-3"><span class="px-2 py-0.5 rounded font-bold text-2xs uppercase tracking-wider" :class="trx.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.status === 'Rejected' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse')" x-text="trx.status"></span></td>
+                                        <td class="p-3 text-right space-x-1">
+                                            <template x-if="trx.status === 'Pending'">
+                                                <div class="inline-flex space-x-1">
+                                                    <button @click="approve(trx)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded font-medium text-2xs shadow-sm transition-colors flex items-center space-x-1"><i data-lucide="check" class="w-3 h-3"></i><span>Setujui</span></button>
+                                                    <button @click="reject(trx)" class="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded font-medium text-2xs shadow-sm transition-colors flex items-center space-x-1"><i data-lucide="x" class="w-3 h-3"></i><span>Tolak</span></button>
+                                                </div>
+                                            </template>
+                                            <template x-if="trx.status !== 'Pending'">
+                                                <span class="text-slate-400 text-2xs italic font-medium" x-text="`Oleh: ${trx.disetujui || '-'}`"></span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="$parent.transactionList.length === 0">
+                                    <tr><td colspan="7" class="p-8 text-center text-slate-400"><i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i><p class="text-2xs">Belum ada transaksi yang diajukan.</p></td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- STOK GUDANG -->
+        <template x-if="activeTab === 'stok_gudang'">
+            <div class="space-y-4 animate-enter" x-data="stokGudangTab" x-init="init()">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Stok Gudang</h2>
+                        <p class="text-slate-500 text-2xs">Gunakan pilihan gudang untuk melihat ketersediaan material secara spesifik (Hanya terupdate setelah Approved).</p>
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                        <select x-model="selectedGudang" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-48">
+                            <option value="">-- Semua Gudang --</option>
+                            <template x-for="g in $parent.gudangList" :key="g.kode"><option :value="g.nama" x-text="g.nama"></option></template>
+                        </select>
+                        <button @click="$parent.exportToExcel('stokGudangTable', 'Laporan_Stok_Gudang.csv')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors shadow-sm"><i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i><span>Export CSV</span></button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table id="stokGudangTable" class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Nama Barang</th><th class="p-3 text-center">Masuk</th><th class="p-3 text-center">Keluar</th><th class="p-3 text-center" title="Transfer Masuk">T.Masuk</th><th class="p-3 text-center" title="Transfer Keluar">T.Keluar</th><th class="p-3 text-center">Stok Tersedia</th><th class="p-3 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="(stok, index) in paginatedStok" :key="index">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3"><div class="font-medium text-slate-900" x-text="stok.namaBarang"></div><div class="text-2xs text-slate-400 font-mono" x-text="stok.kodeBarang"></div></td>
+                                        <td class="p-3 text-center text-emerald-600 font-medium" x-text="stok.masuk || 0"></td>
+                                        <td class="p-3 text-center text-red-600 font-medium" x-text="stok.keluar || 0"></td>
+                                        <td class="p-3 text-center text-blue-600 font-medium" x-text="stok.t_masuk || 0"></td>
+                                        <td class="p-3 text-center text-orange-600 font-medium" x-text="stok.t_keluar || 0"></td>
+                                        <td class="p-3 text-center font-bold text-slate-800" x-text="stok.qty"></td>
+                                        <td class="p-3 text-center"><span class="px-2 py-0.5 rounded text-2xs font-bold uppercase" :class="$parent.getStokStatusClass(stok)" x-text="$parent.getStokStatusText(stok)"></span></td>
+                                    </tr>
+                                </template>
+                                <template x-if="paginatedStok.length === 0">
+                                    <tr><td colspan="7" class="p-8 text-center text-slate-400"><i data-lucide="layers" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i><p class="text-2xs">Tidak ada data stok</p></td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <span>Tampilkan</span>
+                            <select x-model.number="perPage" class="px-2 py-1 border border-slate-300 rounded text-2xs focus:outline-none bg-white"><option value="5">5</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+                            <span>baris dari <span class="font-medium text-slate-700" x-text="filteredStok.length"></span> data stok</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <button @click="if(page > 1) page--" :disabled="page === 1" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Sebelumnya</button>
+                            <span class="px-2">Hal <span class="font-bold text-slate-700" x-text="page"></span> / <span class="font-bold text-slate-700" x-text="totalPages"></span></span>
+                            <button @click="if(page < totalPages) page++" :disabled="page >= totalPages" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Berikutnya</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- MATERIAL USAGE -->
+        <template x-if="activeTab === 'stok_project'">
+            <div class="space-y-4 animate-enter" x-data="materialUsageTab" x-init="init()">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Material Usage per Project</h2>
+                        <p class="text-slate-500 text-2xs">Analisis material apa saja yang telah digunakan pada setiap project yang dipilih.</p>
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                        <select x-model="selectedProject" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-48">
+                            <option value="">-- Semua Project --</option>
+                            <template x-for="p in $parent.projectList" :key="p.kodeProject"><option :value="p.kodeProject" x-text="`${p.kodeProject} - ${p.type}`"></option></template>
+                        </select>
+                        <button @click="$parent.exportToExcel('projectUsageTable', 'Material_Usage_Project.csv')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors shadow-sm"><i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i><span>Export CSV</span></button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table id="projectUsageTable" class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Kode Project</th><th class="p-3">No Document / Ref</th><th class="p-3">Kode Barang</th><th class="p-3">Nama Barang</th><th class="p-3 text-center">Qty Terpakai</th><th class="p-3">Tanggal</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="(usage, index) in paginatedUsage" :key="index">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-bold text-indigo-600" x-text="usage.kodeProject"></td>
+                                        <td class="p-3 font-mono text-slate-600" x-text="usage.noDocument"></td>
+                                        <td class="p-3 font-mono text-slate-700" x-text="usage.kodeBarang"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="usage.namaBarang"></td>
+                                        <td class="p-3 text-center font-bold text-slate-800" x-text="usage.qty"></td>
+                                        <td class="p-3 text-slate-600" x-text="usage.tanggal"></td>
+                                    </tr>
+                                </template>
+                                <template x-if="paginatedUsage.length === 0">
+                                    <tr><td colspan="6" class="p-8 text-center text-slate-400"><i data-lucide="bar-chart-2" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i><p class="text-2xs">Tidak ada data usage</p></td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <span>Tampilkan</span>
+                            <select x-model.number="perPage" class="px-2 py-1 border border-slate-300 rounded text-2xs focus:outline-none bg-white"><option value="5">5</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+                            <span>baris dari <span class="font-medium text-slate-700" x-text="filteredUsage.length"></span> usage</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <button @click="if(page > 1) page--" :disabled="page === 1" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Sebelumnya</button>
+                            <span class="px-2">Hal <span class="font-bold text-slate-700" x-text="page"></span> / <span class="font-bold text-slate-700" x-text="totalPages"></span></span>
+                            <button @click="if(page < totalPages) page++" :disabled="page >= totalPages" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Berikutnya</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- DATA TRANSAKSI -->
+        <template x-if="activeTab === 'data_transaksi'">
+            <div class="space-y-4 animate-enter" x-data="dataTransaksiTab" x-init="init()">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Data Transaksi Gudang</h2>
+                        <p class="text-slate-500 text-2xs">Riwayat lengkap seluruh transaksi masuk, keluar, transfer, dan status approval.</p>
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                        <input type="text" x-model="searchTransaction" placeholder="Cari No Dokumen / TO-DO..." class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-48 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <button @click="$parent.exportToExcel('transactionTable', 'Data_Transaksi_WMS.csv')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors shadow-sm"><i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i><span>Export CSV</span></button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table id="transactionTable" class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">No Document</th><th class="p-3">Tanggal & TO-DO</th><th class="p-3">Tipe</th><th class="p-3">Rute (Asal &rarr; Tujuan)</th><th class="p-3">Project</th><th class="p-3">Status</th><th class="p-3">Disetujui Oleh</th><th class="p-3 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="trx in paginatedTransactionList" :key="trx.noDocument">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 font-mono font-bold text-indigo-600" x-text="trx.noDocument"></td>
+                                        <td class="p-3"><div class="text-slate-800 font-medium" x-text="trx.tanggal"></div><div class="text-slate-400 text-2xs font-mono" x-text="trx.noTodo"></div></td>
+                                        <td class="p-3"><span class="px-2 py-0.5 rounded font-medium text-2xs" :class="trx.tipe === 'Masuk' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.tipe === 'Keluar' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200')" x-text="trx.tipe"></span></td>
+                                        <td class="p-3 text-slate-700"><span x-text="trx.gudangAsal"></span> &rarr; <span x-text="trx.gudangTujuan"></span></td>
+                                        <td class="p-3 font-mono text-slate-600" x-text="trx.kodeProject"></td>
+                                        <td class="p-3"><span class="px-2 py-0.5 rounded font-bold text-2xs uppercase tracking-wider" :class="trx.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (trx.status === 'Rejected' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200')" x-text="trx.status"></span></td>
+                                        <td class="p-3 text-slate-700 font-medium" x-text="trx.disetujui || '-'"></td>
+                                        <td class="p-3 text-right space-x-1">
+                                            <button @click="$parent.editTransaction(trx)" class="text-slate-400 hover:text-indigo-600 p-1" title="Edit Catatan"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="$parent.confirmDelete('transaction', trx.noDocument)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Transaksi"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="paginatedTransactionList.length === 0">
+                                    <tr><td colspan="8" class="p-8 text-center text-slate-400"><i data-lucide="database" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i><p class="text-2xs">Tidak ada data transaksi</p></td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <span>Tampilkan</span>
+                            <select x-model.number="perPage" class="px-2 py-1 border border-slate-300 rounded text-2xs focus:outline-none bg-white"><option value="5">5</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+                            <span>baris dari <span class="font-medium text-slate-700" x-text="filteredTransactionList.length"></span> transaksi</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <button @click="if(page > 1) page--" :disabled="page === 1" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Sebelumnya</button>
+                            <span class="px-2">Hal <span class="font-bold text-slate-700" x-text="page"></span> / <span class="font-bold text-slate-700" x-text="totalPages"></span></span>
+                            <button @click="if(page < totalPages) page++" :disabled="page >= totalPages" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Berikutnya</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- STOCK OPNAME -->
+        <template x-if="activeTab === 'stock_opname'">
+            <div class="space-y-4 animate-enter" x-data="stockOpnameTab" x-init="init()">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-sm">Stock Opname (Fisik vs Sistem)</h2>
+                        <p class="text-slate-500 text-2xs">Lakukan pengecekan fisik stok di gudang, bandingkan dengan data sistem, dan catat selisihnya.</p>
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                        <select x-model="opnameGudangFilter" @change="loadOpnameItems()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-48">
+                            <option value="">-- Pilih Gudang --</option>
+                            <template x-for="g in $parent.gudangList" :key="g.kode"><option :value="g.nama" x-text="g.nama"></option></template>
+                        </select>
+                        <button x-show="!opnameInProgress && opnameGudangFilter" @click="startOpname()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors shadow-sm">
+                            <i data-lucide="play" class="w-3.5 h-3.5"></i><span>Mulai Opname</span>
+                        </button>
+                        <button x-show="opnameInProgress" @click="saveOpname()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors shadow-sm">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i><span>Simpan Hasil</span>
+                        </button>
+                        <button x-show="opnameInProgress" @click="cancelOpname()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i><span>Batal</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div x-show="opnameInProgress" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3" x-cloak x-transition>
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h3 class="font-bold text-slate-800 text-xs">Input Hasil Fisik — <span class="text-indigo-600" x-text="opnameGudangFilter"></span></h3>
+                        <span class="text-2xs text-slate-500">Isi kolom Qty Fisik, biarkan kosong jika sama dengan sistem</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Kode Barang</th><th class="p-3">Nama Barang</th><th class="p-3 text-center">Qty Sistem</th><th class="p-3 text-center w-32">Qty Fisik</th><th class="p-3 text-center">Selisih</th><th class="p-3">Keterangan</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="(item, idx) in opnameItems" :key="idx">
+                                    <tr class="hover:bg-slate-50/50" :class="item.selisih !== 0 ? 'bg-amber-50/30' : ''">
+                                        <td class="p-3 font-mono font-medium text-indigo-600" x-text="item.kodeBarang"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="item.namaBarang"></td>
+                                        <td class="p-3 text-center font-bold text-slate-700" x-text="item.qtySistem"></td>
+                                        <td class="p-3 text-center">
+                                            <input type="number" x-model.number="item.qtyFisik" min="0" @input="item.selisih = item.qtyFisik - item.qtySistem" class="w-20 px-2 py-1 border border-slate-300 rounded text-center text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none mx-auto block">
+                                        </td>
+                                        <td class="p-3 text-center">
+                                            <span class="px-2 py-0.5 rounded text-2xs font-bold" :class="item.selisih === 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : (item.selisih > 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-red-50 text-red-700 border border-red-200')" x-text="(item.selisih > 0 ? '+' : '') + item.selisih"></span>
+                                        </td>
+                                        <td class="p-3">
+                                            <input type="text" x-model="item.keterangan" class="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Contoh: rusak, hilang, surplus...">
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="opnameItems.length === 0">
+                                    <tr><td colspan="6" class="p-8 text-center text-slate-400"><i data-lucide="clipboard-list" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i><p class="text-2xs">Tidak ada stok di gudang ini. Pastikan sudah ada transaksi Approved.</p></td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div x-show="opnameItems.length > 0" class="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
+                        <div class="flex space-x-4">
+                            <span class="text-slate-600">Total Item: <span class="font-bold text-slate-800" x-text="opnameItems.length"></span></span>
+                            <span class="text-emerald-600">Cocok: <span class="font-bold" x-text="opnameItems.filter(i => i.selisih === 0).length"></span></span>
+                            <span class="text-red-600">Kurang: <span class="font-bold" x-text="opnameItems.filter(i => i.selisih < 0).length"></span></span>
+                            <span class="text-blue-600">Lebih: <span class="font-bold" x-text="opnameItems.filter(i => i.selisih > 0).length"></span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-3 border-b border-slate-100 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-800 text-xs">Riwayat Stock Opname</h3>
+                        <div class="flex items-center space-x-2">
+                            <input type="text" x-model="opnameSearch" placeholder="Cari gudang..." class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-48 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            <button @click="$parent.exportToExcel('opnameHistoryTable', 'Riwayat_Stock_Opname.csv')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors shadow-sm">
+                                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i><span>Export CSV</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table id="opnameHistoryTable" class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                    <th class="p-3">Tanggal</th><th class="p-3">Gudang</th><th class="p-3 text-center">Total Item</th><th class="p-3 text-center">Cocok</th><th class="p-3 text-center">Selisih</th><th class="p-3">Petugas</th><th class="p-3 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="op in paginatedOpnameHistory" :key="op.id">
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-3 text-slate-700 font-medium" x-text="op.tanggal"></td>
+                                        <td class="p-3 font-medium text-slate-900" x-text="op.gudang"></td>
+                                        <td class="p-3 text-center font-bold text-slate-800" x-text="op.items.length"></td>
+                                        <td class="p-3 text-center text-emerald-600 font-bold" x-text="op.items.filter(i => i.selisih === 0).length"></td>
+                                        <td class="p-3 text-center">
+                                            <span class="px-2 py-0.5 rounded text-2xs font-bold" :class="op.items.some(i => i.selisih !== 0) ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'" x-text="op.items.some(i => i.selisih !== 0) ? 'Ada Selisih' : 'Sesuai'"></span>
+                                        </td>
+                                        <td class="p-3 text-slate-700" x-text="op.petugas"></td>
+                                        <td class="p-3 text-right space-x-1">
+                                            <button @click="viewDetail(op)" class="text-slate-400 hover:text-indigo-600 p-1" title="Lihat Detail"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="$parent.confirmDelete('opname', op.id)" class="text-slate-400 hover:text-red-600 p-1" title="Hapus Riwayat"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="paginatedOpnameHistory.length === 0">
+                                    <tr><td colspan="7" class="p-8 text-center text-slate-400"><i data-lucide="clipboard-list" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i><p class="text-2xs">Belum ada riwayat stock opname.</p></td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-2xs text-slate-500 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <span>Tampilkan</span>
+                            <select x-model.number="perPage" class="px-2 py-1 border border-slate-300 rounded text-2xs focus:outline-none bg-white"><option value="5">5</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+                            <span>baris dari <span class="font-medium text-slate-700" x-text="filteredOpnameHistory.length"></span> riwayat</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <button @click="if(page > 1) page--" :disabled="page === 1" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Sebelumnya</button>
+                            <span class="px-2">Hal <span class="font-bold text-slate-700" x-text="page"></span> / <span class="font-bold text-slate-700" x-text="totalPages"></span></span>
+                            <button @click="if(page < totalPages) page++" :disabled="page >= totalPages" class="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed bg-white">Berikutnya</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- BACKUP & RESTORE -->
+        <template x-if="activeTab === 'backup_restore'">
+            <div class="space-y-4 animate-enter" x-data="backupRestoreTab" x-init="init()">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <h2 class="font-bold text-slate-800 text-sm">Backup & Restore Database</h2>
+                    <p class="text-slate-500 text-2xs">Export seluruh data WMS ke file JSON untuk backup, atau import dari file JSON yang sudah diekspor sebelumnya.</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg"><i data-lucide="download" class="w-5 h-5"></i></div>
+                            <div><h3 class="font-bold text-slate-800 text-xs">Export Database (Backup)</h3><p class="text-slate-500 text-2xs">Simpan semua data ke file JSON</p></div>
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1 text-2xs text-slate-600">
+                            <div class="flex justify-between"><span>Master Barang:</span><span class="font-bold" x-text="$parent.barangList.length + ' item'"></span></div>
+                            <div class="flex justify-between"><span>Master Gudang:</span><span class="font-bold" x-text="$parent.gudangList.length + ' item'"></span></div>
+                            <div class="flex justify-between"><span>Master Project:</span><span class="font-bold" x-text="$parent.projectList.length + ' item'"></span></div>
+                            <div class="flex justify-between"><span>Transaksi:</span><span class="font-bold" x-text="$parent.transactionList.length + ' item'"></span></div>
+                            <div class="flex justify-between"><span>Stok Gudang:</span><span class="font-bold" x-text="$parent.stokGudangList.length + ' item'"></span></div>
+                        </div>
+                        <button @click="$parent.exportDatabase()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center space-x-1 transition-colors">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i><span>Download Backup JSON</span>
+                        </button>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg"><i data-lucide="upload" class="w-5 h-5"></i></div>
+                            <div><h3 class="font-bold text-slate-800 text-xs">Import Database (Restore)</h3><p class="text-slate-500 text-2xs">Muat data dari file JSON backup</p></div>
+                        </div>
+                        <div class="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors">
+                            <input type="file" id="importFileInput" accept=".json" @change="handleImportFile($event)" class="hidden">
+                            <label for="importFileInput" class="cursor-pointer block">
+                                <i data-lucide="file-json" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i>
+                                <p class="text-xs text-slate-600 font-medium">Klik untuk pilih file JSON</p>
+                                <p class="text-2xs text-slate-400 mt-1">atau drag & drop file di sini</p>
+                            </label>
+                        </div>
+                        <div x-show="importPreview" class="bg-amber-50 border border-amber-200 p-3 rounded-lg text-2xs text-amber-800 space-y-1">
+                            <p class="font-bold">Preview Data Import:</p>
+                            <p x-text="importPreview"></p>
+                        </div>
+                        <button x-show="importDataTemp" @click="$parent.confirmImport()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center space-x-1 transition-colors">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i><span>Konfirmasi Import & Replace Data</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-800 text-xs mb-2">Catatan Keamanan Data</h3>
+                    <ul class="text-2xs text-slate-600 space-y-1 list-disc list-inside">
+                        <li>Data disimpan sepenuhnya di <strong>localStorage browser</strong> Anda. Jika browser di-clear, data hilang.</li>
+                        <li>Lakukan backup secara rutin (mingguan) dengan menekan tombol Export di atas.</li>
+                        <li>File backup tidak terenkripsi &mdash; simpan di tempat yang aman.</li>
+                        <li>Import akan <strong>menimpa (replace)</strong> seluruh data yang ada saat ini. Pastikan sudah backup terlebih dahulu.</li>
+                    </ul>
+                </div>
+            </div>
+        </template>
+
+        <!-- SUPABASE SETUP -->
+        <template x-if="activeTab === 'supabase_setup'">
+            <div class="space-y-4 animate-enter">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                    <div>
+                        <h2 class="font-bold text-slate-900 text-sm mb-1">Panduan Setup Supabase Database & GitHub Pages</h2>
+                        <p class="text-slate-500 text-2xs">Ikuti langkah di bawah ini untuk menghubungkan WMS ini ke database cloud gratis dan hosting online.</p>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
+                        <h3 class="font-bold text-slate-900">1. Skema Tabel SQL di Supabase</h3>
+                        <p class="text-slate-600">Jalankan perintah SQL berikut di SQL Editor Supabase Anda:</p>
+                        <pre class="bg-slate-900 text-slate-200 p-3 rounded text-2xs font-mono overflow-x-auto">-- Tabel Master Barang
+CREATE TABLE master_barang (
+    id SERIAL PRIMARY KEY,
+    kode VARCHAR(50) UNIQUE NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    kategori VARCHAR(100),
+    jenis VARCHAR(100),
+    satuan VARCHAR(20),
+    stok_min INT DEFAULT 0
+);
+
+-- Tabel Master Gudang
+CREATE TABLE master_gudang (
+    id SERIAL PRIMARY KEY,
+    kode VARCHAR(50) UNIQUE NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    tipe VARCHAR(50),
+    lokasi TEXT,
+    pic VARCHAR(100)
+);
+
+-- Tabel Project
+CREATE TABLE master_project (
+    id SERIAL PRIMARY KEY,
+    kode_project VARCHAR(50) UNIQUE NOT NULL,
+    periode VARCHAR(50),
+    type VARCHAR(100),
+    region VARCHAR(100),
+    no_pr_po VARCHAR(100),
+    po_plan VARCHAR(50),
+    po_final VARCHAR(50),
+    status_po VARCHAR(50),
+    permit VARCHAR(50),
+    status_snd VARCHAR(50),
+    status_project VARCHAR(50),
+    status_doc VARCHAR(50)
+);
+
+-- Tabel Stok Gudang
+CREATE TABLE stok_gudang (
+    id SERIAL PRIMARY KEY,
+    gudang VARCHAR(150),
+    kode_barang VARCHAR(50),
+    nama_barang VARCHAR(150),
+    qty INT DEFAULT 0,
+    masuk INT DEFAULT 0,
+    keluar INT DEFAULT 0,
+    t_masuk INT DEFAULT 0,
+    t_keluar INT DEFAULT 0
+);
+
+-- Nonaktifkan RLS agar terhindar dari Error 401 Unauthorized
+ALTER TABLE master_barang DISABLE ROW LEVEL SECURITY;
+ALTER TABLE master_gudang DISABLE ROW LEVEL SECURITY;
+ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
+ALTER TABLE stok_gudang DISABLE ROW LEVEL SECURITY;</pre>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
+                        <h3 class="font-bold text-slate-900">2. Konfigurasi Kredensial</h3>
+                        <p class="text-slate-600">Edit file <code>assets/js/core/config.js</code> dan isi dengan URL serta Anon Key dari Project Settings &rarr; API di Supabase:</p>
+                        <pre class="bg-slate-900 text-slate-200 p-3 rounded text-2xs font-mono overflow-x-auto">export const SUPABASE_URL = 'https://xxxx.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJ...';
+export const USE_SUPABASE = true;</pre>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
+                        <h3 class="font-bold text-slate-900">3. Deploy ke GitHub Pages</h3>
+                        <ol class="text-slate-600 text-2xs list-decimal list-inside space-y-1">
+                            <li>Buat repository baru di GitHub.</li>
+                            <li>Upload seluruh file hasil pecahan ini ke repository.</li>
+                            <li>Masuk ke Settings &rarr; Pages &rarr; Source: Deploy from branch (main) &rarr; folder: / (root).</li>
+                            <li>Tunggu 1-2 menit, lalu akses URL <code>https://username.github.io/repo-name/</code>.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </main>
+</div>
+
+<!-- MODAL -->
+<div x-show="isModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" x-cloak x-transition>
+    <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+            <h3 class="font-bold text-slate-900 text-sm" x-text="modalTitle"></h3>
+            <button @click="closeModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <form x-show="modalType === 'barang'" @submit.prevent="saveBarang()" class="space-y-3">
+            <div><label class="block font-medium text-slate-700 mb-1">Kode Barang</label><input type="text" x-model="modalBarang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: MAT-FIB-003"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Nama Barang</label><input type="text" x-model="modalBarang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Splicer Machine Fujikura"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Kategori</label><input type="text" x-model="modalBarang.kategori" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Fiber Optic Tools"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Jenis</label><input type="text" x-model="modalBarang.jenis" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Equipment"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Satuan</label><input type="text" x-model="modalBarang.satuan" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Unit / Pcs"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Stok Minimum (Alert)</label><input type="number" x-model.number="modalBarang.stokMin" min="0" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="0"></div>
+            <div class="flex justify-end space-x-2 pt-3">
+                <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" x-text="isEditMode ? 'Simpan Perubahan' : 'Tambah Barang'"></button>
+            </div>
+        </form>
+
+        <form x-show="modalType === 'gudang'" @submit.prevent="saveGudang()" class="space-y-3">
+            <div><label class="block font-medium text-slate-700 mb-1">Kode Gudang</label><input type="text" x-model="modalGudang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="WH-JKT-03"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Nama Gudang</label><input type="text" x-model="modalGudang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Gudang Regional Jakarta"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Tipe Kepemilikan</label><select x-model="modalGudang.tipe" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"><option value="Perusahaan Sendiri">Perusahaan Sendiri</option><option value="Pihak Lain">Pihak Lain</option></select></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Lokasi</label><input type="text" x-model="modalGudang.lokasi" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Jl. Raya Industri No. 10"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">PIC (Pengelola)</label><input type="text" x-model="modalGudang.pic" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Nama PIC"></div>
+            <div class="flex justify-end space-x-2 pt-3">
+                <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" x-text="isEditGudangMode ? 'Simpan Perubahan' : 'Tambah Gudang'"></button>
+            </div>
+        </form>
+
+        <form x-show="modalType === 'project'" @submit.prevent="saveProject()" class="space-y-3">
+            <div><label class="block font-medium text-slate-700 mb-1">Kode Project</label><input type="text" x-model="modalProject.kodeProject" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PRJ-JTG-2026"></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="block font-medium text-slate-700 mb-1">Periode</label><input type="text" x-model="modalProject.periode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Februari 2026"></div>
+                <div><label class="block font-medium text-slate-700 mb-1">Type Project</label><input type="text" x-model="modalProject.type" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="FTTH Rollout"></div>
+            </div>
+            <div><label class="block font-medium text-slate-700 mb-1">Region</label><input type="text" x-model="modalProject.region" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Sumatera Tengah"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">No PR-PO</label><input type="text" x-model="modalProject.noPrPo" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="PO/2026/II/012"></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="block font-medium text-slate-700 mb-1">PO Plan</label><input type="text" x-model="modalProject.poPlan" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="01 Feb 2026"></div>
+                <div><label class="block font-medium text-slate-700 mb-1">PO Final</label><input type="text" x-model="modalProject.poFinal" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="05 Feb 2026"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="block font-medium text-slate-700 mb-1">Status PO</label><select x-model="modalProject.statusPo" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"><option value="Approved">Approved</option><option value="Pending">Pending</option></select></div>
+                <div><label class="block font-medium text-slate-700 mb-1">Permit</label><input type="text" x-model="modalProject.permit" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Issued"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="block font-medium text-slate-700 mb-1">Status SND</label><input type="text" x-model="modalProject.statusSnd" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Verified"></div>
+                <div><label class="block font-medium text-slate-700 mb-1">Status Project</label><input type="text" x-model="modalProject.statusProject" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="On Progress"></div>
+            </div>
+            <div><label class="block font-medium text-slate-700 mb-1">Status Doc</label><input type="text" x-model="modalProject.statusDoc" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Complete"></div>
+            <div class="flex justify-end space-x-2 pt-3">
+                <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" x-text="isEditProjectMode ? 'Simpan Perubahan' : 'Tambah Project'"></button>
+            </div>
+        </form>
+
+        <form x-show="modalType === 'transaction'" @submit.prevent="saveTransaction()" class="space-y-3">
+            <div><label class="block font-medium text-slate-700 mb-1">No Document</label><input type="text" x-model="modalTransaction.noDocument" readonly class="w-full px-3 py-1.5 border border-slate-200 bg-slate-100 rounded-lg text-xs text-slate-600"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Diketahui Oleh</label><input type="text" x-model="modalTransaction.diketahui" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Keterangan</label><textarea x-model="modalTransaction.keterangan" rows="2" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"></textarea></div>
+            <div class="flex justify-end space-x-2 pt-3">
+                <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
+                <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Simpan Perubahan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- PRINTABLE SURAT JALAN -->
+<div id="printable-surat-jalan" class="hidden print:block w-full p-8 mx-auto max-w-4xl font-sans" x-cloak>
+    <div class="border-b-2 border-slate-800 pb-4 mb-6 flex justify-between items-start">
+        <div>
+            <h1 class="text-2xl font-bold uppercase tracking-wider text-slate-900">SURAT JALAN & BSTM</h1>
+            <p class="text-xs text-slate-600 mt-1">Bukti Serah Terima Material / Pengiriman Barang</p>
+        </div>
+        <div class="text-right flex flex-col items-end">
+            <h2 class="font-bold text-lg text-slate-900">ENTERPRISE WMS</h2>
+            <p class="text-xs text-slate-600">Infrastructure & Project Material Management</p>
+            <svg id="surat-jalan-barcode" class="mt-2 h-10"></svg>
+        </div>
+    </div>
+    <div class="grid grid-cols-2 gap-6 mb-6 text-xs bg-slate-50 p-4 rounded-lg border border-slate-200">
+        <div class="space-y-1.5">
+            <div class="flex"><span class="w-32 font-bold text-slate-700">No Document</span>: <span class="font-mono font-bold text-indigo-600" x-text="printableTrx.noDocument"></span></div>
+            <div class="flex"><span class="w-32 font-bold text-slate-700">Tanggal</span>: <span x-text="printableTrx.tanggal"></span></div>
+            <div class="flex"><span class="w-32 font-bold text-slate-700">No TO-DO / Ref</span>: <span class="font-mono font-medium" x-text="printableTrx.noTodo"></span></div>
+            <div class="flex"><span class="w-32 font-bold text-slate-700">Tipe Transaksi</span>: <span class="font-bold uppercase" x-text="printableTrx.tipe"></span></div>
+        </div>
+        <div class="space-y-1.5">
+            <div class="flex"><span class="w-32 font-bold text-slate-700">Gudang Asal</span>: <span x-text="printableTrx.gudangAsal"></span></div>
+            <div class="flex"><span class="w-32 font-bold text-slate-700">Gudang Tujuan</span>: <span x-text="printableTrx.gudangTujuan"></span></div>
+            <div class="flex"><span class="w-32 font-bold text-slate-700">Kode Project</span>: <span class="font-mono font-medium" x-text="printableTrx.kodeProject"></span></div>
+            <div class="flex"><span class="w-32 font-bold text-slate-700">Petugas Input</span>: <span x-text="printableTrx.petugas"></span></div>
+        </div>
+    </div>
+    <div class="mb-6">
+        <table class="w-full border-collapse border border-slate-300 text-xs">
+            <thead>
+                <tr class="bg-slate-100 text-slate-800">
+                    <th class="border border-slate-300 p-2 w-12 text-center">No</th>
+                    <th class="border border-slate-300 p-2 w-36">Kode Barang</th>
+                    <th class="border border-slate-300 p-2">Nama Barang / Material</th>
+                    <th class="border border-slate-300 p-2 w-24 text-center">Jumlah (Qty)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="(it, index) in printableTrx.items" :key="index">
+                    <tr>
+                        <td class="border border-slate-300 p-2 text-center" x-text="index + 1"></td>
+                        <td class="border border-slate-300 p-2 font-mono" x-text="it.kode"></td>
+                        <td class="border border-slate-300 p-2 font-medium" x-text="it.nama"></td>
+                        <td class="border border-slate-300 p-2 text-center font-bold" x-text="it.qty"></td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </div>
+    <div class="mb-8 text-xs bg-white p-3 rounded border border-slate-200">
+        <span class="font-bold text-slate-700">Keterangan / Catatan Lapangan:</span>
+        <p class="text-slate-600 mt-1" x-text="printableTrx.keterangan || '-'"></p>
+    </div>
+    <div class="grid grid-cols-4 gap-4 text-center text-sm mt-8">
+        <div class="flex flex-col justify-between h-36">
+            <p class="font-bold text-slate-800">Dibuat / Diserahkan,</p>
+            <div><p class="border-b border-slate-800 inline-block w-4/5 pb-1 font-semibold min-h-[1.5rem]" x-text="printableTrx.petugas || ''"></p><p class="mt-1 text-xs text-slate-600">Admin Gudang</p></div>
+        </div>
+        <div class="flex flex-col justify-between h-36">
+            <p class="font-bold text-slate-800">Dibawa / Diantar,</p>
+            <div><p class="border-b border-slate-800 inline-block w-4/5 pb-1 font-semibold text-transparent select-none">TandaTangan</p><p class="mt-1 text-xs text-slate-600">Driver / Kurir</p></div>
+        </div>
+        <div class="flex flex-col justify-between h-36">
+            <p class="font-bold text-slate-800">Diterima,</p>
+            <div><p class="border-b border-slate-800 inline-block w-4/5 pb-1 font-semibold text-transparent select-none">TandaTangan</p><p class="mt-1 text-xs text-slate-600">Penerima / Site Manager</p></div>
+        </div>
+        <div class="flex flex-col justify-between h-36">
+            <p class="font-bold text-slate-800">Diketahui Oleh,</p>
+            <div><p class="border-b border-slate-800 inline-block w-4/5 pb-1 font-semibold min-h-[1.5rem]" x-text="printableTrx.diketahui || ''"></p><p class="mt-1 text-xs text-slate-600">Supervisor / Manager</p></div>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="./assets/js/main.js"></script>
+</body>
+</html>
