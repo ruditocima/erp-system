@@ -1346,27 +1346,78 @@ ALTER TABLE master_project DISABLE ROW LEVEL SECURITY;
                     this.activeTab = 'approval_transaksi';
                     await this.loadAllData();
                 },
-
+                async upsertStok(namaGudang, kodeBarang, namaBarang, qtyChange) {
+    // 1. Cek apakah barang sudah ada di gudang tersebut
+    let { data, error: errCek } = await this.supabaseClient
+        .from('stok_gudang')
+        .select('*')
+        .eq('gudang', namaGudang)
+        .eq('kode_barang', kodeBarang)
+        .maybeSingle(); // Menggunakan maybeSingle untuk menghindari error jika data kosong
+        
+    if (data) {
+        // 2. Jika ada, update/akumulasi stoknya
+        await this.supabaseClient
+            .from('stok_gudang')
+            .update({ qty: data.qty + qtyChange })
+            .eq('id', data.id);
+    } else {
+        // 3. Jika belum ada (dan nilainya positif), buat entri stok baru
+        if (qtyChange > 0) {
+            await this.supabaseClient
+                .from('stok_gudang')
+                .insert([{
+                    gudang: namaGudang,
+                    kode_barang: kodeBarang,
+                    nama_barang: namaBarang,
+                    qty: qtyChange
+                }]);
+        }
+    }
+},
                 async approveTransaction(trx) {
-                    if (this.role !== 'Approver' && this.role !== 'Admin') {
-                        this.showToast('Hanya Approver atau Admin yang dapat menyetujui transaksi!', 'error');
-                        return;
-                    }
+    if (this.role !== 'Approver' && this.role !== 'Admin') {
+        this.showToast('Hanya Approver atau Admin yang dapat menyetujui transaksi!', 'error');
+        return;
+    }
 
-                    let { error } = await this.supabaseClient
-                        .from('transactions')
-                        .update({ status: 'Approved', disetujui: this.username })
-                        .eq('no_document', trx.noDocument);
+    // 1. Update status transaksi di database
+    let { error: errTrx } = await this.supabaseClient
+        .from('transactions')
+        .update({ status: 'Approved', disetujui: this.username })
+        .eq('no_document', trx.noDocument);
 
-                    if (error) {
-                        this.showToast('Gagal menyetujui transaksi.', 'error');
-                        return;
-                    }
+    if (errTrx) {
+        this.showToast('Gagal menyetujui transaksi: ' + errTrx.message, 'error');
+        return;
+    }
 
-                    this.showToast(`Transaksi ${trx.noDocument} berhasil disetujui dan stok diperbarui!`, 'success');
-                    await this.loadAllData();
-                },
+    // 2. LOGIKA UPDATE STOK OTOMATIS
+    try {
+        for (let item of trx.items) {
+            let qty = parseInt(item.qty);
+            let kodeBarang = item.kode_barang || item.kode;
+            let namaBarang = item.nama_barang || item.nama;
+            
+            // Logika Barang Masuk / Transfer (Tambah stok ke Gudang Tujuan)
+            if ((trx.tipe === 'Masuk' || trx.tipe === 'Transfer') && trx.gudangTujuan !== '-') {
+                await this.upsertStok(trx.gudangTujuan, kodeBarang, namaBarang, qty);
+            }
+            
+            // Logika Barang Keluar / Transfer (Kurangi stok dari Gudang Asal)
+            if ((trx.tipe === 'Keluar' || trx.tipe === 'Transfer') && trx.gudangAsal !== '-') {
+                await this.upsertStok(trx.gudangAsal, kodeBarang, namaBarang, -qty); // Perhatikan tanda minus (-)
+            }
+        }
+    } catch (e) {
+        console.error('Gagal update stok otomatis:', e);
+        this.showToast('Transaksi disetujui, tetapi ada kendala pada pembaruan stok.', 'error');
+        return; // Hentikan eksekusi jika gagal agar data bisa disinkronkan kembali
+    }
 
+    this.showToast(`Transaksi ${trx.noDocument} berhasil disetujui dan stok otomatis diperbarui!`, 'success');
+    await this.loadAllData();
+},
                 setupRealtimeSync() {
                     this.supabaseClient
                         .channel('public-db-changes')
