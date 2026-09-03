@@ -15,17 +15,9 @@ export function totalPages(data, perPage) {
     return Math.ceil(data.length / perPage) || 1;
 }
 
-export function usePagination() {
-    return {
-        page: 1,
-        perPage: 10,
-        get totalPages() { return totalPages(this.filteredData, this.perPage); },
-        get paginatedData() { return paginate(this.filteredData, this.page, this.perPage); }
-    };
-}
-
 // LocalStorage helpers with schema versioning
-export function loadLocal(key, defaultVal = []) {
+export function loadLocal(key, defaultVal) {
+    defaultVal = defaultVal || [];
     try {
         const storedVersion = localStorage.getItem('wms_db_version');
         if (!storedVersion) {
@@ -34,7 +26,7 @@ export function loadLocal(key, defaultVal = []) {
         const raw = localStorage.getItem(key);
         return raw ? JSON.parse(raw) : defaultVal;
     } catch (e) {
-        console.error(`Error loading ${key}:`, e);
+        console.error('Error loading ' + key + ':', e);
         return defaultVal;
     }
 }
@@ -60,15 +52,12 @@ export function exportTableToCSV(tableId, filename) {
     for (let i = 0; i < table.rows.length; i++) {
         let row = [], cols = table.rows[i].querySelectorAll("td, th");
         for (let j = 0; j < cols.length; j++) {
-            let data = cols[j].innerText.replace(/(
-|
-|)/gm, " ").replace(/"/g, '""');
+            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""');
             row.push('"' + data + '"');
         }
         csv.push(row.join(","));
     }
-    const csvFile = new Blob([csv.join("
-")], { type: "text/csv" });
+    const csvFile = new Blob([csv.join("\n")], { type: "text/csv" });
     const downloadLink = document.createElement("a");
     downloadLink.download = filename;
     downloadLink.href = window.URL.createObjectURL(csvFile);
@@ -79,11 +68,12 @@ export function exportTableToCSV(tableId, filename) {
 }
 
 // Doc number generator
-export function generateDocNumber(tipe = 'Masuk') {
+export function generateDocNumber(tipe) {
+    tipe = tipe || 'Masuk';
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     const tipeCode = tipe.substring(0, 2).toUpperCase();
-    return `TRX-${tipeCode}-${year}${month}-${rand}`;
+    return 'TRX-' + tipeCode + '-' + year + month + '-' + rand;
 }
