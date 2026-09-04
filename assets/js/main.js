@@ -14,7 +14,11 @@ import { stockOpnameTab } from './tabs/stockOpname.js?v=2';
 import { backupRestoreTab } from './tabs/backupRestore.js?v=2';
 
 document.addEventListener('alpine:init', () => {
-    Alpine.data('wmsApp', createWmsApp);
+    // Daftarkan wmsApp sebagai Alpine Store global
+    const wmsStore = createWmsApp();
+    Alpine.store('wms', wmsStore);
+
+    Alpine.data('wmsApp', () => Alpine.store('wms'));
     Alpine.data('dashboardTab', dashboardTab);
     Alpine.data('masterBarangTab', masterBarangTab);
     Alpine.data('masterGudangTab', masterGudangTab);
