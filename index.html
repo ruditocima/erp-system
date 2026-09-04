@@ -434,7 +434,7 @@
                                 <div class="flex items-center justify-between mb-2.5">
                                     <div>
                                         <h4 class="text-xs font-semibold text-white">Detail Material & Pelacakan Nomor Drum Kabel</h4>
-                                        <p class="text-[10px] text-slate-400">Pilih Kategori → Jenis → Kode Barang (Nama Barang terisi otomatis) → Tentukan Nomor Drum & Qty</p>
+                                        <p class="text-[10px] text-slate-400">Pilih Kategori → Jenis → Kode Barang (Nama Barang terisi otomatis) → Tentukan Qty (Drum ID otomatis dibuat jika Kategori Cable & Barang Masuk)</p>
                                     </div>
                                     <button type="button" @click="addTransactionItem" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-400 px-2.5 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1">
                                         <i data-lucide="plus" class="w-3 h-3"></i> Tambah Item
@@ -472,7 +472,11 @@
                                                 <input type="text" x-model="item.namaBarang" readonly placeholder="Nama Barang" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 bg-slate-950/50 cursor-not-allowed">
                                             </div>
                                             <div class="md:col-span-2">
-                                                <input type="text" x-model="item.drumId" placeholder="No. Drum / Batch ID" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-indigo-300 font-mono">
+                                                <input type="text" x-model="item.drumId" 
+                                                    :readonly="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable'" 
+                                                    :placeholder="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis oleh Sistem' : 'No. Drum / Batch ID'" 
+                                                    :class="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'bg-slate-950/50 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-indigo-300'"
+                                                    class="w-full border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] font-mono">
                                             </div>
                                             <div class="md:col-span-1">
                                                 <input type="number" x-model="item.qty" min="1" placeholder="Qty" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-white text-center font-bold">
@@ -994,6 +998,11 @@
                     return this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
                 },
 
+                getCategoryByKode(kode) {
+                    const found = this.masterBarang.find(b => b.kodeBarang === kode);
+                    return found ? found.kategori : '';
+                },
+
                 fillNamaBarang(item) {
                     const found = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
                     if (found) {
@@ -1019,15 +1028,65 @@
                     }
 
                     const transData = JSON.parse(JSON.stringify(this.newTrans));
-                    this.transactions.push(transData);
-                    
                     const targetWH = transData.gudangTujuan || transData.gudangAsal || 'Gudang Utama Jakarta';
+                    let expandedItems = [];
 
                     transData.items.forEach(i => {
                         const qtyNum = Number(i.qty) || 0;
                         const brgInfo = this.masterBarang.find(b => b.kodeBarang === i.kodeBarang);
                         const satuanBarang = brgInfo ? brgInfo.sat : 'Pcs';
+                        const isCable = brgInfo && brgInfo.kategori === 'Cable';
 
+                        // Khusus Tipe Barang Masuk dengan Kategori 'Cable'
+                        if (transData.tipeTransaksi === 'Barang Masuk' && isCable) {
+                            let remainingQtyToProcess = qtyNum;
+                            // Cari Drum ID dengan stok / remainingLength = 0
+                            let emptyDrums = this.drumLedger.filter(d => d.kodeBarang === i.kodeBarang && d.gudang === targetWH && d.remainingLength === 0);
+
+                            while (remainingQtyToProcess > 0) {
+                                let fillQty = Math.min(remainingQtyToProcess, 3000); // Max 3000 per Drum ID
+                                let targetDrum = emptyDrums.shift();
+                                let drumIdToUse = '';
+
+                                if (targetDrum) {
+                                    // Gunakan kembali drum kosong yang ditemukan
+                                    targetDrum.initialLength = 3000;
+                                    targetDrum.remainingLength = fillQty;
+                                    targetDrum.status = fillQty === 3000 ? 'Full' : 'Partial';
+                                    drumIdToUse = targetDrum.drumId;
+                                } else {
+                                    // Apabila tidak ada yang 0 (atau stok drum existing > 0), buat Drum ID baru
+                                    const dateStr = transData.tanggal ? transData.tanggal.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
+                                    const randomSeq = Math.floor(1000 + Math.random() * 9000);
+                                    drumIdToUse = `DRM-${i.kodeBarang.replace(/[^a-zA-Z0-9]/g, '')}-${dateStr}-${randomSeq}`;
+
+                                    this.drumLedger.push({
+                                        drumId: drumIdToUse,
+                                        kodeBarang: i.kodeBarang,
+                                        namaBarang: i.namaBarang,
+                                        gudang: targetWH,
+                                        initialLength: 3000,
+                                        remainingLength: fillQty,
+                                        status: fillQty === 3000 ? 'Full' : 'Partial'
+                                    });
+                                }
+
+                                expandedItems.push({
+                                    kategori: i.kategori,
+                                    jenis: i.jenis,
+                                    kodeBarang: i.kodeBarang,
+                                    namaBarang: i.namaBarang,
+                                    drumId: drumIdToUse,
+                                    qty: fillQty
+                                });
+
+                                remainingQtyToProcess -= fillQty;
+                            }
+                        } else {
+                            expandedItems.push(i);
+                        }
+
+                        // Update Stok Gudang
                         let existingStok = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
                         if (transData.tipeTransaksi === 'Barang Masuk' || transData.tipeTransaksi === 'Transfer Gudang') {
                             if (existingStok) {
@@ -1048,7 +1107,8 @@
                             }
                         }
 
-                        if (i.drumId && i.kodeBarang === 'CBL-ADSS-024') {
+                        // Handle non-cable / barang keluar drum ledger updates
+                        if (i.drumId && (!isCable || transData.tipeTransaksi !== 'Barang Masuk')) {
                             if (transData.tipeTransaksi === 'Barang Masuk') {
                                 let existingDrum = this.drumLedger.find(d => d.drumId === i.drumId);
                                 if (!existingDrum) {
@@ -1085,8 +1145,12 @@
                         }
                     });
 
+                    transData.items = expandedItems;
+                    this.transactions.push(transData);
+
                     alert('Transaksi berhasil disimpan, stok gudang & Drum Ledger berhasil diperbarui secara real-time!');
                     this.currentTab = 'data-transaksi';
+                    setTimeout(() => lucide.createIcons(), 100);
                 },
 
                 printBAST(tx) {
