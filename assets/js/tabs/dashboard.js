@@ -14,7 +14,7 @@ export function dashboardTab() {
                 const d = new Date(); d.setDate(d.getDate() - i);
                 const dateStr = d.toISOString().split('T')[0];
                 labels.push(d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }));
-                const dayTrx = this.$parent.transactionList.filter(t => t.tanggal === dateStr && t.status === 'Approved');
+                const dayTrx = this.$store.wms.transactionList.filter(t => t.tanggal === dateStr && t.status === 'Approved');
                 masukData.push(dayTrx.filter(t => t.tipe === 'Masuk').reduce((sum, t) => sum + (Array.isArray(t.items) ? t.items.reduce((s, i) => s + (Number(i.qty) || 0), 0) : 0), 0));
                 keluarData.push(dayTrx.filter(t => t.tipe === 'Keluar').reduce((sum, t) => sum + (Array.isArray(t.items) ? t.items.reduce((s, i) => s + (Number(i.qty) || 0), 0) : 0), 0));
                 transferData.push(dayTrx.filter(t => t.tipe === 'Transfer').reduce((sum, t) => sum + (Array.isArray(t.items) ? t.items.reduce((s, i) => s + (Number(i.qty) || 0), 0) : 0), 0));
