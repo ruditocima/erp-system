@@ -1002,11 +1002,29 @@ ALTER TABLE stok_gudang DISABLE ROW LEVEL SECURITY;
         </div>
 
         <form x-show="modalType === 'barang'" @submit.prevent="saveBarang()" class="space-y-3">
-            <div><label class="block font-medium text-slate-700 mb-1">Kode Barang</label><input type="text" x-model="modalBarang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: MAT-FIB-003"></div>
-            <div><label class="block font-medium text-slate-700 mb-1">Nama Barang</label><input type="text" x-model="modalBarang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Splicer Machine Fujikura"></div>
-            <div><label class="block font-medium text-slate-700 mb-1">Kategori</label><input type="text" x-model="modalBarang.kategori" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Fiber Optic Tools"></div>
-            <div><label class="block font-medium text-slate-700 mb-1">Jenis</label><input type="text" x-model="modalBarang.jenis" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Equipment"></div>
-            <div><label class="block font-medium text-slate-700 mb-1">Satuan</label><input type="text" x-model="modalBarang.satuan" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Unit / Pcs"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Kode Barang / Kode Dasar Drum</label><input type="text" x-model="modalBarang.kode" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: DRM-ADSS024"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Nama Barang</label><input type="text" x-model="modalBarang.nama" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Cable ADSS-024 Core"></div>
+            
+            <div class="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <label class="flex items-center space-x-2 text-xs font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" x-model="modalBarang.isCableDrum" class="rounded text-indigo-600 focus:ring-indigo-500">
+                    <span>Otomatis Pecah Kode (Khusus Kabel/Drum)</span>
+                </label>
+                <div x-show="modalBarang.isCableDrum" class="mt-3 grid grid-cols-2 gap-3" x-transition x-cloak>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1 text-2xs">Total Panjang (Meter)</label>
+                        <input type="number" x-model.number="modalBarang.totalMeter" min="1" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: 9000">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1 text-2xs">Max Qty per Drum</label>
+                        <input type="number" x-model.number="modalBarang.maxPerDrum" min="1" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: 3000">
+                    </div>
+                </div>
+            </div>
+
+            <div><label class="block font-medium text-slate-700 mb-1">Kategori</label><input type="text" x-model="modalBarang.kategori" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Cable"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Jenis</label><input type="text" x-model="modalBarang.jenis" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: ADSS-024"></div>
+            <div><label class="block font-medium text-slate-700 mb-1">Satuan</label><input type="text" x-model="modalBarang.satuan" required class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Contoh: Meter"></div>
             <div><label class="block font-medium text-slate-700 mb-1">Stok Minimum (Alert)</label><input type="number" x-model.number="modalBarang.stokMin" min="0" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="0"></div>
             <div class="flex justify-end space-x-2 pt-3">
                 <button type="button" @click="closeModal()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">Batal</button>
@@ -1192,7 +1210,8 @@ function wmsApp() {
 
         // === MODAL ===
         isModalOpen: false, modalType: '', modalTitle: '',
-        isEditMode: false, modalBarang: { kode: '', nama: '', kategori: '', jenis: '', satuan: '', stokMin: 0 },
+        isEditMode: false, modalBarang: { kode: '', nama: '', kategori: '', jenis: '', satuan: '', stokMin: 0, 
+        isCableDrum: false, totalMeter: 0, maxPerDrum: 0 },
         isEditGudangMode: false, modalGudang: { kode: '', nama: '', tipe: 'Perusahaan Sendiri', lokasi: '', pic: '' },
         isEditProjectMode: false, modalProject: { kodeProject: '', periode: '', type: '', region: '', noPrPo: '', poPlan: '', poFinal: '', statusPo: 'Approved', permit: '', statusSnd: '', statusProject: '', statusDoc: '' },
         modalTransaction: { noDocument: '', keterangan: '', diketahui: '' },
@@ -1435,16 +1454,37 @@ function wmsApp() {
                 if (index !== -1) this.barangList[index] = { ...this.modalBarang };
                 this.showToast('Barang berhasil diupdate', 'success');
             } else {
-                if (this.barangList.find(b => b.kode === this.modalBarang.kode)) {
-                    this.showToast('Kode Barang sudah ada!', 'error');
-                    return;
+                if (this.modalBarang.isCableDrum && this.modalBarang.totalMeter > 0 && this.modalBarang.maxPerDrum > 0) {
+                let numDrums = Math.ceil(this.modalBarang.totalMeter / this.modalBarang.maxPerDrum);
+                
+                for(let i = 1; i <= numDrums; i++) {
+                    let drumCode = `${this.modalBarang.kode}-D${String(i).padStart(3, '0')}`;
+                    
+                    this.barangList.push({
+                        kode: drumCode,
+                        nama: `${this.modalBarang.nama} (Drum ${String(i).padStart(3, '0')})`,
+                        kategori: this.modalBarang.kategori,
+                        jenis: this.modalBarang.jenis,
+                        satuan: this.modalBarang.satuan,
+                        stokMin: this.modalBarang.stokMin
+                    });
                 }
-                this.barangList.unshift({ ...this.modalBarang });
-                this.showToast('Barang baru ditambahkan', 'success');
+                this.showToast('success', `${numDrums} Kode Drum berhasil di-generate secara otomatis!`);
+            } else {
+                // Logika standar jika bukan kabel/drum
+                this.barangList.push({
+                    kode: this.modalBarang.kode,
+                    nama: this.modalBarang.nama,
+                    kategori: this.modalBarang.kategori,
+                    jenis: this.modalBarang.jenis,
+                    satuan: this.modalBarang.satuan,
+                    stokMin: this.modalBarang.stokMin
+                });
+                this.showToast('success', 'Barang berhasil ditambahkan');
             }
-            this.saveLocalData('wms_barang', this.barangList);
-            this.closeModal();
-        },
+        }
+        this.closeModal();
+    }
         editBarang(item) {
             this.modalBarang = { ...item };
             if (this.modalBarang.stokMin === undefined) this.modalBarang.stokMin = 0;
