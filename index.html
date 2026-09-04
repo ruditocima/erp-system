@@ -1022,13 +1022,24 @@
                 },
 
                 submitTransaction() {
+                    // Validasi khusus Transaksi Transfer Gudang
+                    if (this.newTrans.tipeTransaksi === 'Transfer Gudang') {
+                        if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
+                            alert('Harap pilih Gudang Asal dan Gudang Tujuan untuk transaksi transfer.');
+                            return;
+                        }
+                        if (this.newTrans.gudangAsal === this.newTrans.gudangTujuan) {
+                            alert('Gudang Asal dan Gudang Tujuan tidak boleh sama.');
+                            return;
+                        }
+                    }
+
                     if (!this.newTrans.items.length || !this.newTrans.items[0].kodeBarang) {
                         alert('Harap isi minimal satu item material dan pilih kode barang.');
                         return;
                     }
 
                     const transData = JSON.parse(JSON.stringify(this.newTrans));
-                    const targetWH = transData.gudangTujuan || transData.gudangAsal || 'Gudang Utama Jakarta';
                     let expandedItems = [];
 
                     transData.items.forEach(i => {
@@ -1037,39 +1048,29 @@
                         const satuanBarang = brgInfo ? brgInfo.sat : 'Pcs';
                         const isCable = brgInfo && brgInfo.kategori === 'Cable';
 
-                        // Khusus Tipe Barang Masuk dengan Kategori 'Cable'
+                        // Tentukan lokasi gudang awal pencatatan Drum ID
+                        let drumTargetWH = transData.tipeTransaksi === 'Barang Masuk' ? (transData.gudangTujuan || 'Gudang Utama Jakarta') : (transData.gudangAsal || 'Gudang Utama Jakarta');
+
+                        // Pembuatan Drum ID Baru (Hapus Reuse Drum Kosong)
                         if (transData.tipeTransaksi === 'Barang Masuk' && isCable) {
                             let remainingQtyToProcess = qtyNum;
-                            // Cari Drum ID dengan stok / remainingLength = 0
-                            let emptyDrums = this.drumLedger.filter(d => d.kodeBarang === i.kodeBarang && d.gudang === targetWH && d.remainingLength === 0);
-
+                            
                             while (remainingQtyToProcess > 0) {
-                                let fillQty = Math.min(remainingQtyToProcess, 3000); // Max 3000 per Drum ID
-                                let targetDrum = emptyDrums.shift();
-                                let drumIdToUse = '';
+                                let fillQty = Math.min(remainingQtyToProcess, 3000); // Max 3000 per Drum
+                                
+                                const dateStr = transData.tanggal ? transData.tanggal.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
+                                const randomSeq = Math.floor(1000 + Math.random() * 9000);
+                                let drumIdToUse = `DRM-${i.kodeBarang.replace(/[^a-zA-Z0-9]/g, '')}-${dateStr}-${randomSeq}`;
 
-                                if (targetDrum) {
-                                    // Gunakan kembali drum kosong yang ditemukan
-                                    targetDrum.initialLength = 3000;
-                                    targetDrum.remainingLength = fillQty;
-                                    targetDrum.status = fillQty === 3000 ? 'Full' : 'Partial';
-                                    drumIdToUse = targetDrum.drumId;
-                                } else {
-                                    // Apabila tidak ada yang 0 (atau stok drum existing > 0), buat Drum ID baru
-                                    const dateStr = transData.tanggal ? transData.tanggal.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
-                                    const randomSeq = Math.floor(1000 + Math.random() * 9000);
-                                    drumIdToUse = `DRM-${i.kodeBarang.replace(/[^a-zA-Z0-9]/g, '')}-${dateStr}-${randomSeq}`;
-
-                                    this.drumLedger.push({
-                                        drumId: drumIdToUse,
-                                        kodeBarang: i.kodeBarang,
-                                        namaBarang: i.namaBarang,
-                                        gudang: targetWH,
-                                        initialLength: 3000,
-                                        remainingLength: fillQty,
-                                        status: fillQty === 3000 ? 'Full' : 'Partial'
-                                    });
-                                }
+                                this.drumLedger.push({
+                                    drumId: drumIdToUse,
+                                    kodeBarang: i.kodeBarang,
+                                    namaBarang: i.namaBarang,
+                                    gudang: drumTargetWH,
+                                    initialLength: 3000, 
+                                    remainingLength: fillQty,
+                                    status: fillQty === 3000 ? 'Full' : 'Partial'
+                                });
 
                                 expandedItems.push({
                                     kategori: i.kategori,
@@ -1086,9 +1087,41 @@
                             expandedItems.push(i);
                         }
 
-                        // Update Stok Gudang
-                        let existingStok = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
-                        if (transData.tipeTransaksi === 'Barang Masuk' || transData.tipeTransaksi === 'Transfer Gudang') {
+                        // Logika Mutasi Stok & Pemindahan Drum Ledger Berdasarkan Tipe Transaksi
+                        if (transData.tipeTransaksi === 'Transfer Gudang') {
+                            // 1. Potong stok di Gudang Asal
+                            let stokAsal = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
+                            if (stokAsal) {
+                                stokAsal.qty = Math.max(0, stokAsal.qty - qtyNum);
+                            }
+                            
+                            // 2. Tambah stok di Gudang Tujuan
+                            let stokTujuan = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangTujuan);
+                            if (stokTujuan) {
+                                stokTujuan.qty += qtyNum;
+                            } else {
+                                this.stokGudang.push({
+                                    kodeBarang: i.kodeBarang,
+                                    namaBarang: i.namaBarang,
+                                    kategori: brgInfo ? brgInfo.kategori : 'General',
+                                    gudang: transData.gudangTujuan,
+                                    qty: qtyNum,
+                                    sat: satuanBarang
+                                });
+                            }
+
+                            // 3. Pindahkan lokasi drum di Drum Ledger
+                            if (i.drumId) {
+                                let foundDrum = this.drumLedger.find(d => d.drumId === i.drumId);
+                                if (foundDrum) {
+                                    foundDrum.gudang = transData.gudangTujuan;
+                                }
+                            }
+
+                        } else if (transData.tipeTransaksi === 'Barang Masuk') {
+                            let targetWH = transData.gudangTujuan || 'Gudang Utama Jakarta';
+                            let existingStok = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
+                            
                             if (existingStok) {
                                 existingStok.qty += qtyNum;
                             } else {
@@ -1101,15 +1134,9 @@
                                     sat: satuanBarang
                                 });
                             }
-                        } else if (transData.tipeTransaksi === 'Barang Keluar') {
-                            if (existingStok) {
-                                existingStok.qty = Math.max(0, existingStok.qty - qtyNum);
-                            }
-                        }
-
-                        // Handle non-cable / barang keluar drum ledger updates
-                        if (i.drumId && (!isCable || transData.tipeTransaksi !== 'Barang Masuk')) {
-                            if (transData.tipeTransaksi === 'Barang Masuk') {
+                            
+                            // Tambahkan ledger drum manual untuk material Non-Cable (jika diinput)
+                            if (i.drumId && !isCable) {
                                 let existingDrum = this.drumLedger.find(d => d.drumId === i.drumId);
                                 if (!existingDrum) {
                                     this.drumLedger.push({
@@ -1122,7 +1149,18 @@
                                         status: 'Full'
                                     });
                                 }
-                            } else if (transData.tipeTransaksi === 'Barang Keluar') {
+                            }
+                            
+                        } else if (transData.tipeTransaksi === 'Barang Keluar') {
+                            let targetWH = transData.gudangAsal || 'Gudang Utama Jakarta';
+                            let existingStok = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
+                            
+                            if (existingStok) {
+                                existingStok.qty = Math.max(0, existingStok.qty - qtyNum);
+                            }
+
+                            // Potong panjang sisa dari drum ledger
+                            if (i.drumId) {
                                 let foundDrum = this.drumLedger.find(d => d.drumId === i.drumId);
                                 if (foundDrum) {
                                     if (qtyNum > foundDrum.remainingLength) {
