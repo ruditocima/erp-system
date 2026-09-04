@@ -6,8 +6,8 @@ export function dashboardTab() {
         init() { this.$nextTick(() => this.renderChart()); },
         renderChart() {
             if (typeof Chart === 'undefined') return;
-            const ctx = document.getElementById('dashboardChart');
-            if (!ctx) return;
+            const canvas = document.getElementById('dashboardChart');
+            if (!canvas) return;
             if (this.dashboardChart) this.dashboardChart.destroy();
             const labels = [], masukData = [], keluarData = [], transferData = [];
             for (let i = 6; i >= 0; i--) {
