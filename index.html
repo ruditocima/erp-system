@@ -1809,6 +1809,205 @@ ALTER TABLE stok_gudang DISABLE ROW LEVEL SECURITY;
             }
         };
     }
+    document.addEventListener('alpine:init', () => {
+    Alpine.data('wmsApp', () => ({
+        isLoggedIn: localStorage.getItem('wms_logged_in') === 'true',
+        username: localStorage.getItem('wms_username') || '',
+        role: localStorage.getItem('wms_role') || 'Admin',
+        activeTab: 'dashboard',
+        
+        // Navigation Tabs
+        tabs: [
+            { id: 'dashboard', name: 'Dashboard', icon: 'layout-dashboard' },
+            { id: 'master_barang', name: 'Master Barang', icon: 'package' },
+            { id: 'master_gudang', name: 'Master Gudang', icon: 'warehouse' },
+            { id: 'master_project', name: 'Master Project', icon: 'briefcase' },
+            { id: 'input_transaksi', name: 'Input Transaksi', icon: 'file-plus' },
+            { id: 'approval_transaksi', name: 'Approval', icon: 'check-circle' },
+            { id: 'stok_gudang', name: 'Stok Gudang', icon: 'layers' },
+            { id: 'stok_project', name: 'Material Usage', icon: 'bar-chart-2' },
+            { id: 'data_transaksi', name: 'Data Transaksi', icon: 'database' },
+            { id: 'stock_opname', name: 'Stock Opname', icon: 'clipboard-list' },
+            { id: 'backup_restore', name: 'Backup & Restore', icon: 'hard-drive' },
+            { id: 'supabase_setup', name: 'Supabase Setup', icon: 'cloud' }
+        ],
+
+        // Data Store
+        toasts: [],
+        barangList: JSON.parse(localStorage.getItem('wms_barang')) || [
+            { kode: 'BRG-001', nama: 'Kabel Fiber Optic 24 Core', kategori: 'Kabel', jenis: 'FO', satuan: 'Rol', stokMin: 5 },
+            { kode: 'BRG-002', nama: 'Patch Cord LC-SC SC', kategori: 'Aksesori', jenis: 'FO', satuan: 'Pcs', stokMin: 10 }
+        ],
+        gudangList: JSON.parse(localStorage.getItem('wms_gudang')) || [
+            { kode: 'GDG-JKT', nama: 'Gudang Pusat Jakarta', tipe: 'Perusahaan Sendiri', lokasi: 'Jakarta', pic: 'Budi' },
+            { kode: 'GDG-PLB', nama: 'Gudang Regional Palembang', tipe: 'Mitra / Partner', lokasi: 'Palembang', pic: 'Joko' }
+        ],
+        projectList: JSON.parse(localStorage.getItem('wms_project')) || [
+            { kodeProject: 'PRJ-2026-01', periode: '2026', type: 'FTTH', region: 'Palembang', noPrPo: 'PO-9921', poPlan: 'Jan', poStatus: 'Approved', permit: 'Yes', statusSnd: 'Clear', statusProject: 'On Progress', statusDoc: 'Complete' }
+        ],
+        transactionList: JSON.parse(localStorage.getItem('wms_trx')) || [],
+        
+        // Form States
+        newTransaction: {
+            noDocument: 'TRX-' + Date.now().toString().slice(-6),
+            tanggal: new Date().toISOString().split('T')[0],
+            noTodo: '',
+            tipe: 'Masuk',
+            gudangAsal: '-',
+            gudangTujuan: '-',
+            kodeProject: '-',
+            items: [],
+            petugas: '',
+            disetujui: '',
+            diketahui: '',
+            keterangan: ''
+        },
+        newItemBarang: '',
+        newItemQty: 1,
+
+        // Modal & Search States
+        modal: { show: false, type: '', title: '', isEdit: false },
+        searchBarang: '', searchGudang: '', searchProject: '', searchTransaction: '',
+        pageBarang: 1, perPageBarang: 10,
+        pageGudang: 1, perPageGudang: 10,
+        pageProject: 1, perPageProject: 10,
+        pageTransaction: 1, perPageTransaction: 10,
+
+        initWms() {
+            this.newTransaction.petugas = this.username;
+            this.initLucide();
+        },
+
+        initLucide() {
+            setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+        },
+
+        switchTab(tabId) {
+            this.activeTab = tabId;
+            this.initLucide();
+        },
+
+        login() {
+            if (!this.username) return;
+            this.isLoggedIn = true;
+            localStorage.setItem('wms_logged_in', 'true');
+            localStorage.setItem('wms_username', this.username);
+            localStorage.setItem('wms_role', this.role);
+            this.newTransaction.petugas = this.username;
+            this.showToast('Berhasil masuk ke sistem!', 'success');
+            this.initLucide();
+        },
+
+        logout() {
+            localStorage.removeItem('wms_logged_in');
+            this.isLoggedIn = false;
+            this.showToast('Anda telah keluar.', 'info');
+        },
+
+        showToast(message, type = 'info') {
+            const id = Date.now();
+            this.toasts.push({ id, message, type });
+            setTimeout(() => {
+                this.toasts = this.toasts.filter(t => t.id !== id);
+            }, 3000);
+        },
+
+        get pendingCount() {
+            return this.transactionList.filter(t => t.status === 'Pending').length;
+        },
+
+        get totalStokGlobal() {
+            return this.barangList.length;
+        },
+
+        get stokMenipisList() {
+            return [];
+        },
+
+        addItemToTransaction() {
+            if (!this.newItemBarang || this.newItemQty <= 0) {
+                this.showToast('Pilih barang dan jumlah dengan benar', 'error');
+                return;
+            }
+            const b = this.barangList.find(x => x.kode === this.newItemBarang);
+            if (b) {
+                this.newTransaction.items.push({
+                    kode: b.kode,
+                    nama: b.nama,
+                    qty: this.newItemQty
+                });
+                this.newItemBarang = '';
+                this.newItemQty = 1;
+                this.showToast('Item ditambahkan ke transaksi', 'success');
+            }
+        },
+
+        submitTransaction() {
+            if (this.newTransaction.items.length === 0) {
+                this.showToast('Minimal tambahkan 1 item barang', 'error');
+                return;
+            }
+            let trx = { ...this.newTransaction, status: 'Pending' };
+            this.transactionList.unshift(trx);
+            localStorage.setItem('wms_trx', JSON.stringify(this.transactionList));
+            this.showToast('Transaksi berhasil diajukan untuk approval', 'success');
+            
+            // Reset form
+            this.newTransaction = {
+                noDocument: 'TRX-' + Date.now().toString().slice(-6),
+                tanggal: new Date().toISOString().split('T')[0],
+                noTodo: '',
+                tipe: 'Masuk',
+                gudangAsal: '-',
+                gudangTujuan: '-',
+                kodeProject: '-',
+                items: [],
+                petugas: this.username,
+                disetujui: '',
+                diketahui: '',
+                keterangan: ''
+            };
+        },
+
+        approveTransaction(trx) {
+            trx.status = 'Approved';
+            trx.disetujui = this.username;
+            localStorage.setItem('wms_trx', JSON.stringify(this.transactionList));
+            this.showToast(`Transaksi ${trx.noDocument} disetujui!`, 'success');
+        },
+
+        rejectTransaction(trx) {
+            trx.status = 'Rejected';
+            trx.disetujui = this.username;
+            localStorage.setItem('wms_trx', JSON.stringify(this.transactionList));
+            this.showToast(`Transaksi ${trx.noDocument} ditolak.`, 'warning');
+        },
+
+        openModal(type) {
+            this.modal = { show: true, type, title: 'Tambah ' + type, isEdit: false };
+        },
+
+        closeModal() {
+            this.modal.show = false;
+        },
+
+        exportDatabase() {
+            const data = {
+                barang: this.barangList,
+                gudang: this.gudangList,
+                project: this.projectList,
+                transaction: this.transactionList
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `wms_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            this.showToast('Backup database berhasil diunduh', 'success');
+        }
+    }));
+});
 </script>
 </body>
 </html>
