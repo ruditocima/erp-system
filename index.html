@@ -17,7 +17,6 @@
     <style>
         body { font-family: 'Inter', sans-serif; font-size: 13px; }
         [x-cloak] { display: none !important; }
-        /* CSS print dihapus dan digantikan dengan Tailwind print modifiers */
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
@@ -216,7 +215,6 @@
 
                 <!-- 2. MASTER BARANG -->
                 <div x-show="currentTab === 'barang'" class="space-y-4" x-cloak>
-                    <!-- ... (Sama seperti sebelumnya) ... -->
                     <div class="flex items-center justify-between">
                         <div>
                             <h3 class="text-sm font-semibold text-white">Daftar Master Barang</h3>
@@ -260,7 +258,6 @@
 
                 <!-- 3. MASTER GUDANG -->
                 <div x-show="currentTab === 'gudang'" class="space-y-4" x-cloak>
-                    <!-- ... (Sama seperti sebelumnya) ... -->
                     <div class="flex items-center justify-between">
                         <div>
                             <h3 class="text-sm font-semibold text-white">Daftar Master Gudang</h3>
@@ -304,7 +301,6 @@
 
                 <!-- 4. MASTER PROJECT -->
                 <div x-show="currentTab === 'project'" class="space-y-4" x-cloak>
-                    <!-- ... (Sama seperti sebelumnya) ... -->
                     <div class="flex items-center justify-between">
                         <div>
                             <h3 class="text-sm font-semibold text-white">Daftar Master Project</h3>
@@ -376,7 +372,6 @@
                         </div>
 
                         <form @submit.prevent="submitTransaction" class="space-y-4">
-                            <!-- ... (Form Input Header Sama) ... -->
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Tanggal Transaksi</label>
@@ -505,7 +500,6 @@
                 </div>
 
                 <!-- 6. STOK GUDANG & PELACAKAN DRUM KABEL -->
-                <!-- ... (Kode Tab 6, 7, dan 8 dibiarkan sama secara struktur visual) ... -->
                 <div x-show="currentTab === 'stok'" class="space-y-6" x-cloak>
                     <div class="space-y-4">
                         <div class="flex items-center justify-between">
@@ -675,7 +669,6 @@
     </div>
 
     <!-- MODAL TAMBAH DATA (GENERAL) -->
-    <!-- ... (Bagian Modal Tidak Diubah dan Aman) ... -->
     <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md px-4 print:hidden" x-cloak>
         <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-2xl relative">
             <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
@@ -797,7 +790,7 @@
         </div>
     </div>
 
-    <!-- TOAST NOTIFICATION CONTAINER (PRO) -->
+    <!-- TOAST NOTIFICATION CONTAINER -->
     <div x-show="notification.show" 
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 translate-y-2"
@@ -817,7 +810,7 @@
         </button>
     </div>
 
-    <!-- HIDDEN PRINTABLE BAST CONTAINER (Diperbarui dengan Tailwind Print Modifiers) -->
+    <!-- HIDDEN PRINTABLE BAST CONTAINER -->
     <div id="printable-bast" class="hidden print:block print:absolute print:inset-0 p-8 bg-white text-slate-900 z-[100]">
         <div class="text-center border-b-2 border-slate-900 pb-3 mb-4">
             <h1 class="text-lg font-bold uppercase tracking-wider">BERITA ACARA SERAH TERIMA (BAST)</h1>
@@ -1042,7 +1035,6 @@
                 },
 
                 resetInputTransaction() {
-                    // Fix: Pengambilan tanggal lokal pengguna (bukan murni UTC)
                     const date = new Date();
                     const localToday = new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
                     
@@ -1153,7 +1145,6 @@
                             return;
                         }
 
-                        // Validasi Stok & Panjang Drum (Pre-Check)
                         for (let i of this.newTrans.items) {
                             const qtyNum = Number(i.qty) || 0;
                             if (qtyNum <= 0) {
@@ -1253,15 +1244,12 @@
                                     });
                                 }
 
-                                // FIX: Logika Drum Cutting untuk Transfer Sebagian (Partial)
                                 if (i.drumId) {
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
                                         if (qtyNum === foundDrum.remainingLength) {
-                                            // Transfer full sisa drum
                                             foundDrum.gudang = transData.gudangTujuan;
                                         } else if (qtyNum < foundDrum.remainingLength) {
-                                            // Cut drum (Meninggalkan sisa di gudang asal, membuat ID baru di gudang tujuan)
                                             foundDrum.remainingLength -= qtyNum;
                                             foundDrum.status = 'Partial';
                                             
@@ -1275,7 +1263,6 @@
                                                 remainingLength: qtyNum,
                                                 status: 'Full'
                                             });
-                                            // Mengganti referensi transaksi ke drum hasil potongan
                                             const activeItem = expandedItems.find(ex => ex.drumId === i.drumId && ex.kodeBarang === i.kodeBarang);
                                             if (activeItem) activeItem.drumId = newDrumId;
                                         }
