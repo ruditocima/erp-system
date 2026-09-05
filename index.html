@@ -157,7 +157,7 @@
                             </div>
                             <div class="mt-3 flex items-baseline justify-between">
                                 <h3 class="text-xl font-bold text-white" x-text="masterBarang.length"></h3>
-                                <span class="text-[10px] text-emerald-400 font-medium">+12% bulan ini</span>
+                                <span class="text-[10px] text-emerald-400 font-medium">Active SKU</span>
                             </div>
                         </div>
                         <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm">
@@ -198,8 +198,8 @@
                                 <i data-lucide="database" class="w-5 h-5"></i>
                             </div>
                             <div>
-                                <h3 class="text-xs font-semibold text-white">Konfigurasi Supabase & GitHub</h3>
-                                <p class="text-[11px] text-slate-300 mt-0.5">Aplikasi ini dirancang modular. Terhubung dengan Supabase Cloud SDK untuk sinkronisasi cloud real-time serta penyimpanan lokal persisten (localStorage fallback).</p>
+                                <h3 class="text-xs font-semibold text-white">Konfigurasi Supabase & GitHub CI/CD Ready</h3>
+                                <p class="text-[11px] text-slate-300 mt-0.5">Aplikasi ini dirancang modular dengan proteksi error handling terpadu, sinkronisasi cloud real-time, serta penyimpanan lokal persisten yang aman.</p>
                                 <div class="mt-3 flex flex-wrap gap-2.5">
                                     <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
                                         <i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-400"></i> Row Level Security (RLS) Ready
@@ -238,7 +238,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs">
-                                    <template x-for="(item, index) in masterBarang" :key="index">
+                                    <template x-for="(item, index) in masterBarang" :key="item.kodeBarang || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 font-medium text-slate-200" x-text="item.kategori"></td>
                                             <td class="p-3 text-slate-300" x-text="item.jenis"></td>
@@ -280,7 +280,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs">
-                                    <template x-for="(item, index) in masterGudang" :key="index">
+                                    <template x-for="(item, index) in masterGudang" :key="item.kodeGudang || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 font-mono text-indigo-400 text-[11px]" x-text="item.kodeGudang"></td>
                                             <td class="p-3 font-medium text-white" x-text="item.namaGudang"></td>
@@ -330,7 +330,7 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-800/60 text-xs">
-                                <template x-for="(item, index) in masterProject" :key="index">
+                                <template x-for="(item, index) in masterProject" :key="item.kodeProject || index">
                                     <tr class="hover:bg-slate-800/30 transition">
                                         <td class="p-3 text-slate-300" x-text="item.periode"></td>
                                         <td class="p-3 text-slate-300" x-text="item.region"></td>
@@ -397,7 +397,7 @@
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Gudang Asal</label>
                                     <select x-model="newTrans.gudangAsal" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="">Pilih Gudang Asal</option>
-                                        <template x-for="g in masterGudang">
+                                        <template x-for="g in masterGudang" :key="g.kodeGudang">
                                             <option :value="g.namaGudang" x-text="g.namaGudang"></option>
                                         </template>
                                     </select>
@@ -406,7 +406,7 @@
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Gudang Tujuan</label>
                                     <select x-model="newTrans.gudangTujuan" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="">Pilih Gudang Tujuan</option>
-                                        <template x-for="g in masterGudang">
+                                        <template x-for="g in masterGudang" :key="g.kodeGudang">
                                             <option :value="g.namaGudang" x-text="g.namaGudang"></option>
                                         </template>
                                     </select>
@@ -415,7 +415,7 @@
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
                                     <select x-model="newTrans.kodeProject" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="">Pilih Project</option>
-                                        <template x-for="p in masterProject">
+                                        <template x-for="p in masterProject" :key="p.kodeProject">
                                             <option :value="p.kodeProject" x-text="p.kodeProject + ' — ' + p.noPO"></option>
                                         </template>
                                     </select>
@@ -448,7 +448,7 @@
                                             <div class="md:col-span-2">
                                                 <select x-model="item.kategori" @change="item.jenis=''; item.kodeBarang=''; item.namaBarang=''" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200">
                                                     <option value="">Pilih Kategori</option>
-                                                    <template x-for="kat in getCategories()">
+                                                    <template x-for="kat in getCategories()" :key="kat">
                                                         <option :value="kat" x-text="kat"></option>
                                                     </template>
                                                 </select>
@@ -456,7 +456,7 @@
                                             <div class="md:col-span-2">
                                                 <select x-model="item.jenis" @change="item.kodeBarang=''; item.namaBarang=''" :disabled="!item.kategori" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50">
                                                     <option value="">Pilih Jenis</option>
-                                                    <template x-for="jns in getJenis(item.kategori)">
+                                                    <template x-for="jns in getJenis(item.kategori)" :key="jns">
                                                         <option :value="jns" x-text="jns"></option>
                                                     </template>
                                                 </select>
@@ -464,7 +464,7 @@
                                             <div class="md:col-span-2">
                                                 <select x-model="item.kodeBarang" @change="fillNamaBarang(item)" :disabled="!item.jenis" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50 font-mono">
                                                     <option value="">Pilih Kode</option>
-                                                    <template x-for="brg in getBarangList(item.kategori, item.jenis)">
+                                                    <template x-for="brg in getBarangList(item.kategori, item.jenis)" :key="brg.kodeBarang">
                                                         <option :value="brg.kodeBarang" x-text="brg.kodeBarang"></option>
                                                     </template>
                                                 </select>
@@ -522,7 +522,7 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-800/60 text-xs">
-                                        <template x-for="(stok, index) in stokGudang" :key="index">
+                                        <template x-for="(stok, index) in stokGudang" :key="stok.kodeBarang + '-' + stok.gudang || index">
                                             <tr class="hover:bg-slate-800/30 transition">
                                                 <td class="p-3 font-mono text-indigo-400 text-[11px]" x-text="stok.kodeBarang"></td>
                                                 <td class="p-3 font-medium text-white" x-text="stok.namaBarang"></td>
@@ -560,7 +560,7 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-800/60 text-xs">
-                                        <template x-for="(drum, index) in drumLedger" :key="index">
+                                        <template x-for="(drum, index) in drumLedger" :key="drum.drumId || index">
                                             <tr class="hover:bg-slate-800/30 transition">
                                                 <td class="p-3 font-mono text-indigo-400 font-semibold text-[11px]" x-text="drum.drumId"></td>
                                                 <td class="p-3 font-mono text-slate-300 text-[11px]" x-text="drum.kodeBarang"></td>
@@ -642,7 +642,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs">
-                                    <template x-for="(tx, index) in transactions" :key="index">
+                                    <template x-for="(tx, index) in transactions" :key="tx.noTransaksi || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 text-slate-300" x-text="tx.tanggal"></td>
                                             <td class="p-3 font-mono text-indigo-400 text-[11px] font-semibold" x-text="tx.noTransaksi"></td>
@@ -841,7 +841,7 @@
                 </tr>
             </thead>
             <tbody>
-                <template x-for="(item, idx) in activeBast.items">
+                <template x-for="(item, idx) in activeBast.items" :key="idx">
                     <tr>
                         <td class="border border-slate-400 p-1.5 text-center" x-text="idx + 1"></td>
                         <td class="border border-slate-400 p-1.5" x-text="item.kategori"></td>
@@ -881,6 +881,16 @@
             ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
             : null;
 
+        function safeLoadStorage(key, fallback) {
+            try {
+                const item = localStorage.getItem(key);
+                return item ? JSON.parse(item) : fallback;
+            } catch (e) {
+                console.warn(`Error parsing localStorage key "${key}":`, e);
+                return fallback;
+            }
+        }
+
         function warehouseApp() {
             return {
                 isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
@@ -901,37 +911,37 @@
                     setTimeout(() => lucide.createIcons(), 50);
                 },
 
-                masterBarang: JSON.parse(localStorage.getItem('vortex_masterBarang')) || [
+                masterBarang: safeLoadStorage('vortex_masterBarang', [
                     { kategori: 'Hardware', jenis: 'Router', kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', sat: 'Unit' },
                     { kategori: 'Cable', jenis: 'Fiber Optic', kodeBarang: 'CB-FO-12', namaBarang: 'FO Single Mode 24Core', sat: 'Meter' },
                     { kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', sat: 'Meter' },
                     { kategori: 'Power', jenis: 'Rectifier', kodeBarang: 'PW-REC-04', namaBarang: 'Eltek Rectifier 48V', sat: 'Set' }
-                ],
+                ]),
 
-                masterGudang: JSON.parse(localStorage.getItem('vortex_masterGudang')) || [
+                masterGudang: safeLoadStorage('vortex_masterGudang', [
                     { kodeGudang: 'WH-JKT-01', namaGudang: 'Gudang Utama Jakarta', tipeKepemilikan: 'Milik Sendiri', lokasi: 'Cakung, Jakarta Timur' },
                     { kodeGudang: 'WH-SBY-02', namaGudang: 'Gudang Regional Surabaya', tipeKepemilikan: 'Sewa / Vendor', lokasi: 'Rungkut, Surabaya' }
-                ],
+                ]),
 
-                masterProject: JSON.parse(localStorage.getItem('vortex_masterProject')) || [
+                masterProject: safeLoadStorage('vortex_masterProject', [
                     { periode: '2026-Q1', region: 'Jawa Barat', kodeProject: 'PRJ-BJB-09', type: 'FTTH Rollout', noPO: 'PO/2026/0192', poAwal: '2026-01-10', poFinal: '2026-06-30', statusPO: 'Approved', permit: 'Clear', snd: 'SND-8821', statusProject: 'On Progress', document: 'PO_Jabar.pdf' }
-                ],
+                ]),
 
-                stokGudang: JSON.parse(localStorage.getItem('vortex_stokGudang')) || [
+                stokGudang: safeLoadStorage('vortex_stokGudang', [
                     { kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', kategori: 'Hardware', gudang: 'Gudang Utama Jakarta', qty: 45, sat: 'Unit' },
                     { kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', kategori: 'Cable', gudang: 'Gudang Utama Jakarta', qty: 7000, sat: 'Meter' }
-                ],
+                ]),
 
-                drumLedger: JSON.parse(localStorage.getItem('vortex_drumLedger')) || [
+                drumLedger: safeLoadStorage('vortex_drumLedger', [
                     { drumId: 'DRM-ADSS024-202606-001', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
                     { drumId: 'DRM-ADSS024-202606-002', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 1000, status: 'Partial' }
-                ],
+                ]),
 
-                materialUsage: JSON.parse(localStorage.getItem('vortex_materialUsage')) || [
+                materialUsage: safeLoadStorage('vortex_materialUsage', [
                     { kodeProject: 'PRJ-BJB-09', noPO: 'PO/2026/0192', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-002', qty: 2000, tanggal: '2026-06-02' }
-                ],
+                ]),
 
-                transactions: JSON.parse(localStorage.getItem('vortex_transactions')) || [
+                transactions: safeLoadStorage('vortex_transactions', [
                     {
                         tanggal: '2026-06-01',
                         noTransaksi: 'ACM-IN-202606-001',
@@ -942,7 +952,7 @@
                         kodeProject: 'PRJ-BJB-09',
                         items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-001', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
                     }
-                ],
+                ]),
 
                 newTrans: {
                     tanggal: '',
@@ -969,14 +979,18 @@
                     this.$watch('drumLedger', val => { localStorage.setItem('vortex_drumLedger', JSON.stringify(val)); });
                     this.$watch('transactions', val => { localStorage.setItem('vortex_transactions', JSON.stringify(val)); });
                     this.$watch('materialUsage', val => { localStorage.setItem('vortex_materialUsage', JSON.stringify(val)); });
+
+                    this.$watch('currentTab', () => {
+                        setTimeout(() => lucide.createIcons(), 50);
+                    });
                 },
 
                 async syncWithSupabaseOnStart() {
                     if (!supabaseClient) return;
                     try {
-                        // Example cloud sync
+                        // Cloud sync wrapper ready for Supabase integration
                     } catch (err) {
-                        console.warn('Supabase offline mode active, using local cache.', err);
+                        console.warn('Supabase offline mode active, using local persistent cache.', err);
                     }
                 },
 
@@ -1052,6 +1066,7 @@
                         ]
                     };
                     this.generateNoTransaksi();
+                    setTimeout(() => lucide.createIcons(), 50);
                 },
 
                 openModal(type) {
@@ -1312,11 +1327,7 @@
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
                                         foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
-                                        if (foundDrum.remainingLength === 0) {
-                                            foundDrum.status = 'Depleted';
-                                        } else {
-                                            foundDrum.status = 'Partial';
-                                        }
+                                        foundDrum.status = foundDrum.remainingLength === 0 ? 'Depleted' : 'Partial';
                                     }
                                 }
 
