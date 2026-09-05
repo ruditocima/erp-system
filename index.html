@@ -1134,208 +1134,220 @@
                 },
 
                 submitTransaction() {
-                    if (this.newTrans.tipeTransaksi === 'Transfer Gudang') {
-                        if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
-                            this.showNotification('Harap pilih Gudang Asal dan Gudang Tujuan untuk transaksi transfer.', 'error');
-                            return;
-                        }
-                        if (this.newTrans.gudangAsal === this.newTrans.gudangTujuan) {
-                            this.showNotification('Gudang Asal dan Gudang Tujuan tidak boleh sama.', 'error');
-                            return;
-                        }
-                    }
-
-                    if (!this.newTrans.items.length || !this.newTrans.items[0].kodeBarang) {
-                        this.showNotification('Harap isi minimal satu item material dan pilih kode barang.', 'error');
-                        return;
-                    }
-
-                    // Validasi Stok & Panjang Drum (Pre-Check)
-                    for (let i of this.newTrans.items) {
-                        const qtyNum = Number(i.qty) || 0;
-                        if (qtyNum <= 0) {
-                            this.showNotification('Kuantitas item harus lebih besar dari 0.', 'error');
-                            return;
-                        }
-
-                        const targetWH = this.newTrans.tipeTransaksi === 'Barang Masuk' ? this.newTrans.gudangTujuan : this.newTrans.gudangAsal;
-
-                        if (this.newTrans.tipeTransaksi === 'Barang Keluar' || this.newTrans.tipeTransaksi === 'Transfer Gudang') {
-                            const existingStok = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
-                            const availableQty = existingStok ? existingStok.qty : 0;
-
-                            if (availableQty < qtyNum) {
-                                this.showNotification(`Stok tidak mencukupi untuk barang ${i.kodeBarang} di ${targetWH}. Tersedia: ${availableQty}, Diminta: ${qtyNum}`, 'error');
+                    try {
+                        if (this.newTrans.tipeTransaksi === 'Transfer Gudang') {
+                            if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
+                                this.showNotification('Harap pilih Gudang Asal dan Gudang Tujuan untuk transaksi transfer.', 'error');
+                                return;
+                            }
+                            if (this.newTrans.gudangAsal === this.newTrans.gudangTujuan) {
+                                this.showNotification('Gudang Asal dan Gudang Tujuan tidak boleh sama.', 'error');
                                 return;
                             }
                         }
 
-                        if (i.drumId && (this.newTrans.tipeTransaksi === 'Barang Keluar' || this.newTrans.tipeTransaksi === 'Transfer Gudang')) {
-                            const foundDrum = this.drumLedger.find(d => d.drumId === i.drumId);
-                            if (!foundDrum) {
-                                this.showNotification(`Nomor Drum ID ${i.drumId} tidak ditemukan dalam Drum Ledger.`, 'error');
-                                return;
-                            }
-                            if (qtyNum > foundDrum.remainingLength) {
-                                this.showNotification(`Panjang diminta (${qtyNum}m) melebihi sisa panjang drum ${foundDrum.drumId} (${foundDrum.remainingLength}m)!`, 'error');
-                                return;
-                            }
-                        }
-                    }
-
-                    const transData = JSON.parse(JSON.stringify(this.newTrans));
-                    let expandedItems = [];
-
-                    transData.items.forEach(i => {
-                        const qtyNum = Number(i.qty) || 0;
-                        const brgInfo = this.masterBarang.find(b => b.kodeBarang === i.kodeBarang);
-                        const satuanBarang = brgInfo ? brgInfo.sat : 'Pcs';
-                        const isCable = brgInfo && brgInfo.kategori === 'Cable';
-
-                        let drumTargetWH = transData.tipeTransaksi === 'Barang Masuk' ? (transData.gudangTujuan || 'Gudang Utama Jakarta') : (transData.gudangAsal || 'Gudang Utama Jakarta');
-
-                        if (transData.tipeTransaksi === 'Barang Masuk' && isCable) {
-                            let remainingQtyToProcess = qtyNum;
-                            
-                            while (remainingQtyToProcess > 0) {
-                                let fillQty = Math.min(remainingQtyToProcess, 3000);
-                                
-                                const dateStr = transData.tanggal ? transData.tanggal.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
-                                const randomSeq = Math.floor(1000 + Math.random() * 9000);
-                                let drumIdToUse = `DRM-${i.kodeBarang.replace(/[^a-zA-Z0-9]/g, '')}-${dateStr}-${randomSeq}`;
-
-                                this.drumLedger.push({
-                                    drumId: drumIdToUse,
-                                    kodeBarang: i.kodeBarang,
-                                    namaBarang: i.namaBarang,
-                                    gudang: drumTargetWH,
-                                    initialLength: 3000, 
-                                    remainingLength: fillQty,
-                                    status: fillQty === 3000 ? 'Full' : 'Partial'
-                                });
-
-                                expandedItems.push({
-                                    kategori: i.kategori,
-                                    jenis: i.jenis,
-                                    kodeBarang: i.kodeBarang,
-                                    namaBarang: i.namaBarang,
-                                    drumId: drumIdToUse,
-                                    qty: fillQty,
-                                    keterangan: i.keterangan
-                                });
-
-                                remainingQtyToProcess -= fillQty;
-                            }
-                        } else {
-                            expandedItems.push(i);
+                        if (!this.newTrans.items.length || !this.newTrans.items[0].kodeBarang) {
+                            this.showNotification('Harap isi minimal satu item material dan pilih kode barang.', 'error');
+                            return;
                         }
 
-                        if (transData.tipeTransaksi === 'Transfer Gudang') {
-                            let stokAsal = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
-                            if (stokAsal) {
-                                stokAsal.qty = Math.max(0, stokAsal.qty - qtyNum);
-                            }
-                            
-                            let stokTujuan = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangTujuan);
-                            if (stokTujuan) {
-                                stokTujuan.qty += qtyNum;
-                            } else {
-                                this.stokGudang.push({
-                                    kodeBarang: i.kodeBarang,
-                                    namaBarang: i.namaBarang,
-                                    kategori: brgInfo ? brgInfo.kategori : 'General',
-                                    gudang: transData.gudangTujuan,
-                                    qty: qtyNum,
-                                    sat: satuanBarang
-                                });
+                        // Validasi Stok & Panjang Drum (Pre-Check)
+                        for (let i of this.newTrans.items) {
+                            const qtyNum = Number(i.qty) || 0;
+                            if (qtyNum <= 0) {
+                                this.showNotification('Kuantitas item harus lebih besar dari 0.', 'error');
+                                return;
                             }
 
-                            if (i.drumId) {
-                                let foundDrum = this.drumLedger.find(d => d.drumId === i.drumId);
-                                if (foundDrum) {
-                                    foundDrum.gudang = transData.gudangTujuan;
+                            const targetWH = this.newTrans.tipeTransaksi === 'Barang Masuk' ? this.newTrans.gudangTujuan : this.newTrans.gudangAsal;
+
+                            if (this.newTrans.tipeTransaksi === 'Barang Keluar' || this.newTrans.tipeTransaksi === 'Transfer Gudang') {
+                                const existingStok = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
+                                const availableQty = existingStok ? existingStok.qty : 0;
+
+                                if (availableQty < qtyNum) {
+                                    this.showNotification(`Stok tidak mencukupi untuk barang ${i.kodeBarang} di ${targetWH}. Tersedia: ${availableQty}, Diminta: ${qtyNum}`, 'error');
+                                    return;
                                 }
                             }
 
-                        } else if (transData.tipeTransaksi === 'Barang Masuk') {
-                            let targetWH = transData.gudangTujuan || 'Gudang Utama Jakarta';
-                            let existingStok = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
-                            
-                            if (existingStok) {
-                                existingStok.qty += qtyNum;
-                            } else {
-                                this.stokGudang.push({
-                                    kodeBarang: i.kodeBarang,
-                                    namaBarang: i.namaBarang,
-                                    kategori: brgInfo ? brgInfo.kategori : 'General',
-                                    gudang: targetWH,
-                                    qty: qtyNum,
-                                    sat: satuanBarang
-                                });
+                            if (i.drumId && (this.newTrans.tipeTransaksi === 'Barang Keluar' || this.newTrans.tipeTransaksi === 'Transfer Gudang')) {
+                                const foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
+                                if (!foundDrum) {
+                                    this.showNotification(`Nomor Drum ID ${i.drumId} tidak ditemukan dalam Drum Ledger.`, 'error');
+                                    return;
+                                }
+                                if (qtyNum > foundDrum.remainingLength) {
+                                    this.showNotification(`Panjang diminta (${qtyNum}m) melebihi sisa panjang drum ${foundDrum.drumId} (${foundDrum.remainingLength}m)!`, 'error');
+                                    return;
+                                }
                             }
-                            
-                            if (i.drumId && !isCable) {
-                                let existingDrum = this.drumLedger.find(d => d.drumId === i.drumId);
-                                if (!existingDrum) {
+                        }
+
+                        const transData = JSON.parse(JSON.stringify(this.newTrans));
+                        let expandedItems = [];
+
+                        transData.items.forEach(i => {
+                            const qtyNum = Number(i.qty) || 0;
+                            const brgInfo = (this.masterBarang || []).find(b => b.kodeBarang === i.kodeBarang);
+                            const satuanBarang = brgInfo ? brgInfo.sat : 'Pcs';
+                            const isCable = brgInfo && brgInfo.kategori === 'Cable';
+
+                            let drumTargetWH = transData.tipeTransaksi === 'Barang Masuk' ? (transData.gudangTujuan || 'Gudang Utama Jakarta') : (transData.gudangAsal || 'Gudang Utama Jakarta');
+
+                            if (transData.tipeTransaksi === 'Barang Masuk' && isCable) {
+                                let remainingQtyToProcess = qtyNum;
+                                
+                                while (remainingQtyToProcess > 0) {
+                                    let fillQty = Math.min(remainingQtyToProcess, 3000);
+                                    
+                                    const dateStr = transData.tanggal ? transData.tanggal.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
+                                    const randomSeq = Math.floor(1000 + Math.random() * 9000);
+                                    let drumIdToUse = `DRM-${i.kodeBarang.replace(/[^a-zA-Z0-9]/g, '')}-${dateStr}-${randomSeq}`;
+
                                     this.drumLedger.push({
-                                        drumId: i.drumId,
+                                        drumId: drumIdToUse,
                                         kodeBarang: i.kodeBarang,
                                         namaBarang: i.namaBarang,
+                                        gudang: drumTargetWH,
+                                        initialLength: 3000, 
+                                        remainingLength: fillQty,
+                                        status: fillQty === 3000 ? 'Full' : 'Partial'
+                                    });
+
+                                    expandedItems.push({
+                                        kategori: i.kategori,
+                                        jenis: i.jenis,
+                                        kodeBarang: i.kodeBarang,
+                                        namaBarang: i.namaBarang,
+                                        drumId: drumIdToUse,
+                                        qty: fillQty,
+                                        keterangan: i.keterangan
+                                    });
+
+                                    remainingQtyToProcess -= fillQty;
+                                }
+                            } else {
+                                expandedItems.push(i);
+                            }
+
+                            if (transData.tipeTransaksi === 'Transfer Gudang') {
+                                let stokAsal = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
+                                if (stokAsal) {
+                                    stokAsal.qty = Math.max(0, stokAsal.qty - qtyNum);
+                                }
+                                
+                                let stokTujuan = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangTujuan);
+                                if (stokTujuan) {
+                                    stokTujuan.qty += qtyNum;
+                                } else {
+                                    this.stokGudang.push({
+                                        kodeBarang: i.kodeBarang,
+                                        namaBarang: i.namaBarang,
+                                        kategori: brgInfo ? brgInfo.kategori : 'General',
+                                        gudang: transData.gudangTujuan,
+                                        qty: qtyNum,
+                                        sat: satuanBarang
+                                    });
+                                }
+
+                                if (i.drumId) {
+                                    let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
+                                    if (foundDrum) {
+                                        foundDrum.gudang = transData.gudangTujuan;
+                                    }
+                                }
+
+                            } else if (transData.tipeTransaksi === 'Barang Masuk') {
+                                let targetWH = transData.gudangTujuan || 'Gudang Utama Jakarta';
+                                let existingStok = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
+                                
+                                if (existingStok) {
+                                    existingStok.qty += qtyNum;
+                                } else {
+                                    this.stokGudang.push({
+                                        kodeBarang: i.kodeBarang,
+                                        namaBarang: i.namaBarang,
+                                        kategori: brgInfo ? brgInfo.kategori : 'General',
                                         gudang: targetWH,
-                                        initialLength: qtyNum,
-                                        remainingLength: qtyNum,
-                                        status: 'Full'
+                                        qty: qtyNum,
+                                        sat: satuanBarang
+                                    });
+                                }
+                                
+                                if (i.drumId && !isCable) {
+                                    let existingDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
+                                    if (!existingDrum) {
+                                        this.drumLedger.push({
+                                            drumId: i.drumId,
+                                            kodeBarang: i.kodeBarang,
+                                            namaBarang: i.namaBarang,
+                                            gudang: targetWH,
+                                            initialLength: qtyNum,
+                                            remainingLength: qtyNum,
+                                            status: 'Full'
+                                        });
+                                    }
+                                }
+
+                            } else if (transData.tipeTransaksi === 'Barang Keluar') {
+                                let targetWH = transData.gudangAsal || 'Gudang Utama Jakarta';
+                                let existingStok = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
+                                if (existingStok) {
+                                    existingStok.qty = Math.max(0, existingStok.qty - qtyNum);
+                                }
+
+                                if (i.drumId) {
+                                    let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
+                                    if (foundDrum) {
+                                        foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
+                                        if (foundDrum.remainingLength === 0) {
+                                            foundDrum.status = 'Depleted';
+                                        } else {
+                                            foundDrum.status = 'Partial';
+                                        }
+                                    }
+                                }
+
+                                if (transData.kodeProject) {
+                                    const masterProjList = Array.isArray(this.masterProject) ? this.masterProject : [];
+                                    const matchedProj = masterProjList.find(p => p.kodeProject === transData.kodeProject);
+                                    const noPOVal = matchedProj ? matchedProj.noPO : 'PO/GENERAL';
+
+                                    this.materialUsage.push({
+                                        kodeProject: transData.kodeProject,
+                                        noPO: noPOVal,
+                                        kodeBarang: i.kodeBarang,
+                                        namaBarang: i.namaBarang,
+                                        drumId: i.drumId || '',
+                                        qty: qtyNum,
+                                        tanggal: transData.tanggal
                                     });
                                 }
                             }
+                        });
 
-                        } else if (transData.tipeTransaksi === 'Barang Keluar') {
-                            let targetWH = transData.gudangAsal || 'Gudang Utama Jakarta';
-                            let existingStok = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
-                            if (existingStok) {
-                                existingStok.qty = Math.max(0, existingStok.qty - qtyNum);
-                            }
-
-                            if (i.drumId) {
-                                let foundDrum = this.drumLedger.find(d => d.drumId === i.drumId);
-                                if (foundDrum) {
-                                    foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
-                                    if (foundDrum.remainingLength === 0) {
-                                        foundDrum.status = 'Depleted';
-                                    } else {
-                                        foundDrum.status = 'Partial';
-                                    }
-                                }
-                            }
-
-                            if (transData.kodeProject) {
-                                const matchedProj = this.masterProject.find(p => p.kodeProject === transData.kodeProject);
-                                const noPOVal = matchedProj ? matchedProj.noPO : 'PO/GENERAL';
-
-                                this.materialUsage.push({
-                                    kodeProject: transData.kodeProject,
-                                    noPO: noPOVal,
-                                    kodeBarang: i.kodeBarang,
-                                    namaBarang: i.namaBarang,
-                                    drumId: i.drumId || '',
-                                    qty: qtyNum,
-                                    tanggal: transData.tanggal
-                                });
-                            }
-                        }
-                    });
-
-                    transData.items = expandedItems;
-                    this.transactions.unshift(transData);
-                    this.showNotification('Transaksi berhasil diproses & dicatat.', 'success');
-                    this.currentTab = 'data-transaksi';
+                        transData.items = expandedItems;
+                        this.transactions.unshift(transData);
+                        this.showNotification('Transaksi berhasil diproses & dicatat.', 'success');
+                        this.currentTab = 'data-transaksi';
+                    } catch (error) {
+                        console.error('Error in submitTransaction:', error);
+                        this.showNotification('Terjadi kesalahan sistem saat memproses transaksi.', 'error');
+                    }
                 },
 
                 printBAST(tx) {
+                    if (!tx) {
+                        this.showNotification('Data BAST tidak ditemukan.', 'error');
+                        return;
+                    }
                     this.activeBast = tx;
-                    setTimeout(() => {
-                        window.print();
-                    }, 250);
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            window.print();
+                        }, 300);
+                    });
                 }
             }
         }
