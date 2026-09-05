@@ -423,14 +423,13 @@
                                         </template>
                                     </select>
                                 </div>
-                                <!-- Kolom Keterangan Baru -->
                                 <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Keterangan</label>
                                     <input type="text" x-model="newTrans.keterangan" placeholder="Catatan transaksi..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                 </div>
                                 <div class="md:col-span-1">
-                                <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Lampiran Dokumen</label>
-                                <input type="file" class="w-full text-[10px] text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
+                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Lampiran Dokumen</label>
+                                    <input type="file" class="w-full text-[10px] text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
                                 </div>
                             </div>
 
@@ -476,7 +475,6 @@
                                             <div class="md:col-span-2">
                                                 <input type="text" x-model="item.namaBarang" readonly placeholder="Nama Barang" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 bg-slate-950/50 cursor-not-allowed">
                                             </div>
-                                            <!-- Lebar kolom Drum ID dilebarkan menjadi md:col-span-2 -->
                                             <div class="md:col-span-2">
                                                 <input type="text" x-model="item.drumId" 
                                                     :readonly="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable'" 
@@ -1059,7 +1057,6 @@
                 },
 
                 submitTransaction() {
-                    // Validasi khusus Transaksi Transfer Gudang
                     if (this.newTrans.tipeTransaksi === 'Transfer Gudang') {
                         if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
                             alert('Harap pilih Gudang Asal dan Gudang Tujuan untuk transaksi transfer.');
@@ -1085,15 +1082,13 @@
                         const satuanBarang = brgInfo ? brgInfo.sat : 'Pcs';
                         const isCable = brgInfo && brgInfo.kategori === 'Cable';
 
-                        // Tentukan lokasi gudang awal pencatatan Drum ID
                         let drumTargetWH = transData.tipeTransaksi === 'Barang Masuk' ? (transData.gudangTujuan || 'Gudang Utama Jakarta') : (transData.gudangAsal || 'Gudang Utama Jakarta');
 
-                        // Pembuatan Drum ID Baru (Hapus Reuse Drum Kosong)
                         if (transData.tipeTransaksi === 'Barang Masuk' && isCable) {
                             let remainingQtyToProcess = qtyNum;
                             
                             while (remainingQtyToProcess > 0) {
-                                let fillQty = Math.min(remainingQtyToProcess, 3000); // Max 3000 per Drum
+                                let fillQty = Math.min(remainingQtyToProcess, 3000);
                                 
                                 const dateStr = transData.tanggal ? transData.tanggal.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
                                 const randomSeq = Math.floor(1000 + Math.random() * 9000);
@@ -1125,15 +1120,12 @@
                             expandedItems.push(i);
                         }
 
-                        // Logika Mutasi Stok & Pemindahan Drum Ledger Berdasarkan Tipe Transaksi
                         if (transData.tipeTransaksi === 'Transfer Gudang') {
-                            // 1. Potong stok di Gudang Asal
                             let stokAsal = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
                             if (stokAsal) {
                                 stokAsal.qty = Math.max(0, stokAsal.qty - qtyNum);
                             }
                             
-                            // 2. Tambah stok di Gudang Tujuan
                             let stokTujuan = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangTujuan);
                             if (stokTujuan) {
                                 stokTujuan.qty += qtyNum;
@@ -1148,7 +1140,6 @@
                                 });
                             }
 
-                            // 3. Pindahkan lokasi drum di Drum Ledger
                             if (i.drumId) {
                                 let foundDrum = this.drumLedger.find(d => d.drumId === i.drumId);
                                 if (foundDrum) {
@@ -1173,7 +1164,6 @@
                                 });
                             }
                             
-                            // Tambahkan ledger drum manual untuk material Non-Cable (jika diinput)
                             if (i.drumId && !isCable) {
                                 let existingDrum = this.drumLedger.find(d => d.drumId === i.drumId);
                                 if (!existingDrum) {
@@ -1197,7 +1187,6 @@
                                 existingStok.qty = Math.max(0, existingStok.qty - qtyNum);
                             }
 
-                            // Potong panjang sisa dari drum ledger
                             if (i.drumId) {
                                 let foundDrum = this.drumLedger.find(d => d.drumId === i.drumId);
                                 if (foundDrum) {
