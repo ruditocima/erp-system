@@ -793,6 +793,26 @@
         </div>
     </div>
 
+    <!-- TOAST NOTIFICATION CONTAINER (PRO) -->
+    <div x-show="notification.show" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 translate-y-2"
+         class="fixed bottom-5 right-5 z-50 max-w-md p-4 rounded-xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl"
+         :class="notification.type === 'error' ? 'bg-rose-950/90 border-rose-500/40 text-rose-200' : 'bg-emerald-950/90 border-emerald-500/40 text-emerald-200'"
+         x-cloak>
+        <div class="p-2 rounded-lg shrink-0" :class="notification.type === 'error' ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'">
+            <i :data-lucide="notification.type === 'error' ? 'alert-triangle' : 'check-circle-2'" class="w-5 h-5"></i>
+        </div>
+        <div class="flex-1 text-xs font-medium" x-text="notification.message"></div>
+        <button @click="notification.show = false" class="text-slate-400 hover:text-white p-1">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
+
     <!-- HIDDEN PRINTABLE BAST CONTAINER -->
     <div id="printable-bast" class="hidden p-6 bg-white text-slate-900">
         <div class="text-center border-b-2 border-slate-900 pb-3 mb-4">
@@ -833,7 +853,6 @@
                         <td class="border border-slate-400 p-1.5" x-text="item.namaBarang"></td>
                         <td class="border border-slate-400 p-1.5 font-mono" x-text="item.drumId || '-'"></td>
                         <td class="border border-slate-400 p-1.5 text-center font-bold" x-text="item.qty"></td>
-                        <td class="border border-slate-400 p-1.5" x-text="item.keterangan || '-'"></td>
                     </tr>
                 </template>
             </tbody>
@@ -870,6 +889,14 @@
                 showModal: false,
                 modalType: '',
                 modalForm: {},
+
+                notification: { show: false, message: '', type: 'error' },
+
+                showNotification(message, type = 'error') {
+                    this.notification = { show: true, message, type };
+                    setTimeout(() => { this.notification.show = false; }, 4000);
+                    setTimeout(() => lucide.createIcons(), 50);
+                },
 
                 masterBarang: JSON.parse(localStorage.getItem('vortex_masterBarang')) || [
                     { kategori: 'Hardware', jenis: 'Router', kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', sat: 'Unit' },
@@ -941,7 +968,7 @@
 
                 login() {
                     if (!this.loginForm.email || !this.loginForm.password) {
-                        alert('Mohon masukkan email dan password!');
+                        this.showNotification('Mohon masukkan email dan password!', 'error');
                         return;
                     }
                     this.currentUser = this.loginForm.email;
@@ -1078,25 +1105,58 @@
                     if (this.newTrans.items.length > 1) {
                         this.newTrans.items.splice(index, 1);
                     } else {
-                        alert('Minimal harus ada 1 item material.');
+                        this.showNotification('Minimal harus ada 1 item material.', 'error');
                     }
                 },
 
                 submitTransaction() {
                     if (this.newTrans.tipeTransaksi === 'Transfer Gudang') {
                         if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
-                            alert('Harap pilih Gudang Asal dan Gudang Tujuan untuk transaksi transfer.');
+                            this.showNotification('Harap pilih Gudang Asal dan Gudang Tujuan untuk transaksi transfer.', 'error');
                             return;
                         }
                         if (this.newTrans.gudangAsal === this.newTrans.gudangTujuan) {
-                            alert('Gudang Asal dan Gudang Tujuan tidak boleh sama.');
+                            this.showNotification('Gudang Asal dan Gudang Tujuan tidak boleh sama.', 'error');
                             return;
                         }
                     }
 
                     if (!this.newTrans.items.length || !this.newTrans.items[0].kodeBarang) {
-                        alert('Harap isi minimal satu item material dan pilih kode barang.');
+                        this.showNotification('Harap isi minimal satu item material dan pilih kode barang.', 'error');
                         return;
+                    }
+
+                    // Validasi Stok & Panjang Drum (Pre-Check)
+                    for (let i of this.newTrans.items) {
+                        const qtyNum = Number(i.qty) || 0;
+                        if (qtyNum <= 0) {
+                            this.showNotification('Kuantitas item harus lebih besar dari 0.', 'error');
+                            return;
+                        }
+
+                        const targetWH = this.newTrans.tipeTransaksi === 'Barang Masuk' ? this.newTrans.gudangTujuan : this.newTrans.gudangAsal;
+
+                        if (this.newTrans.tipeTransaksi === 'Barang Keluar' || this.newTrans.tipeTransaksi === 'Transfer Gudang') {
+                            const existingStok = this.stokGudang.find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
+                            const availableQty = existingStok ? existingStok.qty : 0;
+
+                            if (availableQty < qtyNum) {
+                                this.showNotification(`Stok tidak mencukupi untuk barang ${i.kodeBarang} di ${targetWH}. Tersedia: ${availableQty}, Diminta: ${qtyNum}`, 'error');
+                                return;
+                            }
+                        }
+
+                        if (i.drumId && (this.newTrans.tipeTransaksi === 'Barang Keluar' || this.newTrans.tipeTransaksi === 'Transfer Gudang')) {
+                            const foundDrum = this.drumLedger.find(d => d.drumId === i.drumId);
+                            if (!foundDrum) {
+                                this.showNotification(`Nomor Drum ID ${i.drumId} tidak ditemukan dalam Drum Ledger.`, 'error');
+                                return;
+                            }
+                            if (qtyNum > foundDrum.remainingLength) {
+                                this.showNotification(`Panjang diminta (${qtyNum}m) melebihi sisa panjang drum ${foundDrum.drumId} (${foundDrum.remainingLength}m)!`, 'error');
+                                return;
+                            }
+                        }
                     }
 
                     const transData = JSON.parse(JSON.stringify(this.newTrans));
@@ -1216,9 +1276,6 @@
                             if (i.drumId) {
                                 let foundDrum = this.drumLedger.find(d => d.drumId === i.drumId);
                                 if (foundDrum) {
-                                    if (qtyNum > foundDrum.remainingLength) {
-                                        alert(`Peringatan: Qty keluar (${qtyNum}m) melebihi sisa panjang drum ${foundDrum.drumId} (${foundDrum.remainingLength}m)!`);
-                                    }
                                     foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
                                     foundDrum.status = foundDrum.remainingLength === 0 ? 'Habis' : (foundDrum.remainingLength < foundDrum.initialLength ? 'Partial' : 'Full');
                                     
@@ -1239,7 +1296,7 @@
                     transData.items = expandedItems;
                     this.transactions.push(transData);
 
-                    alert('Transaksi berhasil disimpan, stok gudang & Drum Ledger berhasil diperbarui secara real-time!');
+                    this.showNotification('Transaksi berhasil disimpan, stok gudang & Drum Ledger diperbarui secara real-time!', 'success');
                     this.currentTab = 'data-transaksi';
                     setTimeout(() => lucide.createIcons(), 100);
                 },
