@@ -862,9 +862,9 @@
     <script>
         function warehouseApp() {
             return {
-                isLoggedIn: false,
-                currentUser: 'Admin Pusat',
-                currentRole: 'Admin',
+                isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
+                currentUser: localStorage.getItem('vortex_user') || 'Admin Pusat',
+                currentRole: localStorage.getItem('vortex_role') || 'Admin',
                 currentTab: 'dashboard',
                 loginForm: { email: 'admin@vortexwms.com', password: '••••••', role: 'Admin' },
 
@@ -872,20 +872,47 @@
                 modalType: '',
                 modalForm: {},
 
-                masterBarang: [
+                masterBarang: JSON.parse(localStorage.getItem('vortex_masterBarang')) || [
                     { kategori: 'Hardware', jenis: 'Router', kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', sat: 'Unit' },
                     { kategori: 'Cable', jenis: 'Fiber Optic', kodeBarang: 'CB-FO-12', namaBarang: 'FO Single Mode 24Core', sat: 'Meter' },
                     { kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', sat: 'Meter' },
                     { kategori: 'Power', jenis: 'Rectifier', kodeBarang: 'PW-REC-04', namaBarang: 'Eltek Rectifier 48V', sat: 'Set' }
                 ],
 
-                masterGudang: [
+                masterGudang: JSON.parse(localStorage.getItem('vortex_masterGudang')) || [
                     { kodeGudang: 'WH-JKT-01', namaGudang: 'Gudang Utama Jakarta', tipeKepemilikan: 'Milik Sendiri', lokasi: 'Cakung, Jakarta Timur' },
                     { kodeGudang: 'WH-SBY-02', namaGudang: 'Gudang Regional Surabaya', tipeKepemilikan: 'Sewa / Vendor', lokasi: 'Rungkut, Surabaya' }
                 ],
 
-                masterProject: [
+                masterProject: JSON.parse(localStorage.getItem('vortex_masterProject')) || [
                     { periode: '2026-Q1', region: 'Jawa Barat', kodeProject: 'PRJ-BJB-09', type: 'FTTH Rollout', noPO: 'PO/2026/0192', poAwal: '2026-01-10', poFinal: '2026-06-30', statusPO: 'Approved', permit: 'Clear', snd: 'SND-8821', statusProject: 'On Progress', document: 'PO_Jabar.pdf' }
+                ],
+
+                stokGudang: JSON.parse(localStorage.getItem('vortex_stokGudang')) || [
+                    { kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', kategori: 'Hardware', gudang: 'Gudang Utama Jakarta', qty: 45, sat: 'Unit' },
+                    { kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', kategori: 'Cable', gudang: 'Gudang Utama Jakarta', qty: 7000, sat: 'Meter' }
+                ],
+
+                drumLedger: JSON.parse(localStorage.getItem('vortex_drumLedger')) || [
+                    { drumId: 'DRM-ADSS024-202606-001', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
+                    { drumId: 'DRM-ADSS024-202606-002', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 1000, status: 'Partial' }
+                ],
+
+                materialUsage: JSON.parse(localStorage.getItem('vortex_materialUsage')) || [
+                    { kodeProject: 'PRJ-BJB-09', noPO: 'PO/2026/0192', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-002', qty: 2000, tanggal: '2026-06-02' }
+                ],
+
+                transactions: JSON.parse(localStorage.getItem('vortex_transactions')) || [
+                    {
+                        tanggal: '2026-06-01',
+                        noTransaksi: 'ACM-IN-202606-001',
+                        noReferensi: 'REF-001',
+                        tipeTransaksi: 'Barang Masuk',
+                        gudangAsal: 'Vendor Supplier',
+                        gudangTujuan: 'Gudang Utama Jakarta',
+                        kodeProject: 'PRJ-BJB-09',
+                        items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-001', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
+                    }
                 ],
 
                 newTrans: {
@@ -900,44 +927,38 @@
                     items: []
                 },
 
-                stokGudang: [
-                    { kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', kategori: 'Hardware', gudang: 'Gudang Utama Jakarta', qty: 45, sat: 'Unit' },
-                    { kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', kategori: 'Cable', gudang: 'Gudang Utama Jakarta', qty: 7000, sat: 'Meter' }
-                ],
-
-                drumLedger: [
-                    { drumId: 'DRM-ADSS024-202606-001', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
-                    { drumId: 'DRM-ADSS024-202606-002', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 1000, status: 'Partial' }
-                ],
-
-                materialUsage: [
-                    { kodeProject: 'PRJ-BJB-09', noPO: 'PO/2026/0192', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-002', qty: 2000, tanggal: '2026-06-02' }
-                ],
-
-                transactions: [
-                    {
-                        tanggal: '2026-06-01',
-                        noTransaksi: 'ACM-IN-202606-001',
-                        noReferensi: 'REF-001',
-                        tipeTransaksi: 'Barang Masuk',
-                        gudangAsal: 'Vendor Supplier',
-                        gudangTujuan: 'Gudang Utama Jakarta',
-                        kodeProject: 'PRJ-BJB-09',
-                        items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-001', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
-                    }
-                ],
-
                 activeBast: {},
 
+                init() {
+                    this.resetInputTransaction();
+                    this.$watch('masterBarang', val => localStorage.setItem('vortex_masterBarang', JSON.stringify(val)), { deep: true });
+                    this.$watch('masterGudang', val => localStorage.setItem('vortex_masterGudang', JSON.stringify(val)), { deep: true });
+                    this.$watch('masterProject', val => localStorage.setItem('vortex_masterProject', JSON.stringify(val)), { deep: true });
+                    this.$watch('stokGudang', val => localStorage.setItem('vortex_stokGudang', JSON.stringify(val)), { deep: true });
+                    this.$watch('drumLedger', val => localStorage.setItem('vortex_drumLedger', JSON.stringify(val)), { deep: true });
+                    this.$watch('transactions', val => localStorage.setItem('vortex_transactions', JSON.stringify(val)), { deep: true });
+                    this.$watch('materialUsage', val => localStorage.setItem('vortex_materialUsage', JSON.stringify(val)), { deep: true });
+                },
+
                 login() {
+                    if (!this.loginForm.email || !this.loginForm.password) {
+                        alert('Mohon masukkan email dan password!');
+                        return;
+                    }
                     this.currentUser = this.loginForm.email;
                     this.currentRole = this.loginForm.role;
                     this.isLoggedIn = true;
+                    localStorage.setItem('vortex_logged_in', 'true');
+                    localStorage.setItem('vortex_user', this.currentUser);
+                    localStorage.setItem('vortex_role', this.currentRole);
                     setTimeout(() => lucide.createIcons(), 100);
                 },
 
                 logout() {
                     this.isLoggedIn = false;
+                    localStorage.removeItem('vortex_logged_in');
+                    localStorage.removeItem('vortex_user');
+                    localStorage.removeItem('vortex_role');
                 },
 
                 openInputTransaction() {
@@ -985,7 +1006,7 @@
                         kodeProject: '',
                         keterangan: '',
                         items: [
-                            { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '', keterangan: '' }
+                            { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1, keterangan: '' }
                         ]
                     };
                     this.generateNoTransaksi();
@@ -1016,9 +1037,11 @@
                 },
 
                 deleteItem(type, index) {
-                    if (type === 'barang') this.masterBarang.splice(index, 1);
-                    if (type === 'gudang') this.masterGudang.splice(index, 1);
-                    if (type === 'project') this.masterProject.splice(index, 1);
+                    if (confirm('Apakah Anda yakin ingin menghapus data ini?')) {
+                        if (type === 'barang') this.masterBarang.splice(index, 1);
+                        if (type === 'gudang') this.masterGudang.splice(index, 1);
+                        if (type === 'project') this.masterProject.splice(index, 1);
+                    }
                 },
 
                 getCategories() {
@@ -1048,12 +1071,16 @@
                 },
 
                 addTransactionItem() {
-                    this.newTrans.items.push({ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '', keterangan: '' });
+                    this.newTrans.items.push({ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1, keterangan: '' });
                     setTimeout(() => lucide.createIcons(), 100);
                 },
 
                 removeTransactionItem(index) {
-                    this.newTrans.items.splice(index, 1);
+                    if (this.newTrans.items.length > 1) {
+                        this.newTrans.items.splice(index, 1);
+                    } else {
+                        alert('Minimal harus ada 1 item material.');
+                    }
                 },
 
                 submitTransaction() {
