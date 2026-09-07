@@ -17,6 +17,27 @@
     <style>
         body { font-family: 'Inter', sans-serif; font-size: 13px; }
         [x-cloak] { display: none !important; }
+
+        /* Pengaturan Khusus Cetak BAST */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-bast, #printable-bast * {
+                visibility: visible;
+            }
+            #printable-bast {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white !important;
+                color: black !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
@@ -491,8 +512,9 @@
                             </div>
 
                             <div class="pt-3 flex justify-end">
-                                <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 text-xs transition">
-                                    Simpan & Proses Transaksi (Update Stok & Drum Ledger)
+                                <button type="submit" :disabled="isLoading" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 text-xs transition flex items-center gap-2">
+                                    <span x-show="isLoading" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                                    <span x-text="isLoading ? 'Memproses...' : 'Simpan & Proses Transaksi (Update Stok & Drum Ledger)'"></span>
                                 </button>
                             </div>
                         </form>
@@ -904,6 +926,7 @@
                 modalForm: {},
 
                 notification: { show: false, message: '', type: 'error' },
+                isLoading: false, // State loading untuk mencegah double submit
 
                 showNotification(message, type = 'error') {
                     this.notification = { show: true, message, type };
@@ -1162,6 +1185,9 @@
                 },
 
                 submitTransaction() {
+                    if (this.isLoading) return;
+                    this.isLoading = true;
+
                     try {
                         if (this.newTrans.tipeTransaksi === 'Transfer Gudang') {
                             if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
@@ -1374,7 +1400,10 @@
                         this.currentTab = 'data-transaksi';
                     } catch (error) {
                         console.error('Error in submitTransaction:', error);
-                        this.showNotification('Terjadi kesalahan sistem saat memproses transaksi.', 'error');
+                        const errorMsg = error.message ? `Gagal: ${error.message}` : 'Terjadi kesalahan sistem saat memproses transaksi.';
+                        this.showNotification(errorMsg, 'error');
+                    } finally {
+                        this.isLoading = false;
                     }
                 },
 
