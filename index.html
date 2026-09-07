@@ -426,7 +426,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Tipe Transaksi</label>
-                                    <select x-model="newTrans.tipeTransaksi" @change="generateNoTransaksi()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <select x-model="newTrans.tipeTransaksi" @change="generateNoTransaksi(); resetTransactionItemsOnWarehouseChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="Barang Masuk">Masuk</option>
                                         <option value="Barang Keluar">Keluar</option>
                                         <option value="Transfer Gudang">Transfer</option>
@@ -434,7 +434,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Gudang Asal</label>
-                                    <select x-model="newTrans.gudangAsal" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <select x-model="newTrans.gudangAsal" @change="resetTransactionItemsOnWarehouseChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="">Pilih Gudang Asal</option>
                                         <template x-for="g in masterGudang" :key="g.kodeGudang">
                                             <option :value="g.namaGudang" x-text="g.namaGudang"></option>
@@ -485,25 +485,25 @@
                                     <template x-for="(item, index) in newTrans.items" :key="index">
                                         <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                                             <div class="md:col-span-2">
-                                                <select x-model="item.kategori" @change="item.jenis=''; item.kodeBarang=''; item.namaBarang=''" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200">
+                                                <select x-model="item.kategori" @change="item.jenis=''; item.kodeBarang=''; item.namaBarang=''; item.drumId=''" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200">
                                                     <option value="">Pilih Kategori</option>
-                                                    <template x-for="kat in getCategories()" :key="kat">
+                                                    <template x-for="kat in getCategoriesForOut(item)" :key="kat">
                                                         <option :value="kat" x-text="kat"></option>
                                                     </template>
                                                 </select>
                                             </div>
                                             <div class="md:col-span-2">
-                                                <select x-model="item.jenis" @change="item.kodeBarang=''; item.namaBarang=''" :disabled="!item.kategori" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50">
+                                                <select x-model="item.jenis" @change="item.kodeBarang=''; item.namaBarang=''; item.drumId=''" :disabled="!item.kategori" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50">
                                                     <option value="">Pilih Jenis</option>
-                                                    <template x-for="jns in getJenis(item.kategori)" :key="jns">
+                                                    <template x-for="jns in getJenisForOut(item.kategori)" :key="jns">
                                                         <option :value="jns" x-text="jns"></option>
                                                     </template>
                                                 </select>
                                             </div>
                                             <div class="md:col-span-2">
-                                                <select x-model="item.kodeBarang" @change="fillNamaBarang(item)" :disabled="!item.jenis" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50 font-mono">
+                                                <select x-model="item.kodeBarang" @change="fillNamaBarang(item); item.drumId=''" :disabled="!item.jenis" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50 font-mono">
                                                     <option value="">Pilih Kode</option>
-                                                    <template x-for="brg in getBarangList(item.kategori, item.jenis)" :key="brg.kodeBarang">
+                                                    <template x-for="brg in getBarangListForOut(item.kategori, item.jenis)" :key="brg.kodeBarang">
                                                         <option :value="brg.kodeBarang" x-text="brg.kodeBarang"></option>
                                                     </template>
                                                 </select>
@@ -512,11 +512,23 @@
                                                 <input type="text" x-model="item.namaBarang" readonly placeholder="Nama Barang" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 bg-slate-950/50 cursor-not-allowed">
                                             </div>
                                             <div class="md:col-span-2">
-                                                <input type="text" x-model="item.drumId" 
-                                                    :readonly="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable'" 
-                                                    :placeholder="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis' : 'Drum ID'" 
-                                                    :class="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'bg-slate-950/50 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-indigo-300'"
-                                                    class="w-full border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono">
+                                                <!-- Kalo Transaksi Barang Keluar & Kategori Cable: Tampilkan Dropdown Drum ID dengan Tooltip Stok -->
+                                                <template x-if="newTrans.tipeTransaksi === 'Barang Keluar' && getCategoryByKode(item.kodeBarang) === 'Cable'">
+                                                    <select x-model="item.drumId" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-indigo-300 font-mono">
+                                                        <option value="">Pilih Drum ID</option>
+                                                        <template x-for="drum in getAvailableDrums(item)" :key="drum.drumId">
+                                                            <option :value="drum.drumId" :title="'Sisa Panjang: ' + drum.remainingLength + ' meter'" x-text="drum.drumId + ' (Sisa: ' + drum.remainingLength + 'm)'"></option>
+                                                        </template>
+                                                    </select>
+                                                </template>
+                                                <!-- Default / Masuk / Non-Cable -->
+                                                <template x-if="!(newTrans.tipeTransaksi === 'Barang Keluar' && getCategoryByKode(item.kodeBarang) === 'Cable')">
+                                                    <input type="text" x-model="item.drumId" 
+                                                        :readonly="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable'" 
+                                                        :placeholder="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis' : 'Drum ID'" 
+                                                        :class="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'bg-slate-950/50 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-indigo-300'"
+                                                        class="w-full border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono">
+                                                </template>
                                             </div>
                                             <div class="md:col-span-1">
                                                 <input type="number" x-model="item.qty" min="1" placeholder="Qty" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-white text-center font-bold">
@@ -1351,6 +1363,67 @@
 
                 getBarangList(kategori, jenis) {
                     return this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
+                },
+
+                // Helper methods khusus untuk Tipe Transaksi Barang Keluar (Stok > 0 di Gudang Asal)
+                getCategoriesForOut(item) {
+                    if (this.newTrans.tipeTransaksi !== 'Barang Keluar' || !this.newTrans.gudangAsal) {
+                        return this.getCategories();
+                    }
+                    const availableStok = this.stokGudang.filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0);
+                    const katSet = new Set();
+                    availableStok.forEach(s => {
+                        const brg = this.masterBarang.find(b => b.kodeBarang === s.kodeBarang);
+                        if (brg && brg.kategori) {
+                            katSet.add(brg.kategori);
+                        } else if (s.kategori) {
+                            katSet.add(s.kategori);
+                        }
+                    });
+                    return [...katSet];
+                },
+
+                getJenisForOut(kategori) {
+                    if (this.newTrans.tipeTransaksi !== 'Barang Keluar' || !this.newTrans.gudangAsal || !kategori) {
+                        return this.getJenis(kategori);
+                    }
+                    const availableStok = this.stokGudang.filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0);
+                    const jenisSet = new Set();
+                    availableStok.forEach(s => {
+                        const brg = this.masterBarang.find(b => b.kodeBarang === s.kodeBarang);
+                        if (brg && brg.kategori === kategori && brg.jenis) {
+                            jenisSet.add(brg.jenis);
+                        }
+                    });
+                    return [...jenisSet];
+                },
+
+                getBarangListForOut(kategori, jenis) {
+                    if (this.newTrans.tipeTransaksi !== 'Barang Keluar' || !this.newTrans.gudangAsal || !kategori || !jenis) {
+                        return this.getBarangList(kategori, jenis);
+                    }
+                    const availableStok = this.stokGudang.filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0);
+                    const brgList = [];
+                    availableStok.forEach(s => {
+                        const brg = this.masterBarang.find(b => b.kodeBarang === s.kodeBarang);
+                        if (brg && brg.kategori === kategori && brg.jenis === jenis) {
+                            if (!brgList.some(b => b.kodeBarang === brg.kodeBarang)) {
+                                brgList.push(brg);
+                            }
+                        }
+                    });
+                    return brgList;
+                },
+
+                getAvailableDrums(item) {
+                    if (!item.kodeBarang || !this.newTrans.gudangAsal) return [];
+                    return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === this.newTrans.gudangAsal && d.remainingLength > 0);
+                },
+
+                resetTransactionItemsOnWarehouseChange() {
+                    this.newTrans.items = [
+                        { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1, keterangan: '' }
+                    ];
                 },
 
                 getCategoryByKode(kode) {
