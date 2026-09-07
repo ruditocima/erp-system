@@ -875,8 +875,8 @@
 
     <!-- ALPINE.JS APP LOGIC & SUPABASE INTEGRATION -->
     <script>
-        const SUPABASE_URL = 'https://kwclblvplovxtkmbxaym.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3Y2xibHZwbG92eHRrbWJ4YXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4Mzg2OTAsImV4cCI6MjEwMzQxNDY5MH0.3jgJkicnOtHYPiEyZPdNMwklEO1S5mUkb_e7NlDXO7Y';
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
         const supabaseClient = (window.supabase && SUPABASE_URL !== 'YOUR_SUPABASE_URL_HERE') 
             ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
             : null;
@@ -988,7 +988,26 @@
                 async syncWithSupabaseOnStart() {
                     if (!supabaseClient) return;
                     try {
-                        // Cloud sync wrapper ready for Supabase integration
+                        const { data: barangData, error: barangErr } = await supabaseClient.from('master_barang').select('*');
+                        if (!barangErr && barangData && barangData.length > 0) this.masterBarang = barangData;
+
+                        const { data: gudangData, error: gudangErr } = await supabaseClient.from('master_gudang').select('*');
+                        if (!gudangErr && gudangData && gudangData.length > 0) this.masterGudang = gudangData;
+
+                        const { data: projData, error: projErr } = await supabaseClient.from('master_project').select('*');
+                        if (!projErr && projData && projData.length > 0) this.masterProject = projData;
+
+                        const { data: stokData, error: stokErr } = await supabaseClient.from('stok_gudang').select('*');
+                        if (!stokErr && stokData && stokData.length > 0) this.stokGudang = stokData;
+
+                        const { data: drumData, error: drumErr } = await supabaseClient.from('drum_ledger').select('*');
+                        if (!drumErr && drumData && drumData.length > 0) this.drumLedger = drumData;
+
+                        const { data: usageData, error: usageErr } = await supabaseClient.from('material_usage').select('*');
+                        if (!usageErr && usageData && usageData.length > 0) this.materialUsage = usageData;
+
+                        const { data: txData, error: txErr } = await supabaseClient.from('transactions').select('*');
+                        if (!txErr && txData && txData.length > 0) this.transactions = txData;
                     } catch (err) {
                         console.warn('Supabase offline mode active, using local persistent cache.', err);
                     }
