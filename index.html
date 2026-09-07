@@ -426,7 +426,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Tipe Transaksi</label>
-                                    <select x-model="newTrans.tipeTransaksi" @change="generateNoTransaksi()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <select x-model="newTrans.tipeTransaksi" @change="generateNoTransaksi(); newTrans.gudangAsal=''; newTrans.gudangTujuan=''; newTrans.items.forEach(i => { i.kategori=''; i.jenis=''; i.kodeBarang=''; i.namaBarang=''; i.drumId=''; }); newTrans.kodeProject='';" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="Barang Masuk">Masuk</option>
                                         <option value="Barang Keluar">Keluar</option>
                                         <option value="Transfer Gudang">Transfer</option>
@@ -434,7 +434,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Gudang Asal</label>
-                                    <select x-model="newTrans.gudangAsal" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <select x-model="newTrans.gudangAsal" @change="newTrans.items.forEach(i => { i.kategori=''; i.jenis=''; i.kodeBarang=''; i.namaBarang=''; i.drumId=''; }); newTrans.kodeProject='';" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="">Pilih Gudang Asal</option>
                                         <template x-for="g in masterGudang" :key="g.kodeGudang">
                                             <option :value="g.namaGudang" x-text="g.namaGudang"></option>
@@ -450,14 +450,15 @@
                                         </template>
                                     </select>
                                 </div>
-                                <div class="md:col-span-1">
+                                <!-- REQUIREMENT 5 & 6: Kode Project Terkait disembunyikan jika Gudang Asal belum dipilih pada Keluar/Transfer, serta bisa diketik & dropdown -->
+                                <div class="md:col-span-1" x-show="newTrans.tipeTransaksi === 'Barang Masuk' || newTrans.gudangAsal">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
-                                    <select x-model="newTrans.kodeProject" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                        <option value="">Pilih Project</option>
+                                    <input type="text" x-model="newTrans.kodeProject" list="project-options" placeholder="Pilih atau ketik Kode Project..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <datalist id="project-options">
                                         <template x-for="p in getFilteredProjects()" :key="p.kodeProject">
                                             <option :value="p.kodeProject" x-text="p.kodeProject + ' — ' + p.noPO"></option>
                                         </template>
-                                    </select>
+                                    </datalist>
                                 </div>
                                 <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Keterangan</label>
@@ -484,26 +485,29 @@
                                 <div class="space-y-2.5">
                                     <template x-for="(item, index) in newTrans.items" :key="index">
                                         <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                                            <!-- REQUIREMENT 1: Kategori hanya menampilkan stok > 0 di Gudang Asal jika Keluar/Transfer -->
                                             <div class="md:col-span-2">
                                                 <select x-model="item.kategori" @change="item.jenis=''; item.kodeBarang=''; item.namaBarang=''; item.drumId=''" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200">
                                                     <option value="">Pilih Kategori</option>
-                                                    <template x-for="kat in getCategoriesForItem(item)" :key="kat">
+                                                    <template x-for="kat in getCategories(item)" :key="kat">
                                                         <option :value="kat" x-text="kat"></option>
                                                     </template>
                                                 </select>
                                             </div>
+                                            <!-- REQUIREMENT 2: Jenis hanya menampilkan stok > 0 setelah Kategori dipilih -->
                                             <div class="md:col-span-2">
                                                 <select x-model="item.jenis" @change="item.kodeBarang=''; item.namaBarang=''; item.drumId=''" :disabled="!item.kategori" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50">
                                                     <option value="">Pilih Jenis</option>
-                                                    <template x-for="jns in getJenisForItem(item)" :key="jns">
+                                                    <template x-for="jns in getJenis(item.kategori)" :key="jns">
                                                         <option :value="jns" x-text="jns"></option>
                                                     </template>
                                                 </select>
                                             </div>
+                                            <!-- REQUIREMENT 3: Kode Barang hanya menampilkan stok > 0 setelah Jenis dipilih -->
                                             <div class="md:col-span-2">
                                                 <select x-model="item.kodeBarang" @change="fillNamaBarang(item); item.drumId=''" :disabled="!item.jenis" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50 font-mono">
                                                     <option value="">Pilih Kode</option>
-                                                    <template x-for="brg in getBarangListForItem(item)" :key="brg.kodeBarang">
+                                                    <template x-for="brg in getBarangList(item.kategori, item.jenis)" :key="brg.kodeBarang">
                                                         <option :value="brg.kodeBarang" x-text="brg.kodeBarang"></option>
                                                     </template>
                                                 </select>
@@ -511,21 +515,21 @@
                                             <div class="md:col-span-2">
                                                 <input type="text" x-model="item.namaBarang" readonly placeholder="Nama Barang" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 bg-slate-950/50 cursor-not-allowed">
                                             </div>
+                                            <!-- REQUIREMENT 4: Khusus Kategori Cable saat Keluar/Transfer, dropdown Drum ID otomatis muncul beserta tooltip stok -->
                                             <div class="md:col-span-2">
-                                                <!-- Dropdown Drum ID otomatis khusus kategori Cable dengan Tooltip Stok -->
-                                                <template x-if="getCategoryByKode(item.kodeBarang) === 'Cable'">
-                                                    <select x-model="item.drumId" :title="getDrumTooltip(item.drumId)" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-indigo-300 font-mono">
+                                                <template x-if="getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Barang Keluar' || newTrans.tipeTransaksi === 'Transfer Gudang')">
+                                                    <select x-model="item.drumId" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
                                                         <option value="">Pilih Drum ID</option>
-                                                        <template x-for="drum in getAvailableDrums(item)" :key="drum.drumId">
-                                                            <option :value="drum.drumId" :title="'Sisa Stok: ' + drum.remainingLength + 'm | Gudang: ' + drum.gudang" x-text="drum.drumId + ' (' + drum.remainingLength + 'm)'"></option>
+                                                        <template x-for="d in getDrumList(item)" :key="d.drumId">
+                                                            <option :value="d.drumId" :title="'Sisa Stok / Panjang: ' + d.remainingLength + ' m'" x-text="d.drumId + ' (Sisa: ' + d.remainingLength + 'm)'"></option>
                                                         </template>
                                                     </select>
                                                 </template>
-                                                <template x-if="getCategoryByKode(item.kodeBarang) !== 'Cable'">
+                                                <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Barang Keluar' || newTrans.tipeTransaksi === 'Transfer Gudang'))">
                                                     <input type="text" x-model="item.drumId" 
-                                                        :readonly="newTrans.tipeTransaksi === 'Barang Masuk'" 
-                                                        :placeholder="newTrans.tipeTransaksi === 'Barang Masuk' ? 'Otomatis' : 'Drum ID'" 
-                                                        :class="newTrans.tipeTransaksi === 'Barang Masuk' ? 'bg-slate-950/50 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-indigo-300'"
+                                                        :readonly="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable'" 
+                                                        :placeholder="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis' : 'Drum ID'" 
+                                                        :class="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'bg-slate-950/50 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-indigo-300'"
                                                         class="w-full border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono">
                                                 </template>
                                             </div>
@@ -1041,11 +1045,11 @@
 
                 masterGudang: safeLoadStorage('vortex_masterGudang', [
                     { kodeGudang: 'WH-JKT-01', namaGudang: 'Gudang Utama Jakarta', tipeKepemilikan: 'Milik Sendiri', lokasi: 'Cakung, Jakarta Timur' },
-                    { kodeGudang: 'WH-PDG-02', namaGudang: 'Gudang Regional Padang', tipeKepemilikan: 'Sewa / Vendor', lokasi: 'Padang, Sumatera Barat' }
+                    { kodeGudang: 'WH-SBY-02', namaGudang: 'Gudang Regional Surabaya', tipeKepemilikan: 'Sewa / Vendor', lokasi: 'Rungkut, Surabaya' }
                 ]),
 
                 masterProject: safeLoadStorage('vortex_masterProject', [
-                    { periode: '2026-Q1', region: 'PDG', kodeProject: 'PRJ-PDG-09', type: 'FTTH Rollout', noPO: 'PO/2026/0192', projectName: 'Project Padang FTTH 2026', poAwal: '2026-01-10', poFinal: '2026-06-30', statusPO: 'Approved', permit: 'Clear', snd: 'SND-8821', statusProject: 'On Progress' }
+                    { periode: '2026-Q1', region: 'Jawa Barat', kodeProject: 'PRJ-BJB-09', type: 'FTTH Rollout', noPO: 'PO/2026/0192', projectName: 'Project Jabar FTTH 2026', poAwal: '2026-01-10', poFinal: '2026-06-30', statusPO: 'Approved', permit: 'Clear', snd: 'SND-8821', statusProject: 'On Progress' }
                 ]),
 
                 stokGudang: safeLoadStorage('vortex_stokGudang', [
@@ -1059,7 +1063,7 @@
                 ]),
 
                 materialUsage: safeLoadStorage('vortex_materialUsage', [
-                    { kodeProject: 'PRJ-PDG-09', noPO: 'PO/2026/0192', projectName: 'Project Padang FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-002', qty: 2000, tanggal: '2026-06-02' }
+                    { kodeProject: 'PRJ-BJB-09', noPO: 'PO/2026/0192', projectName: 'Project Jabar FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-002', qty: 2000, tanggal: '2026-06-02' }
                 ]),
 
                 transactions: safeLoadStorage('vortex_transactions', [
@@ -1070,7 +1074,7 @@
                         tipeTransaksi: 'Barang Masuk',
                         gudangAsal: 'Vendor Supplier',
                         gudangTujuan: 'Gudang Utama Jakarta',
-                        kodeProject: 'PRJ-PDG-09',
+                        kodeProject: 'PRJ-BJB-09',
                         keterangan: 'Penerimaan awal material kabel project',
                         lampiran: '',
                         items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-001', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
@@ -1352,107 +1356,87 @@
                     }
                 },
 
-                getCategories() {
-                    return [...new Set(this.masterBarang.map(b => b.kategori))];
-                },
-
-                getJenis(kategori) {
-                    return [...new Set(this.masterBarang.filter(b => b.kategori === kategori).map(b => b.jenis))];
-                },
-
-                getBarangList(kategori, jenis) {
-                    return this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
-                },
-
-                // HELPER UNTUK KELUAR / TRANSFER (FILTER STOK > 0)
-                get isOutOrTransfer() {
-                    return this.newTrans.tipeTransaksi === 'Barang Keluar' || this.newTrans.tipeTransaksi === 'Transfer Gudang';
-                },
-
-                getCategoriesForItem(item) {
-                    if (this.isOutOrTransfer && this.newTrans.gudangAsal) {
-                        const validCodes = (this.stokGudang || [])
+                // REQUIREMENT 1: Kategori hanya menampilkan stok > 0 di Gudang Asal jika Keluar/Transfer
+                getCategories(item) {
+                    if (this.newTrans.tipeTransaksi === 'Barang Masuk' || !this.newTrans.gudangAsal) {
+                        return [...new Set(this.masterBarang.map(b => b.kategori))];
+                    }
+                    const validKodeBarangSet = new Set(
+                        (this.stokGudang || [])
                             .filter(s => s.gudang === this.newTrans.gudangAsal && Number(s.qty) > 0)
-                            .map(s => s.kodeBarang);
-                        const cats = (this.masterBarang || [])
-                            .filter(b => validCodes.includes(b.kodeBarang))
+                            .map(s => s.kodeBarang)
+                    );
+                    const validCategories = (this.masterBarang || [])
+                            .filter(b => validKodeBarangSet.has(b.kodeBarang))
                             .map(b => b.kategori);
-                        return [...new Set(cats)];
-                    }
-                    return this.getCategories();
+                    return [...new Set(validCategories)];
                 },
 
-                getJenisForItem(item) {
-                    if (!item.kategori) return [];
-                    if (this.isOutOrTransfer && this.newTrans.gudangAsal) {
-                        const validCodes = (this.stokGudang || [])
+                // REQUIREMENT 2: Jenis hanya menampilkan stok > 0 di Gudang Asal setelah Kategori dipilih
+                getJenis(kategori) {
+                    if (!kategori) return [];
+                    if (this.newTrans.tipeTransaksi === 'Barang Masuk' || !this.newTrans.gudangAsal) {
+                        return [...new Set(this.masterBarang.filter(b => b.kategori === kategori).map(b => b.jenis))];
+                    }
+                    const validKodeBarangSet = new Set(
+                        (this.stokGudang || [])
                             .filter(s => s.gudang === this.newTrans.gudangAsal && Number(s.qty) > 0)
-                            .map(s => s.kodeBarang);
-                        const jenisList = (this.masterBarang || [])
-                            .filter(b => b.kategori === item.kategori && validCodes.includes(b.kodeBarang))
+                            .map(s => s.kodeBarang)
+                    );
+                    const validJenis = (this.masterBarang || [])
+                            .filter(b => b.kategori === kategori && validKodeBarangSet.has(b.kodeBarang))
                             .map(b => b.jenis);
-                        return [...new Set(jenisList)];
-                    }
-                    return this.getJenis(item.kategori);
+                    return [...new Set(validJenis)];
                 },
 
-                getBarangListForItem(item) {
-                    if (!item.kategori || !item.jenis) return [];
-                    if (this.isOutOrTransfer && this.newTrans.gudangAsal) {
-                        const validCodes = (this.stokGudang || [])
-                            .filter(s => s.gudang === this.newTrans.gudangAsal && Number(s.qty) > 0)
-                            .map(s => s.kodeBarang);
-                        return (this.masterBarang || []).filter(b => 
-                            b.kategori === item.kategori && 
-                            b.jenis === item.jenis && 
-                            validCodes.includes(b.kodeBarang)
-                        );
+                // REQUIREMENT 3: Kode Barang hanya menampilkan stok > 0 di Gudang Asal setelah Jenis dipilih
+                getBarangList(kategori, jenis) {
+                    if (!kategori || !jenis) return [];
+                    const masterList = this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
+                    if (this.newTrans.tipeTransaksi === 'Barang Masuk' || !this.newTrans.gudangAsal) {
+                        return masterList;
                     }
-                    return this.getBarangList(item.kategori, item.jenis);
-                },
-
-                // FILTER KODE PROJECT BERDASARKAN GUDANG ASAL
-                getFilteredProjects() {
-                    if (!this.isOutOrTransfer || !this.newTrans.gudangAsal) {
-                        return this.masterProject;
-                    }
-                    const selectedWarehouse = (this.masterGudang || []).find(g => g.namaGudang === this.newTrans.gudangAsal);
-                    if (!selectedWarehouse) return this.masterProject;
-
-                    const whCode = (selectedWarehouse.kodeGudang || '').toUpperCase();
-                    const whName = (selectedWarehouse.namaGudang || '').toUpperCase();
-
-                    const filtered = (this.masterProject || []).filter(p => {
-                        const projRegion = (p.region || '').toUpperCase();
-                        const whParts = whCode.split('-');
-                        const matchesPart = whParts.some(part => part.length >= 2 && projRegion.includes(part));
-                        const matchesName = whName.includes(projRegion) || projRegion.includes(whName);
-                        return matchesPart || matchesName || whCode.includes(projRegion);
+                    const validStokMap = new Map();
+                    (this.stokGudang || []).forEach(s => {
+                        if (s.gudang === this.newTrans.gudangAsal && Number(s.qty) > 0) {
+                            validStokMap.set(s.kodeBarang, s.qty);
+                        }
                     });
-
-                    return filtered.length > 0 ? filtered : this.masterProject;
-                },
-
-                // DRUM KABEL & TOOLTIP STOK
-                getAvailableDrums(item) {
-                    const wh = this.isOutOrTransfer ? this.newTrans.gudangAsal : this.newTrans.gudangTujuan;
-                    return (this.drumLedger || []).filter(d => {
-                        const matchCode = d.kodeBarang === item.kodeBarang;
-                        const matchWh = !wh || d.gudang === wh;
-                        const hasStock = Number(d.remainingLength) > 0;
-                        return matchCode && matchWh && hasStock;
-                    });
-                },
-
-                getDrumTooltip(drumId) {
-                    if (!drumId) return 'Pilih Drum ID dari daftar kabel yang tersedia';
-                    const drum = (this.drumLedger || []).find(d => d.drumId === drumId);
-                    return drum ? `Drum ID: ${drum.drumId} | Sisa Panjang: ${drum.remainingLength}m | Gudang: ${drum.gudang} | Status: ${drum.status}` : '';
+                    return masterList.filter(b => validStokMap.has(b.kodeBarang));
                 },
 
                 getCategoryByKode(kode) {
                     const found = this.masterBarang.find(b => b.kodeBarang === kode);
                     return found ? found.kategori : '';
+                },
+
+                // REQUIREMENT 4: Get list of Drum IDs for Cable category with remaining stock
+                getDrumList(item) {
+                    if (!item.kodeBarang) return [];
+                    const wh = this.newTrans.gudangAsal || '';
+                    return (this.drumLedger || []).filter(d => 
+                        d.kodeBarang === item.kodeBarang && 
+                        d.gudang === wh && 
+                        Number(d.remainingLength) > 0
+                    );
+                },
+
+                // REQUIREMENT 5: Filter project codes based on Gudang Asal code prefix (e.g. PDG)
+                getFilteredProjects() {
+                    const projects = this.masterProject || [];
+                    if (this.newTrans.tipeTransaksi === 'Barang Masuk') {
+                        return projects;
+                    }
+                    if (!this.newTrans.gudangAsal) {
+                        return [];
+                    }
+                    const wh = (this.masterGudang || []).find(g => g.namaGudang === this.newTrans.gudangAsal);
+                    if (!wh || !wh.kodeGudang) return projects;
+
+                    const whCode = wh.kodeGudang.trim();
+                    const prefix = whCode.includes('-') ? whCode.split('-')[0] : whCode.substring(0, 3);
+
+                    return projects.filter(p => p.kodeProject && p.kodeProject.toUpperCase().startsWith(prefix.toUpperCase()));
                 },
 
                 fillNamaBarang(item) {
