@@ -663,10 +663,15 @@
 
                 <!-- 8. DATA TRANSAKSI & PRINT BAST -->
                 <div x-show="currentTab === 'data-transaksi'" class="space-y-4" x-cloak>
-                    <div class="flex items-center justify-between">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div>
                             <h3 class="text-sm font-semibold text-white">Log Data Transaksi & Cetak BAST</h3>
                             <p class="text-[10px] text-slate-400">Riwayat transaksi lengkap dengan opsi cetak Berita Acara Serah Terima (BAST).</p>
+                        </div>
+                        <!-- Fitur Pencarian No Transaksi & No Referensi -->
+                        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                            <input type="text" x-model="searchNoTransaksi" placeholder="Cari No Transaksi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
+                            <input type="text" x-model="searchNoReferensi" placeholder="Cari No Referensi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
                         </div>
                     </div>
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
@@ -685,7 +690,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs">
-                                    <template x-for="(tx, index) in transactions" :key="tx.noTransaksi || index">
+                                    <template x-for="(tx, index) in getFilteredTransactions()" :key="tx.noTransaksi || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 text-slate-300" x-text="tx.tanggal"></td>
                                             <td class="p-3 font-mono text-indigo-400 text-[11px] font-semibold" x-text="tx.noTransaksi"></td>
@@ -959,6 +964,10 @@
                 // Filter gudang pada Stok & Pelacakan Drum
                 selectedWarehouseFilter: '',
 
+                // State Pencarian Transaksi
+                searchNoTransaksi: '',
+                searchNoReferensi: '',
+
                 getFilteredStok() {
                     if (!this.selectedWarehouseFilter) return this.stokGudang;
                     return this.stokGudang.filter(s => s.gudang === this.selectedWarehouseFilter);
@@ -967,6 +976,14 @@
                 getFilteredDrum() {
                     if (!this.selectedWarehouseFilter) return this.drumLedger;
                     return this.drumLedger.filter(d => d.gudang === this.selectedWarehouseFilter);
+                },
+
+                getFilteredTransactions() {
+                    return this.transactions.filter(tx => {
+                        const matchNoTrans = this.searchNoTransaksi === '' || (tx.noTransaksi && tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
+                        const matchNoRef = this.searchNoReferensi === '' || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
+                        return matchNoTrans && matchNoRef;
+                    });
                 },
 
                 showNotification(message, type = 'error') {
