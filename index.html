@@ -434,7 +434,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Gudang Asal</label>
-                                    <select x-model="newTrans.gudangAsal" @change="newTrans.items.forEach(i => { i.kategori=''; i.jenis=''; i.kodeBarang=''; i.namaBarang=''; i.drumId=''; }); newTrans.kodeProject='';" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <select x-model="newTrans.gudangAsal" @change="newTrans.items.forEach(i => { i.kategori=''; i.jenis=''; i.kodeBarang=''; i.namaBarang=''; i.drumId=''; });" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="">Pilih Gudang Asal</option>
                                         <template x-for="g in masterGudang" :key="g.kodeGudang">
                                             <option :value="g.namaGudang" x-text="g.namaGudang"></option>
@@ -451,12 +451,12 @@
                                     </select>
                                 </div>
                                 <!-- Kode Project Terkait -->
-                                <div class="md:col-span-1" x-show="newTrans.tipeTransaksi === 'Barang Masuk' || newTrans.gudangAsal">
+                                <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
                                     <input type="text" x-model="newTrans.kodeProject" list="project-options" placeholder="Pilih atau ketik Kode Project..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                     <datalist id="project-options">
                                         <template x-for="p in getFilteredProjects()" :key="p.kodeProject">
-                                            <option :value="p.kodeProject" x-text="p.kodeProject + ' — ' + p.noPO"></option>
+                                            <option :value="p.kodeProject" x-text="p.kodeProject + ' — ' + p.projectName"></option>
                                         </template>
                                     </datalist>
                                 </div>
@@ -1190,8 +1190,15 @@
                     const thnBln = dateParts[0] + dateParts[1];
 
                     const prefix = `ACM-${typeCode}-${thnBln}-`;
-                    const matchingTrans = this.transactions.filter(t => t.noTransaksi && t.noTransaksi.startsWith(prefix));
-                    const nextSeq = matchingTrans.length + 1;
+                    const matchingTrans = (this.transactions || []).filter(t => t.noTransaksi && t.noTransaksi.startsWith(prefix));
+                    
+                    let maxSeq = 0;
+                    matchingTrans.forEach(t => {
+                        const parts = t.noTransaksi.split('-');
+                        const seq = parseInt(parts[parts.length - 1], 10);
+                        if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+                    });
+                    const nextSeq = maxSeq + 1;
                     this.newTrans.noTransaksi = `${prefix}${String(nextSeq).padStart(3, '0')}`;
                 },
 
@@ -1343,15 +1350,7 @@
                 },
 
                 getFilteredProjects() {
-                    const projects = this.masterProject || [];
-                    if (this.newTrans.tipeTransaksi === 'Barang Masuk' || !this.newTrans.gudangAsal) return projects;
-                    
-                    const wh = (this.masterGudang || []).find(g => g.namaGudang === this.newTrans.gudangAsal);
-                    if (!wh || !wh.kodeGudang) return projects;
-
-                    const whCode = wh.kodeGudang.trim();
-                    const prefix = whCode.includes('-') ? whCode.split('-')[0] : whCode.substring(0, 3);
-                    return projects.filter(p => p.kodeProject && p.kodeProject.toUpperCase().startsWith(prefix.toUpperCase()));
+                    return this.masterProject || [];
                 },
 
                 fillNamaBarang(item) {
@@ -1415,7 +1414,6 @@
                 // BAST PRINTING FUNCTIONS
                 printBAST(tx) {
                     this.activeBast = tx;
-                    // Beri waktu Alpine me-render komponen yang dihide, lalu trigger print browser
                     setTimeout(() => { window.print(); }, 300);
                 },
 
@@ -1558,45 +1556,37 @@
                                 let targetWH = transData.gudangTujuan || 'Gudang Utama Jakarta';
                                 let existingStok = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
                                 
-                                if (existingStok) {
-                                    existingStok.qty += qtyNum;
-                                } else {
-                                    this.stokGudang.push({ 
-                                        kodeBarang: i.kodeBarang, 
-                                        namaBarang: i.namaBarang, 
-                                        kategori: brgInfo ? brgInfo.kategori : 'General', 
-                                        gudang: targetWH, 
-                                        qty: qtyNum, 
-                                        sat: satuanBarang 
-                                    });
+                                if (existingStok) existingStok.qty += qtyNum;
+                                else this.stokGudang.push({ kodeBarang: i.kodeBarang, namaBarang: i.namaBarang, kategori: brgInfo ? brgInfo.kategori : 'General', gudang: targetWH, qty: qtyNum, sat: satuanBarang });
+                                
+                                if (i.drumId && !isCable) {
+                                    let existingDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
+                                    if (!existingDrum) this.drumLedger.push({ drumId: i.drumId, kodeBarang: i.kodeBarang, namaBarang: i.namaBarang, gudang: targetWH, initialLength: qtyNum, remainingLength: qtyNum, status: 'Full' });
                                 }
                             }
-                            
+
                             // D. PENANGANAN BARANG KELUAR
                             else if (transData.tipeTransaksi === 'Barang Keluar') {
                                 let targetWH = transData.gudangAsal;
-                                let existingStok = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
+                                let stokKeluar = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
                                 
-                                if (existingStok) {
-                                    existingStok.qty = Math.max(0, existingStok.qty - qtyNum);
-                                }
-                                
-                                // Potong sisa panjang di Drum Ledger (khusus material kabel)
+                                if (stokKeluar) stokKeluar.qty = Math.max(0, stokKeluar.qty - qtyNum);
+
                                 if (i.drumId) {
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
-                                        foundDrum.remainingLength -= qtyNum;
-                                        foundDrum.status = foundDrum.remainingLength <= 0 ? 'Empty' : 'Partial';
+                                        foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
+                                        foundDrum.status = foundDrum.remainingLength === 0 ? 'Empty' : 'Partial';
                                     }
                                 }
 
-                                // Catat otomatis ke Material Usage (Pemakaian Project)
+                                // Pencatatan Material Usage ke Project
                                 if (transData.kodeProject) {
-                                    const projInfo = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject) || {};
+                                    let projInfo = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
                                     this.materialUsage.push({
                                         kodeProject: transData.kodeProject,
-                                        noPO: projInfo.noPO || '-',
-                                        projectName: projInfo.projectName || '-',
+                                        noPO: projInfo ? projInfo.noPO : '-',
+                                        projectName: projInfo ? projInfo.projectName : '-',
                                         kodeBarang: i.kodeBarang,
                                         namaBarang: i.namaBarang,
                                         drumId: i.drumId || '-',
@@ -1607,27 +1597,26 @@
                             }
                         });
 
-                        // Finalisasi Data Transaksi (mengganti items dengan expanded items jika ada split drum)
+                        // 4. Finalisasi & Sinkronisasi ke Supabase Cloud
                         transData.items = expandedItems;
                         this.transactions.unshift(transData);
 
-                        // Trigger Supabase Sync (Untuk menyimpan log transaksi ke database cloud)
                         await this.persistToSupabase('transactions', transData);
+                        for (let s of this.stokGudang) await this.persistToSupabase('stok_gudang', s);
+                        for (let d of this.drumLedger) await this.persistToSupabase('drum_ledger', d);
+                        for (let u of this.materialUsage) await this.persistToSupabase('material_usage', u);
 
-                        this.showNotification('Transaksi berhasil diproses, stok dan log project telah diupdate.', 'success');
+                        this.showNotification('Transaksi berhasil diproses & disinkronisasi ke cloud.', 'success');
                         this.resetInputTransaction();
-                        
-                        // Otomatis pindah ke tab Data Transaksi untuk melihat log / mencetak BAST
-                        this.currentTab = 'data-transaksi';
 
-                    } catch (err) {
-                        console.error('Transaksi Error:', err);
+                    } catch (error) {
+                        console.error("Transaction Error: ", error);
                         this.showNotification('Terjadi kesalahan sistem saat memproses transaksi.', 'error');
                     } finally {
                         this.isLoading = false;
                     }
                 }
-            };
+            }
         }
     </script>
 </body>
