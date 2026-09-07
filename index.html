@@ -527,10 +527,19 @@
                 <!-- 6. STOK GUDANG & PELACAKAN DRUM KABEL -->
                 <div x-show="currentTab === 'stok'" class="space-y-6" x-cloak>
                     <div class="space-y-4">
-                        <div class="flex items-center justify-between">
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                             <div>
                                 <h3 class="text-sm font-semibold text-white">Stok Gudang Real-Time</h3>
                                 <p class="text-[10px] text-slate-400">Total ketersediaan material di seluruh gudang operasional.</p>
+                            </div>
+                            <!-- Tambahan Tombol 'Filter Gudang' -->
+                            <div class="w-full sm:w-64">
+                                <select x-model="filterStokGudang" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                                    <option value="">Filter Gudang: Semua Gudang</option>
+                                    <template x-for="g in masterGudang" :key="g.kodeGudang">
+                                        <option :value="g.namaGudang" x-text="g.namaGudang"></option>
+                                    </template>
+                                </select>
                             </div>
                         </div>
                         <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
@@ -547,7 +556,7 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-800/60 text-xs">
-                                        <template x-for="(stok, index) in stokGudang" :key="stok.kodeBarang + '-' + stok.gudang || index">
+                                        <template x-for="(stok, index) in getFilteredStokGudang()" :key="stok.kodeBarang + '-' + stok.gudang || index">
                                             <tr class="hover:bg-slate-800/30 transition">
                                                 <td class="p-3 font-mono text-indigo-400 text-[11px]" x-text="stok.kodeBarang"></td>
                                                 <td class="p-3 font-medium text-white" x-text="stok.namaBarang"></td>
@@ -585,7 +594,7 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-800/60 text-xs">
-                                        <template x-for="(drum, index) in drumLedger" :key="drum.drumId || index">
+                                        <template x-for="(drum, index) in getFilteredDrumLedger()" :key="drum.drumId || index">
                                             <tr class="hover:bg-slate-800/30 transition">
                                                 <td class="p-3 font-mono text-indigo-400 font-semibold text-[11px]" x-text="drum.drumId"></td>
                                                 <td class="p-3 font-mono text-slate-300 text-[11px]" x-text="drum.kodeBarang"></td>
@@ -612,8 +621,19 @@
                             <h3 class="text-sm font-semibold text-white">Material Usage (Pemakaian Project & Pelacakan Drum)</h3>
                             <p class="text-[10px] text-slate-400">Rekapitulasi material dan nomor drum spesifik yang telah dialokasikan ke masing-masing project.</p>
                         </div>
-                        <div class="w-full sm:w-64">
-                            <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                            <!-- Tambahan Tombol 'Filter Region' -->
+                            <div class="w-full sm:w-48">
+                                <select x-model="filterRegionUsage" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                                    <option value="">Filter Region: Semua Region</option>
+                                    <template x-for="reg in getUniqueRegions()" :key="reg">
+                                        <option :value="reg" x-text="reg"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="w-full sm:w-64">
+                                <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                            </div>
                         </div>
                     </div>
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
@@ -951,12 +971,34 @@
                 notification: { show: false, message: '', type: 'error' },
                 isLoading: false,
 
+                // State Filter Baru
+                filterStokGudang: '',
+                filterRegionUsage: '',
+
                 // State Pencarian Transaksi
                 searchNoTransaksi: '',
                 searchNoReferensi: '',
 
                 // State Pencarian Material Usage (Cari Project)
                 searchMaterialUsageProject: '',
+
+                getFilteredStokGudang() {
+                    return this.stokGudang.filter(stok => {
+                        if (!this.filterStokGudang) return true;
+                        return stok.gudang === this.filterStokGudang;
+                    });
+                },
+
+                getFilteredDrumLedger() {
+                    return this.drumLedger.filter(drum => {
+                        if (!this.filterStokGudang) return true;
+                        return drum.gudang === this.filterStokGudang;
+                    });
+                },
+
+                getUniqueRegions() {
+                    return [...new Set(this.masterProject.map(p => p.region).filter(Boolean))];
+                },
 
                 getFilteredTransactions() {
                     return this.transactions.filter(tx => {
@@ -968,6 +1010,13 @@
 
                 getFilteredMaterialUsage() {
                     return this.materialUsage.filter(usage => {
+                        const matchedProj = this.masterProject.find(p => p.kodeProject === usage.kodeProject);
+                        const usageRegion = matchedProj ? matchedProj.region : '';
+
+                        const matchRegion = !this.filterRegionUsage || usageRegion === this.filterRegionUsage;
+                        
+                        if (!matchRegion) return false;
+
                         if (!this.searchMaterialUsageProject) return true;
                         const q = this.searchMaterialUsageProject.toLowerCase();
                         return (
