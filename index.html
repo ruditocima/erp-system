@@ -1241,7 +1241,6 @@
                 },
 
                 async saveModalData() {
-                    // Validasi duplikasi primary key saat tambah baru
                     if (!this.isEdit) {
                         if (this.modalType === 'barang') {
                             const exists = this.masterBarang.some(b => b.kodeBarang === this.modalForm.kodeBarang);
@@ -1571,12 +1570,6 @@
                                     if (foundDrum) {
                                         foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
                                         foundDrum.status = foundDrum.remainingLength === 0 ? 'Depleted' : 'Partial';
-
-                                        // FIX BUG: Perbaikan pemotongan drum pada Barang Keluar (gudang tetap di gudang asal/targetWH)
-                                        if (qtyNum < foundDrum.remainingLength + qtyNum && qtyNum > 0) {
-                                            // Jika ada sisa drum baru dari pemotongan keluar, simpan di targetWH (gudang asal)
-                                            // (Catatan: Sisa fisik tetap di warehouse asal)
-                                        }
                                     }
                                 }
 
@@ -1603,7 +1596,6 @@
                         transData.items = expandedItems;
                         this.transactions.unshift(transData);
                         
-                        // Sinkronisasi menyeluruh ke Supabase Cloud
                         await this.persistToSupabase('transactions', transData);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
