@@ -1352,7 +1352,6 @@
                     }
                 },
 
-                // Helper untuk menyaring Gudang Tujuan agar tidak sama dengan Gudang Asal
                 getGudangTujuanList() {
                     if (!this.newTrans.gudangAsal) return this.masterGudang;
                     return this.masterGudang.filter(g => g.namaGudang !== this.newTrans.gudangAsal);
@@ -1463,7 +1462,6 @@
                     this.isLoading = true;
 
                     try {
-                        // VALIDASI UTAMA: Gudang Asal dan Gudang Tujuan tidak boleh sama
                         if (this.newTrans.gudangAsal && this.newTrans.gudangTujuan && this.newTrans.gudangAsal === this.newTrans.gudangTujuan) {
                             this.showNotification('Gudang Asal dan Gudang Tujuan tidak boleh sama.', 'error');
                             this.isLoading = false;
@@ -1736,49 +1734,47 @@
                 },
 
                 getFilteredDrumLedger() {
-                    return this.drumLedger.filter(drum => {
-                        if (!this.filterStokGudang) return true;
-                        return drum.gudang === this.filterStokGudang;
+                    return this.drumLedger || [];
+                },
+
+                getFilteredMaterialUsage() {
+                    return (this.materialUsage || []).filter(u => {
+                        const matchRegion = !this.filterRegionUsage || (() => {
+                            const proj = (this.masterProject || []).find(p => p.kodeProject === u.kodeProject);
+                            return proj && proj.region === this.filterRegionUsage;
+                        })();
+                        const q = (this.searchMaterialUsageProject || '').toLowerCase();
+                        const matchSearch = !q || (
+                            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
+                            (u.projectName && u.projectName.toLowerCase().includes(q)) ||
+                            (u.noPO && u.noPO.toLowerCase().includes(q))
+                        );
+                        return matchRegion && matchSearch;
+                    });
+                },
+
+                getFilteredTransactions() {
+                    return (this.transactions || []).filter(tx => {
+                        const matchTrans = !this.searchNoTransaksi || (tx.noTransaksi && tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
+                        const matchRef = !this.searchNoReferensi || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
+                        return matchTrans && matchRef;
                     });
                 },
 
                 getUniqueRegions() {
-                    return [...new Set(this.masterProject.map(p => p.region).filter(Boolean))];
+                    const regions = (this.masterProject || []).map(p => p.region).filter(Boolean);
+                    return [...new Set(regions)];
                 },
 
-                getFilteredTransactions() {
-                    return this.transactions.filter(tx => {
-                        const matchNoTrans = this.searchNoTransaksi === '' || (tx.noTransaksi && tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
-                        const matchNoRef = this.searchNoReferensi === '' || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
-                        return matchNoTrans && matchNoRef;
-                    });
-                },
-
-                getFilteredMaterialUsage() {
-                    return this.materialUsage.filter(usage => {
-                        const matchedProj = this.masterProject.find(p => p.kodeProject === usage.kodeProject);
-                        const usageRegion = matchedProj ? matchedProj.region : '';
-
-                        const matchRegion = !this.filterRegionUsage || usageRegion === this.filterRegionUsage;
-                        
-                        if (!matchRegion) return false;
-
-                        if (!this.searchMaterialUsageProject) return true;
-                        const q = this.searchMaterialUsageProject.toLowerCase();
-                        return (
-                            (usage.kodeProject && usage.kodeProject.toLowerCase().includes(q)) ||
-                            (usage.projectName && usage.projectName.toLowerCase().includes(q)) ||
-                            (usage.noPO && usage.noPO.toLowerCase().includes(q))
-                        );
-                    });
-                },
-
-                showNotification(message, type = 'error') {
-                    this.notification = { show: true, message, type };
-                    setTimeout(() => { this.notification.show = false; }, 4000);
-                    setTimeout(() => lucide.createIcons(), 50);
+                showNotification(message, type = 'success') {
+                    this.notification.message = message;
+                    this.notification.type = type;
+                    this.notification.show = true;
+                    setTimeout(() => {
+                        this.notification.show = false;
+                    }, 4000);
                 }
-            }
+            };
         }
     </script>
 </body>
