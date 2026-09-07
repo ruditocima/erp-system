@@ -628,8 +628,19 @@
                             <h3 class="text-sm font-semibold text-white">Material Usage (Pemakaian Project & Pelacakan Drum)</h3>
                             <p class="text-[10px] text-slate-400">Rekapitulasi material dan nomor drum spesifik yang telah dialokasikan ke masing-masing project.</p>
                         </div>
-                        <div class="w-full sm:w-64">
-                            <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                        <div class="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                            <!-- Filter Region yang mengacu dari Master Project -->
+                            <div class="w-full sm:w-48">
+                                <select x-model="selectedRegionFilter" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                                    <option value="">Semua Region</option>
+                                    <template x-for="reg in [...new Set(masterProject.map(p => p.region).filter(Boolean))]" :key="reg">
+                                        <option :value="reg" x-text="reg"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="w-full sm:w-64">
+                                <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                            </div>
                         </div>
                     </div>
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
@@ -969,6 +980,9 @@
                 // Filter gudang pada Stok & Pelacakan Drum
                 selectedWarehouseFilter: '',
 
+                // Filter Region pada Material Usage
+                selectedRegionFilter: '',
+
                 // State Pencarian Transaksi
                 searchNoTransaksi: '',
                 searchNoReferensi: '',
@@ -996,13 +1010,21 @@
 
                 getFilteredMaterialUsage() {
                     return this.materialUsage.filter(usage => {
-                        if (!this.searchMaterialUsageProject) return true;
-                        const q = this.searchMaterialUsageProject.toLowerCase();
-                        return (
-                            (usage.kodeProject && usage.kodeProject.toLowerCase().includes(q)) ||
-                            (usage.projectName && usage.projectName.toLowerCase().includes(q)) ||
-                            (usage.noPO && usage.noPO.toLowerCase().includes(q))
-                        );
+                        // Mencocokkan region berdasarkan kode project dari masterProject
+                        const matchedProject = (this.masterProject || []).find(p => p.kodeProject === usage.kodeProject);
+                        const projectRegion = matchedProject ? matchedProject.region : '';
+                        const matchRegion = !this.selectedRegionFilter || projectRegion === this.selectedRegionFilter;
+
+                        let matchSearch = true;
+                        if (this.searchMaterialUsageProject) {
+                            const q = this.searchMaterialUsageProject.toLowerCase();
+                            matchSearch = (
+                                (usage.kodeProject && usage.kodeProject.toLowerCase().includes(q)) ||
+                                (usage.projectName && usage.projectName.toLowerCase().includes(q)) ||
+                                (usage.noPO && usage.noPO.toLowerCase().includes(q))
+                            );
+                        }
+                        return matchRegion && matchSearch;
                     });
                 },
 
