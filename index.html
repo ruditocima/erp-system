@@ -1734,42 +1734,39 @@
                 },
 
                 getFilteredDrumLedger() {
-                    return this.drumLedger || [];
+                    return (this.drumLedger || []).filter(drum => {
+                        return true;
+                    });
                 },
 
                 getFilteredMaterialUsage() {
-                    return (this.materialUsage || []).filter(u => {
+                    return (this.materialUsage || []).filter(usage => {
                         const matchRegion = !this.filterRegionUsage || (() => {
-                            const proj = (this.masterProject || []).find(p => p.kodeProject === u.kodeProject);
-                            return proj && proj.region === this.filterRegionUsage;
+                            const p = (this.masterProject || []).find(proj => proj.kodeProject === usage.kodeProject);
+                            return p && p.region === this.filterRegionUsage;
                         })();
-                        const q = (this.searchMaterialUsageProject || '').toLowerCase();
-                        const matchSearch = !q || (
-                            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
-                            (u.projectName && u.projectName.toLowerCase().includes(q)) ||
-                            (u.noPO && u.noPO.toLowerCase().includes(q))
-                        );
+                        const matchSearch = !this.searchMaterialUsageProject || 
+                            usage.kodeProject.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase()) ||
+                            (usage.projectName && usage.projectName.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase())) ||
+                            (usage.noPO && usage.noPO.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase()));
                         return matchRegion && matchSearch;
                     });
                 },
 
+                getUniqueRegions() {
+                    return [...new Set((this.masterProject || []).map(p => p.region).filter(Boolean))];
+                },
+
                 getFilteredTransactions() {
                     return (this.transactions || []).filter(tx => {
-                        const matchTrans = !this.searchNoTransaksi || (tx.noTransaksi && tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
+                        const matchNoTx = !this.searchNoTransaksi || tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
                         const matchRef = !this.searchNoReferensi || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
-                        return matchTrans && matchRef;
+                        return matchNoTx && matchRef;
                     });
                 },
 
-                getUniqueRegions() {
-                    const regions = (this.masterProject || []).map(p => p.region).filter(Boolean);
-                    return [...new Set(regions)];
-                },
-
                 showNotification(message, type = 'success') {
-                    this.notification.message = message;
-                    this.notification.type = type;
-                    this.notification.show = true;
+                    this.notification = { show: true, message, type };
                     setTimeout(() => {
                         this.notification.show = false;
                     }, 4000);
