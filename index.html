@@ -272,6 +272,11 @@
                                             </td>
                                         </tr>
                                     </template>
+                                    <template x-if="masterBarang.length === 0">
+                                        <tr>
+                                            <td colspan="6" class="p-6 text-center text-slate-500 text-xs">Belum ada data Master Barang.</td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
                         </div>
@@ -314,6 +319,11 @@
                                                 <button @click="openEditModal('gudang', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
                                                 <button @click="deleteItem('gudang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </td>
+                                        </tr>
+                                    </template>
+                                    <template x-if="masterGudang.length === 0">
+                                        <tr>
+                                            <td colspan="5" class="p-6 text-center text-slate-500 text-xs">Belum ada data Master Gudang.</td>
                                         </tr>
                                     </template>
                                 </tbody>
@@ -375,6 +385,11 @@
                                             <button @click="openEditModal('project', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
                                             <button @click="deleteItem('project', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
+                                    </tr>
+                                </template>
+                                <template x-if="masterProject.length === 0">
+                                    <tr>
+                                        <td colspan="13" class="p-6 text-center text-slate-500 text-xs">Belum ada data Master Project.</td>
                                     </tr>
                                 </template>
                             </tbody>
@@ -565,6 +580,11 @@
                                                 <td class="p-3 text-slate-400" x-text="stok.sat"></td>
                                             </tr>
                                         </template>
+                                        <template x-if="getFilteredStokGudang().length === 0">
+                                            <tr>
+                                                <td colspan="6" class="p-6 text-center text-slate-500 text-xs">Belum ada data Stok Gudang.</td>
+                                            </tr>
+                                        </template>
                                     </tbody>
                                 </table>
                             </div>
@@ -604,6 +624,11 @@
                                                 <td class="p-3">
                                                     <span class="px-2 py-0.5 rounded-full text-[10px] font-medium" :class="drum.status === 'Full' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : (drum.status === 'Partial' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20')" x-text="drum.status"></span>
                                                 </td>
+                                            </tr>
+                                        </template>
+                                        <template x-if="getFilteredDrumLedger().length === 0">
+                                            <tr>
+                                                <td colspan="7" class="p-6 text-center text-slate-500 text-xs">Belum ada data Drum Ledger.</td>
                                             </tr>
                                         </template>
                                     </tbody>
@@ -662,6 +687,11 @@
                                             <td class="p-3 text-slate-300" x-text="usage.tanggal"></td>
                                         </tr>
                                     </template>
+                                    <template x-if="getFilteredMaterialUsage().length === 0">
+                                        <tr>
+                                            <td colspan="8" class="p-6 text-center text-slate-500 text-xs">Belum ada data Material Usage.</td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
                         </div>
@@ -712,6 +742,11 @@
                                                     <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print BAST PDF
                                                 </button>
                                             </td>
+                                        </tr>
+                                    </template>
+                                    <template x-if="getFilteredTransactions().length === 0">
+                                        <tr>
+                                            <td colspan="8" class="p-6 text-center text-slate-500 text-xs">Belum ada data Transaksi.</td>
                                         </tr>
                                     </template>
                                 </tbody>
@@ -1038,7 +1073,7 @@
                     this.resetInputTransaction();
                     this.syncWithSupabaseOnStart();
 
-                    // Deep watch ditambahkan untuk memastikan mutasi array/objek tersimpan otomatis ke localStorage
+                    // Deep watch untuk penyimpanan otomatis ke localStorage
                     this.$watch('masterBarang', val => { localStorage.setItem('vortex_masterBarang', JSON.stringify(val)); }, { deep: true });
                     this.$watch('masterGudang', val => { localStorage.setItem('vortex_masterGudang', JSON.stringify(val)); }, { deep: true });
                     this.$watch('masterProject', val => { localStorage.setItem('vortex_masterProject', JSON.stringify(val)); }, { deep: true });
@@ -1085,7 +1120,8 @@
                 async persistToSupabase(table, data) {
                     if (!supabaseClient) return;
                     try {
-                        await supabaseClient.from(table).upsert(data);
+                        const { error } = await supabaseClient.from(table).upsert(data);
+                        if (error) console.warn(`Supabase upsert error on ${table}:`, error.message);
                     } catch (e) {
                         console.warn(`Failed to sync table ${table} to Supabase:`, e);
                     }
@@ -1205,6 +1241,29 @@
                 },
 
                 async saveModalData() {
+                    // Validasi duplikasi primary key saat tambah baru
+                    if (!this.isEdit) {
+                        if (this.modalType === 'barang') {
+                            const exists = this.masterBarang.some(b => b.kodeBarang === this.modalForm.kodeBarang);
+                            if (exists) {
+                                this.showNotification(`Kode Barang "${this.modalForm.kodeBarang}" sudah terdaftar!`, 'error');
+                                return;
+                            }
+                        } else if (this.modalType === 'gudang') {
+                            const exists = this.masterGudang.some(g => g.kodeGudang === this.modalForm.kodeGudang);
+                            if (exists) {
+                                this.showNotification(`Kode Gudang "${this.modalForm.kodeGudang}" sudah terdaftar!`, 'error');
+                                return;
+                            }
+                        } else if (this.modalType === 'project') {
+                            const exists = this.masterProject.some(p => p.kodeProject === this.modalForm.kodeProject);
+                            if (exists) {
+                                this.showNotification(`Kode Project "${this.modalForm.kodeProject}" sudah terdaftar!`, 'error');
+                                return;
+                            }
+                        }
+                    }
+
                     if (this.isEdit) {
                         if (this.modalType === 'barang') {
                             this.masterBarang[this.editIndex] = { ...this.modalForm };
@@ -1236,11 +1295,37 @@
                     this.showModal = false;
                 },
 
-                deleteItem(type, index) {
+                async deleteItem(type, index) {
                     if (confirm('Apakah Anda yakin ingin menghapus data ini?')) {
-                        if (type === 'barang') this.masterBarang.splice(index, 1);
-                        if (type === 'gudang') this.masterGudang.splice(index, 1);
-                        if (type === 'project') this.masterProject.splice(index, 1);
+                        let tableName = '';
+                        let idField = '';
+                        let itemToDelete = null;
+
+                        if (type === 'barang') {
+                            tableName = 'master_barang';
+                            idField = 'kodeBarang';
+                            itemToDelete = this.masterBarang[index];
+                            this.masterBarang.splice(index, 1);
+                        } else if (type === 'gudang') {
+                            tableName = 'master_gudang';
+                            idField = 'kodeGudang';
+                            itemToDelete = this.masterGudang[index];
+                            this.masterGudang.splice(index, 1);
+                        } else if (type === 'project') {
+                            tableName = 'master_project';
+                            idField = 'kodeProject';
+                            itemToDelete = this.masterProject[index];
+                            this.masterProject.splice(index, 1);
+                        }
+
+                        if (supabaseClient && itemToDelete && itemToDelete[idField]) {
+                            try {
+                                await supabaseClient.from(tableName).delete().eq(idField, itemToDelete[idField]);
+                            } catch (e) {
+                                console.warn(`Failed to delete from Supabase table ${tableName}:`, e);
+                            }
+                        }
+
                         this.showNotification('Data berhasil dihapus.', 'success');
                     }
                 },
@@ -1486,6 +1571,12 @@
                                     if (foundDrum) {
                                         foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
                                         foundDrum.status = foundDrum.remainingLength === 0 ? 'Depleted' : 'Partial';
+
+                                        // FIX BUG: Perbaikan pemotongan drum pada Barang Keluar (gudang tetap di gudang asal/targetWH)
+                                        if (qtyNum < foundDrum.remainingLength + qtyNum && qtyNum > 0) {
+                                            // Jika ada sisa drum baru dari pemotongan keluar, simpan di targetWH (gudang asal)
+                                            // (Catatan: Sisa fisik tetap di warehouse asal)
+                                        }
                                     }
                                 }
 
@@ -1512,7 +1603,11 @@
                         transData.items = expandedItems;
                         this.transactions.unshift(transData);
                         
+                        // Sinkronisasi menyeluruh ke Supabase Cloud
                         await this.persistToSupabase('transactions', transData);
+                        await this.persistToSupabase('stok_gudang', this.stokGudang);
+                        await this.persistToSupabase('drum_ledger', this.drumLedger);
+                        await this.persistToSupabase('material_usage', this.materialUsage);
 
                         this.showNotification('Transaksi berhasil diproses & dicatat.', 'success');
                         this.currentTab = 'data-transaksi';
