@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warehouse & Project Management</title>
+    <title>Warehouse & Project Management - VortexWMS Enterprise</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Alpine.js -->
@@ -450,7 +450,7 @@
                                 </div>
                                 <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Lampiran Dokumen</label>
-                                    <input type="file" class="w-full text-[10px] text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
+                                    <input type="file" @change="handleFileUpload($event)" class="w-full text-[10px] text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
                                 </div>
                             </div>
 
@@ -517,7 +517,7 @@
                             <div class="pt-3 flex justify-end">
                                 <button type="submit" :disabled="isLoading" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 text-xs transition flex items-center gap-2">
                                     <span x-show="isLoading" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
-                                    <span x-text="isLoading ? 'Memproses...' : 'Simpan & Proses Transaksi'"></span>
+                                    <span x-text="isLoading ? 'Memproses...' : 'Simpan & Proses Transaksi (Update Stok & Drum Ledger)'"></span>
                                 </button>
                             </div>
                         </form>
@@ -628,19 +628,8 @@
                             <h3 class="text-sm font-semibold text-white">Material Usage (Pemakaian Project & Pelacakan Drum)</h3>
                             <p class="text-[10px] text-slate-400">Rekapitulasi material dan nomor drum spesifik yang telah dialokasikan ke masing-masing project.</p>
                         </div>
-                        <div class="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
-                            <!-- Filter Region yang mengacu dari Master Project -->
-                            <div class="w-full sm:w-48">
-                                <select x-model="selectedRegionFilter" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                                    <option value="">Semua Region</option>
-                                    <template x-for="reg in [...new Set(masterProject.map(p => p.region).filter(Boolean))]" :key="reg">
-                                        <option :value="reg" x-text="reg"></option>
-                                    </template>
-                                </select>
-                            </div>
-                            <div class="w-full sm:w-64">
-                                <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                            </div>
+                        <div class="w-full sm:w-64">
+                            <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                         </div>
                     </div>
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
@@ -893,6 +882,7 @@
                 <p><strong>Gudang Asal:</strong> <span x-text="activeBast.gudangAsal"></span></p>
                 <p><strong>Project:</strong> <span x-text="activeBast.kodeProject || '-'"></span></p>
                 <p><strong>Keterangan:</strong> <span x-text="activeBast.keterangan || '-'"></span></p>
+                <p x-show="activeBast.lampiran"><strong>Lampiran:</strong> <span x-text="activeBast.lampiran"></span></p>
             </div>
         </div>
         <table class="w-full border-collapse border border-slate-400 mb-6 text-[11px]">
@@ -980,9 +970,6 @@
                 // Filter gudang pada Stok & Pelacakan Drum
                 selectedWarehouseFilter: '',
 
-                // Filter Region pada Material Usage
-                selectedRegionFilter: '',
-
                 // State Pencarian Transaksi
                 searchNoTransaksi: '',
                 searchNoReferensi: '',
@@ -1010,21 +997,13 @@
 
                 getFilteredMaterialUsage() {
                     return this.materialUsage.filter(usage => {
-                        // Mencocokkan region berdasarkan kode project dari masterProject
-                        const matchedProject = (this.masterProject || []).find(p => p.kodeProject === usage.kodeProject);
-                        const projectRegion = matchedProject ? matchedProject.region : '';
-                        const matchRegion = !this.selectedRegionFilter || projectRegion === this.selectedRegionFilter;
-
-                        let matchSearch = true;
-                        if (this.searchMaterialUsageProject) {
-                            const q = this.searchMaterialUsageProject.toLowerCase();
-                            matchSearch = (
-                                (usage.kodeProject && usage.kodeProject.toLowerCase().includes(q)) ||
-                                (usage.projectName && usage.projectName.toLowerCase().includes(q)) ||
-                                (usage.noPO && usage.noPO.toLowerCase().includes(q))
-                            );
-                        }
-                        return matchRegion && matchSearch;
+                        if (!this.searchMaterialUsageProject) return true;
+                        const q = this.searchMaterialUsageProject.toLowerCase();
+                        return (
+                            (usage.kodeProject && usage.kodeProject.toLowerCase().includes(q)) ||
+                            (usage.projectName && usage.projectName.toLowerCase().includes(q)) ||
+                            (usage.noPO && usage.noPO.toLowerCase().includes(q))
+                        );
                     });
                 },
 
@@ -1074,6 +1053,7 @@
                         gudangTujuan: 'Gudang Utama Jakarta',
                         kodeProject: 'PRJ-BJB-09',
                         keterangan: 'Penerimaan awal material kabel project',
+                        lampiran: '',
                         items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-001', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
                     }
                 ]),
@@ -1087,6 +1067,7 @@
                     gudangTujuan: '',
                     kodeProject: '',
                     keterangan: '',
+                    lampiran: '',
                     items: []
                 },
 
@@ -1134,6 +1115,15 @@
                         if (!txErr && txData && txData.length > 0) this.transactions = txData;
                     } catch (err) {
                         console.warn('Supabase offline mode active, using local persistent cache.', err);
+                    }
+                },
+
+                async persistToSupabase(table, data) {
+                    if (!supabaseClient) return;
+                    try {
+                        await supabaseClient.from(table).upsert(data);
+                    } catch (e) {
+                        console.warn(`Failed to sync table ${table} to Supabase:`, e);
                     }
                 },
 
@@ -1204,12 +1194,20 @@
                         gudangTujuan: '',
                         kodeProject: '',
                         keterangan: '',
+                        lampiran: '',
                         items: [
                             { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1, keterangan: '' }
                         ]
                     };
                     this.generateNoTransaksi();
                     setTimeout(() => lucide.createIcons(), 50);
+                },
+
+                handleFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.newTrans.lampiran = file.name;
+                    }
                 },
 
                 openModal(type) {
@@ -1242,23 +1240,32 @@
                     setTimeout(() => lucide.createIcons(), 100);
                 },
 
-                saveModalData() {
+                async saveModalData() {
                     if (this.isEdit) {
                         if (this.modalType === 'barang') {
                             this.masterBarang[this.editIndex] = { ...this.modalForm };
+                            await this.persistToSupabase('master_barang', this.masterBarang[this.editIndex]);
                         } else if (this.modalType === 'gudang') {
                             this.masterGudang[this.editIndex] = { ...this.modalForm };
+                            await this.persistToSupabase('master_gudang', this.masterGudang[this.editIndex]);
                         } else if (this.modalType === 'project') {
                             this.masterProject[this.editIndex] = { ...this.modalForm };
+                            await this.persistToSupabase('master_project', this.masterProject[this.editIndex]);
                         }
                         this.showNotification('Data master berhasil diperbarui.', 'success');
                     } else {
                         if (this.modalType === 'barang') {
-                            this.masterBarang.push({...this.modalForm});
+                            const newItem = { ...this.modalForm };
+                            this.masterBarang.push(newItem);
+                            await this.persistToSupabase('master_barang', newItem);
                         } else if (this.modalType === 'gudang') {
-                            this.masterGudang.push({...this.modalForm});
+                            const newItem = { ...this.modalForm };
+                            this.masterGudang.push(newItem);
+                            await this.persistToSupabase('master_gudang', newItem);
                         } else if (this.modalType === 'project') {
-                            this.masterProject.push({...this.modalForm});
+                            const newItem = { ...this.modalForm };
+                            this.masterProject.push(newItem);
+                            await this.persistToSupabase('master_project', newItem);
                         }
                         this.showNotification('Data master berhasil disimpan.', 'success');
                     }
@@ -1313,7 +1320,7 @@
                     }
                 },
 
-                submitTransaction() {
+                async submitTransaction() {
                     if (this.isLoading) return;
                     this.isLoading = true;
 
@@ -1321,23 +1328,33 @@
                         if (this.newTrans.tipeTransaksi === 'Transfer Gudang') {
                             if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
                                 this.showNotification('Harap pilih Gudang Asal dan Gudang Tujuan untuk transaksi transfer.', 'error');
+                                this.isLoading = false;
                                 return;
                             }
                             if (this.newTrans.gudangAsal === this.newTrans.gudangTujuan) {
                                 this.showNotification('Gudang Asal dan Gudang Tujuan tidak boleh sama.', 'error');
+                                this.isLoading = false;
                                 return;
                             }
                         }
 
-                        if (!this.newTrans.items.length || !this.newTrans.items[0].kodeBarang) {
-                            this.showNotification('Harap isi minimal satu item material dan pilih kode barang.', 'error');
+                        if (!this.newTrans.items || this.newTrans.items.length === 0) {
+                            this.showNotification('Harap isi minimal satu item material.', 'error');
+                            this.isLoading = false;
                             return;
                         }
 
                         for (let i of this.newTrans.items) {
+                            if (!i.kodeBarang) {
+                                this.showNotification('Semua item material wajib memiliki Kode Barang.', 'error');
+                                this.isLoading = false;
+                                return;
+                            }
+
                             const qtyNum = Number(i.qty) || 0;
                             if (qtyNum <= 0) {
                                 this.showNotification('Kuantitas item harus lebih besar dari 0.', 'error');
+                                this.isLoading = false;
                                 return;
                             }
 
@@ -1349,6 +1366,7 @@
 
                                 if (availableQty < qtyNum) {
                                     this.showNotification(`Stok tidak mencukupi untuk barang ${i.kodeBarang} di ${targetWH}. Tersedia: ${availableQty}, Diminta: ${qtyNum}`, 'error');
+                                    this.isLoading = false;
                                     return;
                                 }
                             }
@@ -1357,10 +1375,12 @@
                                 const foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                 if (!foundDrum) {
                                     this.showNotification(`Nomor Drum ID ${i.drumId} tidak ditemukan dalam Drum Ledger.`, 'error');
+                                    this.isLoading = false;
                                     return;
                                 }
                                 if (qtyNum > foundDrum.remainingLength) {
                                     this.showNotification(`Panjang diminta (${qtyNum}m) melebihi sisa panjang drum ${foundDrum.drumId} (${foundDrum.remainingLength}m)!`, 'error');
+                                    this.isLoading = false;
                                     return;
                                 }
                             }
@@ -1527,6 +1547,9 @@
 
                         transData.items = expandedItems;
                         this.transactions.unshift(transData);
+                        
+                        await this.persistToSupabase('transactions', transData);
+
                         this.showNotification('Transaksi berhasil diproses & dicatat.', 'success');
                         this.currentTab = 'data-transaksi';
                     } catch (error) {
