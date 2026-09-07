@@ -445,12 +445,12 @@
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Gudang Tujuan</label>
                                     <select x-model="newTrans.gudangTujuan" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="">Pilih Gudang Tujuan</option>
-                                        <template x-for="g in masterGudang" :key="g.kodeGudang">
+                                        <template x-for="g in getGudangTujuanList()" :key="g.kodeGudang">
                                             <option :value="g.namaGudang" x-text="g.namaGudang"></option>
                                         </template>
                                     </select>
                                 </div>
-                                <!-- REQUIREMENT 5 & 6: Kode Project Terkait disembunyikan jika Gudang Asal belum dipilih pada Keluar/Transfer, serta bisa diketik & dropdown -->
+                                <!-- Kode Project Terkait -->
                                 <div class="md:col-span-1" x-show="newTrans.tipeTransaksi === 'Barang Masuk' || newTrans.gudangAsal">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
                                     <input type="text" x-model="newTrans.kodeProject" list="project-options" placeholder="Pilih atau ketik Kode Project..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
@@ -485,7 +485,6 @@
                                 <div class="space-y-2.5">
                                     <template x-for="(item, index) in newTrans.items" :key="index">
                                         <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                                            <!-- REQUIREMENT 1: Kategori hanya menampilkan stok > 0 di Gudang Asal jika Keluar/Transfer -->
                                             <div class="md:col-span-2">
                                                 <select x-model="item.kategori" @change="item.jenis=''; item.kodeBarang=''; item.namaBarang=''; item.drumId=''" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200">
                                                     <option value="">Pilih Kategori</option>
@@ -494,7 +493,6 @@
                                                     </template>
                                                 </select>
                                             </div>
-                                            <!-- REQUIREMENT 2: Jenis hanya menampilkan stok > 0 setelah Kategori dipilih -->
                                             <div class="md:col-span-2">
                                                 <select x-model="item.jenis" @change="item.kodeBarang=''; item.namaBarang=''; item.drumId=''" :disabled="!item.kategori" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50">
                                                     <option value="">Pilih Jenis</option>
@@ -503,7 +501,6 @@
                                                     </template>
                                                 </select>
                                             </div>
-                                            <!-- REQUIREMENT 3: Kode Barang hanya menampilkan stok > 0 setelah Jenis dipilih -->
                                             <div class="md:col-span-2">
                                                 <select x-model="item.kodeBarang" @change="fillNamaBarang(item); item.drumId=''" :disabled="!item.jenis" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50 font-mono">
                                                     <option value="">Pilih Kode</option>
@@ -515,7 +512,6 @@
                                             <div class="md:col-span-2">
                                                 <input type="text" x-model="item.namaBarang" readonly placeholder="Nama Barang" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 bg-slate-950/50 cursor-not-allowed">
                                             </div>
-                                            <!-- REQUIREMENT 4: Khusus Kategori Cable saat Keluar/Transfer, dropdown Drum ID otomatis muncul beserta tooltip stok -->
                                             <div class="md:col-span-2">
                                                 <template x-if="getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Barang Keluar' || newTrans.tipeTransaksi === 'Transfer Gudang')">
                                                     <select x-model="item.drumId" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
@@ -1356,7 +1352,12 @@
                     }
                 },
 
-                // REQUIREMENT 1: Kategori hanya menampilkan stok > 0 di Gudang Asal jika Keluar/Transfer
+                // Helper untuk menyaring Gudang Tujuan agar tidak sama dengan Gudang Asal
+                getGudangTujuanList() {
+                    if (!this.newTrans.gudangAsal) return this.masterGudang;
+                    return this.masterGudang.filter(g => g.namaGudang !== this.newTrans.gudangAsal);
+                },
+
                 getCategories(item) {
                     if (this.newTrans.tipeTransaksi === 'Barang Masuk' || !this.newTrans.gudangAsal) {
                         return [...new Set(this.masterBarang.map(b => b.kategori))];
@@ -1372,7 +1373,6 @@
                     return [...new Set(validCategories)];
                 },
 
-                // REQUIREMENT 2: Jenis hanya menampilkan stok > 0 di Gudang Asal setelah Kategori dipilih
                 getJenis(kategori) {
                     if (!kategori) return [];
                     if (this.newTrans.tipeTransaksi === 'Barang Masuk' || !this.newTrans.gudangAsal) {
@@ -1389,7 +1389,6 @@
                     return [...new Set(validJenis)];
                 },
 
-                // REQUIREMENT 3: Kode Barang hanya menampilkan stok > 0 di Gudang Asal setelah Jenis dipilih
                 getBarangList(kategori, jenis) {
                     if (!kategori || !jenis) return [];
                     const masterList = this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
@@ -1410,7 +1409,6 @@
                     return found ? found.kategori : '';
                 },
 
-                // REQUIREMENT 4: Get list of Drum IDs for Cable category with remaining stock
                 getDrumList(item) {
                     if (!item.kodeBarang) return [];
                     const wh = this.newTrans.gudangAsal || '';
@@ -1421,7 +1419,6 @@
                     );
                 },
 
-                // REQUIREMENT 5: Filter project codes based on Gudang Asal code prefix (e.g. PDG)
                 getFilteredProjects() {
                     const projects = this.masterProject || [];
                     if (this.newTrans.tipeTransaksi === 'Barang Masuk') {
@@ -1466,14 +1463,16 @@
                     this.isLoading = true;
 
                     try {
+                        // VALIDASI UTAMA: Gudang Asal dan Gudang Tujuan tidak boleh sama
+                        if (this.newTrans.gudangAsal && this.newTrans.gudangTujuan && this.newTrans.gudangAsal === this.newTrans.gudangTujuan) {
+                            this.showNotification('Gudang Asal dan Gudang Tujuan tidak boleh sama.', 'error');
+                            this.isLoading = false;
+                            return;
+                        }
+
                         if (this.newTrans.tipeTransaksi === 'Transfer Gudang') {
                             if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
                                 this.showNotification('Harap pilih Gudang Asal dan Gudang Tujuan untuk transaksi transfer.', 'error');
-                                this.isLoading = false;
-                                return;
-                            }
-                            if (this.newTrans.gudangAsal === this.newTrans.gudangTujuan) {
-                                this.showNotification('Gudang Asal dan Gudang Tujuan tidak boleh sama.', 'error');
                                 this.isLoading = false;
                                 return;
                             }
