@@ -625,10 +625,13 @@
 
                 <!-- 7. MATERIAL USAGE -->
                 <div x-show="currentTab === 'usage'" class="space-y-4" x-cloak>
-                    <div class="flex items-center justify-between">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div>
                             <h3 class="text-sm font-semibold text-white">Material Usage (Pemakaian Project & Pelacakan Drum)</h3>
                             <p class="text-[10px] text-slate-400">Rekapitulasi material dan nomor drum spesifik yang telah dialokasikan ke masing-masing project.</p>
+                        </div>
+                        <div class="w-full sm:w-64">
+                            <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                         </div>
                     </div>
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
@@ -638,6 +641,7 @@
                                     <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
                                         <th class="p-3">Kode Project</th>
                                         <th class="p-3">No PO</th>
+                                        <th class="p-3">Project Name</th>
                                         <th class="p-3">Kode Barang</th>
                                         <th class="p-3">Nama Barang</th>
                                         <th class="p-3">Drum ID</th>
@@ -646,10 +650,11 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs">
-                                    <template x-for="(usage, index) in materialUsage" :key="index">
+                                    <template x-for="(usage, index) in getFilteredMaterialUsage()" :key="index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 font-mono text-indigo-400 text-[11px] font-semibold" x-text="usage.kodeProject"></td>
                                             <td class="p-3 text-slate-300" x-text="usage.noPO"></td>
+                                            <td class="p-3 text-slate-200 font-medium" x-text="usage.projectName || '-'"></td>
                                             <td class="p-3 font-mono text-[11px] text-slate-300" x-text="usage.kodeBarang"></td>
                                             <td class="p-3 text-white font-medium" x-text="usage.namaBarang"></td>
                                             <td class="p-3 font-mono text-indigo-300 text-[11px]" x-text="usage.drumId || '-'"></td>
@@ -974,6 +979,9 @@
                 searchNoTransaksi: '',
                 searchNoReferensi: '',
 
+                // State Pencarian Material Usage (Cari Project)
+                searchMaterialUsageProject: '',
+
                 getFilteredStok() {
                     if (!this.selectedWarehouseFilter) return this.stokGudang;
                     return this.stokGudang.filter(s => s.gudang === this.selectedWarehouseFilter);
@@ -989,6 +997,18 @@
                         const matchNoTrans = this.searchNoTransaksi === '' || (tx.noTransaksi && tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
                         const matchNoRef = this.searchNoReferensi === '' || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
                         return matchNoTrans && matchNoRef;
+                    });
+                },
+
+                getFilteredMaterialUsage() {
+                    return this.materialUsage.filter(usage => {
+                        if (!this.searchMaterialUsageProject) return true;
+                        const q = this.searchMaterialUsageProject.toLowerCase();
+                        return (
+                            (usage.kodeProject && usage.kodeProject.toLowerCase().includes(q)) ||
+                            (usage.projectName && usage.projectName.toLowerCase().includes(q)) ||
+                            (usage.noPO && usage.noPO.toLowerCase().includes(q))
+                        );
                     });
                 },
 
@@ -1025,7 +1045,7 @@
                 ]),
 
                 materialUsage: safeLoadStorage('vortex_materialUsage', [
-                    { kodeProject: 'PRJ-BJB-09', noPO: 'PO/2026/0192', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-002', qty: 2000, tanggal: '2026-06-02' }
+                    { kodeProject: 'PRJ-BJB-09', noPO: 'PO/2026/0192', projectName: 'Project Jabar FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-002', qty: 2000, tanggal: '2026-06-02' }
                 ]),
 
                 transactions: safeLoadStorage('vortex_transactions', [
@@ -1473,10 +1493,12 @@
                                     const masterProjList = Array.isArray(this.masterProject) ? this.masterProject : [];
                                     const matchedProj = masterProjList.find(p => p.kodeProject === transData.kodeProject);
                                     const noPOVal = matchedProj ? matchedProj.noPO : 'PO/GENERAL';
+                                    const projectNameVal = matchedProj ? matchedProj.projectName : '-';
 
                                     this.materialUsage.push({
                                         kodeProject: transData.kodeProject,
                                         noPO: noPOVal,
+                                        projectName: projectNameVal,
                                         kodeBarang: i.kodeBarang,
                                         namaBarang: i.namaBarang,
                                         drumId: i.drumId || '',
