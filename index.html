@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERP System</title>
+    <title>VortexWMS - Enterprise Warehouse & Project Management System</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Alpine.js -->
@@ -532,7 +532,6 @@
                                 <h3 class="text-sm font-semibold text-white">Stok Gudang Real-Time</h3>
                                 <p class="text-[10px] text-slate-400">Total ketersediaan material di seluruh gudang operasional.</p>
                             </div>
-                            <!-- Tambahan Tombol 'Filter Gudang' -->
                             <div class="w-full sm:w-64">
                                 <select x-model="filterStokGudang" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                                     <option value="">Semua Gudang</option>
@@ -622,7 +621,6 @@
                             <p class="text-[10px] text-slate-400">Rekapitulasi material dan nomor drum spesifik yang telah dialokasikan ke masing-masing project.</p>
                         </div>
                         <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                            <!-- Tambahan Tombol 'Filter Region' -->
                             <div class="w-full sm:w-48">
                                 <select x-model="filterRegionUsage" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                                     <option value="">Semua Region</option>
@@ -677,7 +675,6 @@
                             <h3 class="text-sm font-semibold text-white">Log Data Transaksi & Cetak BAST</h3>
                             <p class="text-[10px] text-slate-400">Riwayat transaksi lengkap dengan opsi cetak Berita Acara Serah Terima (BAST).</p>
                         </div>
-                        <!-- Fitur Pencarian No Transaksi & No Referensi -->
                         <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                             <input type="text" x-model="searchNoTransaksi" placeholder="Cari No Transaksi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
                             <input type="text" x-model="searchNoReferensi" placeholder="Cari No Referensi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
@@ -971,67 +968,11 @@
                 notification: { show: false, message: '', type: 'error' },
                 isLoading: false,
 
-                // State Filter Baru
                 filterStokGudang: '',
                 filterRegionUsage: '',
-
-                // State Pencarian Transaksi
                 searchNoTransaksi: '',
                 searchNoReferensi: '',
-
-                // State Pencarian Material Usage (Cari Project)
                 searchMaterialUsageProject: '',
-
-                getFilteredStokGudang() {
-                    return this.stokGudang.filter(stok => {
-                        if (!this.filterStokGudang) return true;
-                        return stok.gudang === this.filterStokGudang;
-                    });
-                },
-
-                getFilteredDrumLedger() {
-                    return this.drumLedger.filter(drum => {
-                        if (!this.filterStokGudang) return true;
-                        return drum.gudang === this.filterStokGudang;
-                    });
-                },
-
-                getUniqueRegions() {
-                    return [...new Set(this.masterProject.map(p => p.region).filter(Boolean))];
-                },
-
-                getFilteredTransactions() {
-                    return this.transactions.filter(tx => {
-                        const matchNoTrans = this.searchNoTransaksi === '' || (tx.noTransaksi && tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
-                        const matchNoRef = this.searchNoReferensi === '' || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
-                        return matchNoTrans && matchNoRef;
-                    });
-                },
-
-                getFilteredMaterialUsage() {
-                    return this.materialUsage.filter(usage => {
-                        const matchedProj = this.masterProject.find(p => p.kodeProject === usage.kodeProject);
-                        const usageRegion = matchedProj ? matchedProj.region : '';
-
-                        const matchRegion = !this.filterRegionUsage || usageRegion === this.filterRegionUsage;
-                        
-                        if (!matchRegion) return false;
-
-                        if (!this.searchMaterialUsageProject) return true;
-                        const q = this.searchMaterialUsageProject.toLowerCase();
-                        return (
-                            (usage.kodeProject && usage.kodeProject.toLowerCase().includes(q)) ||
-                            (usage.projectName && usage.projectName.toLowerCase().includes(q)) ||
-                            (usage.noPO && usage.noPO.toLowerCase().includes(q))
-                        );
-                    });
-                },
-
-                showNotification(message, type = 'error') {
-                    this.notification = { show: true, message, type };
-                    setTimeout(() => { this.notification.show = false; }, 4000);
-                    setTimeout(() => lucide.createIcons(), 50);
-                },
 
                 masterBarang: safeLoadStorage('vortex_masterBarang', [
                     { kategori: 'Hardware', jenis: 'Router', kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', sat: 'Unit' },
@@ -1097,13 +1038,14 @@
                     this.resetInputTransaction();
                     this.syncWithSupabaseOnStart();
 
-                    this.$watch('masterBarang', val => { localStorage.setItem('vortex_masterBarang', JSON.stringify(val)); });
-                    this.$watch('masterGudang', val => { localStorage.setItem('vortex_masterGudang', JSON.stringify(val)); });
-                    this.$watch('masterProject', val => { localStorage.setItem('vortex_masterProject', JSON.stringify(val)); });
-                    this.$watch('stokGudang', val => { localStorage.setItem('vortex_stokGudang', JSON.stringify(val)); });
-                    this.$watch('drumLedger', val => { localStorage.setItem('vortex_drumLedger', JSON.stringify(val)); });
-                    this.$watch('transactions', val => { localStorage.setItem('vortex_transactions', JSON.stringify(val)); });
-                    this.$watch('materialUsage', val => { localStorage.setItem('vortex_materialUsage', JSON.stringify(val)); });
+                    // Deep watch ditambahkan untuk memastikan mutasi array/objek tersimpan otomatis ke localStorage
+                    this.$watch('masterBarang', val => { localStorage.setItem('vortex_masterBarang', JSON.stringify(val)); }, { deep: true });
+                    this.$watch('masterGudang', val => { localStorage.setItem('vortex_masterGudang', JSON.stringify(val)); }, { deep: true });
+                    this.$watch('masterProject', val => { localStorage.setItem('vortex_masterProject', JSON.stringify(val)); }, { deep: true });
+                    this.$watch('stokGudang', val => { localStorage.setItem('vortex_stokGudang', JSON.stringify(val)); }, { deep: true });
+                    this.$watch('drumLedger', val => { localStorage.setItem('vortex_drumLedger', JSON.stringify(val)); }, { deep: true });
+                    this.$watch('transactions', val => { localStorage.setItem('vortex_transactions', JSON.stringify(val)); }, { deep: true });
+                    this.$watch('materialUsage', val => { localStorage.setItem('vortex_materialUsage', JSON.stringify(val)); }, { deep: true });
 
                     this.$watch('currentTab', () => {
                         setTimeout(() => lucide.createIcons(), 50);
@@ -1113,26 +1055,28 @@
                 async syncWithSupabaseOnStart() {
                     if (!supabaseClient) return;
                     try {
-                        const { data: barangData, error: barangErr } = await supabaseClient.from('master_barang').select('*');
-                        if (!barangErr && barangData && barangData.length > 0) this.masterBarang = barangData;
+                        const { data: barangData } = await supabaseClient.from('master_barang').select('*');
+                        if (barangData && barangData.length > 0) this.masterBarang = barangData;
 
-                        const { data: gudangData, error: gudangErr } = await supabaseClient.from('master_gudang').select('*');
-                        if (!gudangErr && gudangData && gudangData.length > 0) this.masterGudang = gudangData;
+                        const { data: gudangData } = await supabaseClient.from('master_gudang').select('*');
+                        if (gudangData && gudangData.length > 0) this.masterGudang = gudangData;
 
-                        const { data: projData, error: projErr } = await supabaseClient.from('master_project').select('*');
-                        if (!projErr && projData && projData.length > 0) this.masterProject = projData;
+                        const { data: projData } = await supabaseClient.from('master_project').select('*');
+                        if (projData && projData.length > 0) this.masterProject = projData;
 
-                        const { data: stokData, error: stokErr } = await supabaseClient.from('stok_gudang').select('*');
-                        if (!stokErr && stokData && stokData.length > 0) this.stokGudang = stokData;
+                        const { data: stokData } = await supabaseClient.from('stok_gudang').select('*');
+                        if (stokData && stokData.length > 0) this.stokGudang = stokData;
 
-                        const { data: drumData, error: drumErr } = await supabaseClient.from('drum_ledger').select('*');
-                        if (!drumErr && drumData && drumData.length > 0) this.drumLedger = drumData;
+                        const { data: drumData } = await supabaseClient.from('drum_ledger').select('*');
+                        if (drumData && drumData.length > 0) this.drumLedger = drumData;
 
-                        const { data: usageData, error: usageErr } = await supabaseClient.from('material_usage').select('*');
-                        if (!usageErr && usageData && usageData.length > 0) this.materialUsage = usageData;
+                        const { data: usageData } = await supabaseClient.from('material_usage').select('*');
+                        if (usageData && usageData.length > 0) this.materialUsage = usageData;
 
-                        const { data: txData, error: txErr } = await supabaseClient.from('transactions').select('*');
-                        if (!txErr && txData && txData.length > 0) this.transactions = txData;
+                        const { data: txData } = await supabaseClient.from('transactions').select('*');
+                        if (txData && txData.length > 0) this.transactions = txData;
+
+                        setTimeout(() => lucide.createIcons(), 100);
                     } catch (err) {
                         console.warn('Supabase offline mode active, using local persistent cache.', err);
                     }
@@ -1592,6 +1536,57 @@
                             window.print();
                         }, 300);
                     });
+                },
+
+                getFilteredStokGudang() {
+                    return this.stokGudang.filter(stok => {
+                        if (!this.filterStokGudang) return true;
+                        return stok.gudang === this.filterStokGudang;
+                    });
+                },
+
+                getFilteredDrumLedger() {
+                    return this.drumLedger.filter(drum => {
+                        if (!this.filterStokGudang) return true;
+                        return drum.gudang === this.filterStokGudang;
+                    });
+                },
+
+                getUniqueRegions() {
+                    return [...new Set(this.masterProject.map(p => p.region).filter(Boolean))];
+                },
+
+                getFilteredTransactions() {
+                    return this.transactions.filter(tx => {
+                        const matchNoTrans = this.searchNoTransaksi === '' || (tx.noTransaksi && tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
+                        const matchNoRef = this.searchNoReferensi === '' || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
+                        return matchNoTrans && matchNoRef;
+                    });
+                },
+
+                getFilteredMaterialUsage() {
+                    return this.materialUsage.filter(usage => {
+                        const matchedProj = this.masterProject.find(p => p.kodeProject === usage.kodeProject);
+                        const usageRegion = matchedProj ? matchedProj.region : '';
+
+                        const matchRegion = !this.filterRegionUsage || usageRegion === this.filterRegionUsage;
+                        
+                        if (!matchRegion) return false;
+
+                        if (!this.searchMaterialUsageProject) return true;
+                        const q = this.searchMaterialUsageProject.toLowerCase();
+                        return (
+                            (usage.kodeProject && usage.kodeProject.toLowerCase().includes(q)) ||
+                            (usage.projectName && usage.projectName.toLowerCase().includes(q)) ||
+                            (usage.noPO && usage.noPO.toLowerCase().includes(q))
+                        );
+                    });
+                },
+
+                showNotification(message, type = 'error') {
+                    this.notification = { show: true, message, type };
+                    setTimeout(() => { this.notification.show = false; }, 4000);
+                    setTimeout(() => lucide.createIcons(), 50);
                 }
             }
         }
