@@ -266,8 +266,9 @@
                                             <td class="p-3 font-mono text-indigo-400 text-[11px]" x-text="item.kodeBarang"></td>
                                             <td class="p-3 text-white font-medium" x-text="item.namaBarang"></td>
                                             <td class="p-3 text-slate-300" x-text="item.sat"></td>
-                                            <td class="p-3 text-right">
-                                                <button @click="deleteItem('barang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                            <td class="p-3 text-right flex items-center justify-end gap-1">
+                                                <button @click="openEditModal('barang', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                                <button @click="deleteItem('barang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </td>
                                         </tr>
                                     </template>
@@ -309,8 +310,9 @@
                                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-medium" :class="item.tipeKepemilikan === 'Milik Sendiri' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'" x-text="item.tipeKepemilikan"></span>
                                             </td>
                                             <td class="p-3 text-slate-300" x-text="item.lokasi"></td>
-                                            <td class="p-3 text-right">
-                                                <button @click="deleteItem('gudang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                            <td class="p-3 text-right flex items-center justify-end gap-1">
+                                                <button @click="openEditModal('gudang', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                                <button @click="deleteItem('gudang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </td>
                                         </tr>
                                     </template>
@@ -369,8 +371,9 @@
                                             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20" x-text="item.statusProject"></span>
                                         </td>
                                         <td class="p-3 text-indigo-400 underline text-[11px]"><a href="#" x-text="item.document"></a></td>
-                                        <td class="p-3 text-right">
-                                            <button @click="deleteItem('project', index)" class="text-slate-500 hover:text-rose-400 p-1 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                        <td class="p-3 text-right flex items-center justify-end gap-1">
+                                            <button @click="openEditModal('project', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                            <button @click="deleteItem('project', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
                                 </template>
@@ -690,11 +693,11 @@
         </main>
     </div>
 
-    <!-- MODAL TAMBAH DATA (GENERAL) -->
+    <!-- MODAL TAMBAH/EDIT DATA (GENERAL) -->
     <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md px-4 print:hidden" x-cloak>
         <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-2xl relative">
             <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-                <h3 class="text-xs font-semibold text-white capitalize" x-text="'Tambah Master ' + modalType"></h3>
+                <h3 class="text-xs font-semibold text-white capitalize" x-text="(isEdit ? 'Edit Master ' : 'Tambah Master ') + modalType"></h3>
                 <button @click="showModal = false" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
 
@@ -924,9 +927,11 @@
                 showModal: false,
                 modalType: '',
                 modalForm: {},
+                isEdit: false,
+                editIndex: null,
 
                 notification: { show: false, message: '', type: 'error' },
-                isLoading: false, // State loading untuk mencegah double submit
+                isLoading: false,
 
                 showNotification(message, type = 'error') {
                     this.notification = { show: true, message, type };
@@ -1113,6 +1118,8 @@
 
                 openModal(type) {
                     this.modalType = type;
+                    this.isEdit = false;
+                    this.editIndex = null;
                     if (type === 'barang') {
                         this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Pcs' };
                     } else if (type === 'gudang') {
@@ -1124,16 +1131,42 @@
                     setTimeout(() => lucide.createIcons(), 100);
                 },
 
+                openEditModal(type, index) {
+                    this.modalType = type;
+                    this.isEdit = true;
+                    this.editIndex = index;
+                    if (type === 'barang') {
+                        this.modalForm = { ...this.masterBarang[index] };
+                    } else if (type === 'gudang') {
+                        this.modalForm = { ...this.masterGudang[index] };
+                    } else if (type === 'project') {
+                        this.modalForm = { ...this.masterProject[index] };
+                    }
+                    this.showModal = true;
+                    setTimeout(() => lucide.createIcons(), 100);
+                },
+
                 saveModalData() {
-                    if (this.modalType === 'barang') {
-                        this.masterBarang.push({...this.modalForm});
-                    } else if (this.modalType === 'gudang') {
-                        this.masterGudang.push({...this.modalForm});
-                    } else if (this.modalType === 'project') {
-                        this.masterProject.push({...this.modalForm});
+                    if (this.isEdit) {
+                        if (this.modalType === 'barang') {
+                            this.masterBarang[this.editIndex] = { ...this.modalForm };
+                        } else if (this.modalType === 'gudang') {
+                            this.masterGudang[this.editIndex] = { ...this.modalForm };
+                        } else if (this.modalType === 'project') {
+                            this.masterProject[this.editIndex] = { ...this.modalForm };
+                        }
+                        this.showNotification('Data master berhasil diperbarui.', 'success');
+                    } else {
+                        if (this.modalType === 'barang') {
+                            this.masterBarang.push({...this.modalForm});
+                        } else if (this.modalType === 'gudang') {
+                            this.masterGudang.push({...this.modalForm});
+                        } else if (this.modalType === 'project') {
+                            this.masterProject.push({...this.modalForm});
+                        }
+                        this.showNotification('Data master berhasil disimpan.', 'success');
                     }
                     this.showModal = false;
-                    this.showNotification('Data master berhasil disimpan.', 'success');
                 },
 
                 deleteItem(type, index) {
