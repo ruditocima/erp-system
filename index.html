@@ -426,21 +426,21 @@
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Tipe Transaksi</label>
                                     <select x-model="newTrans.tipeTransaksi" @change="onTipeTransaksiChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                        <option value="Barang Masuk">Barang Masuk</option>
-                                        <option value="Barang Keluar">Barang Keluar</option>
-                                        <option value="Transfer Gudang">Transfer Gudang</option>
+                                        <option value="Masuk">Masuk</option>
+                                        <option value="Keluar">Keluar</option>
+                                        <option value="Transfer">Transfer</option>
                                     </select>
                                 </div>
 
                                 <!-- Dynamic Gudang Asal -->
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">
-                                        Gudang / Sumber Asal <span x-show="newTrans.tipeTransaksi === 'Barang Masuk'" class="text-slate-500">(Pemasok / Vendor)</span>
+                                        Gudang / Sumber Asal <span x-show="newTrans.tipeTransaksi === 'Masuk'" class="text-slate-500">(Pemasok / Vendor)</span>
                                     </label>
-                                    <template x-if="newTrans.tipeTransaksi === 'Barang Masuk'">
+                                    <template x-if="newTrans.tipeTransaksi === 'Masuk'">
                                         <input type="text" x-model="newTrans.gudangAsal" placeholder="Nama Vendor / Supplier (misal: PT Prysmian)" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                     </template>
-                                    <template x-if="newTrans.tipeTransaksi !== 'Barang Masuk'">
+                                    <template x-if="newTrans.tipeTransaksi !== 'Masuk'">
                                         <select x-model="newTrans.gudangAsal" @change="resetItemsOnWarehouseChange()" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                             <option value="">Pilih Gudang Asal</option>
                                             <template x-for="g in masterGudang" :key="g.kodeGudang">
@@ -453,12 +453,12 @@
                                 <!-- Dynamic Gudang Tujuan -->
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">
-                                        Gudang / Tujuan <span x-show="newTrans.tipeTransaksi === 'Barang Keluar'" class="text-slate-500">(Project / Lapangan)</span>
+                                        Gudang / Tujuan <span x-show="newTrans.tipeTransaksi === 'Keluar'" class="text-slate-500">(Project / Lapangan)</span>
                                     </label>
-                                    <template x-if="newTrans.tipeTransaksi === 'Barang Keluar'">
+                                    <template x-if="newTrans.tipeTransaksi === 'Keluar'">
                                         <input type="text" x-model="newTrans.gudangTujuan" placeholder="Tujuan / Lapangan / Eksternal" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                     </template>
-                                    <template x-if="newTrans.tipeTransaksi !== 'Barang Keluar'">
+                                    <template x-if="newTrans.tipeTransaksi !== 'Keluar'">
                                         <select x-model="newTrans.gudangTujuan" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                             <option value="">Pilih Gudang Tujuan</option>
                                             <template x-for="g in getGudangTujuanList()" :key="g.kodeGudang">
@@ -531,7 +531,7 @@
                                                 <input type="text" x-model="item.namaBarang" readonly placeholder="Nama Barang" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 bg-slate-950/50 cursor-not-allowed">
                                             </div>
                                             <div class="md:col-span-2">
-                                                <template x-if="getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Barang Keluar' || newTrans.tipeTransaksi === 'Transfer Gudang')">
+                                                <template x-if="getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer')">
                                                     <select x-model="item.drumId" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
                                                         <option value="">Pilih Drum ID</option>
                                                         <template x-for="d in getDrumList(item)" :key="d.drumId">
@@ -539,11 +539,11 @@
                                                         </template>
                                                     </select>
                                                 </template>
-                                                <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Barang Keluar' || newTrans.tipeTransaksi === 'Transfer Gudang'))">
+                                                <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer'))">
                                                     <input type="text" x-model="item.drumId" 
-                                                        :readonly="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable'" 
-                                                        :placeholder="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis' : 'Drum ID (Opsional)'" 
-                                                        :class="newTrans.tipeTransaksi === 'Barang Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'bg-slate-950/50 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-indigo-300'"
+                                                        :readonly="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable'" 
+                                                        :placeholder="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis' : 'Drum ID (Opsional)'" 
+                                                        :class="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'bg-slate-950/50 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-indigo-300'"
                                                         class="w-full border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono">
                                                 </template>
                                             </div>
@@ -761,7 +761,7 @@
                                             <td class="p-3 font-mono text-indigo-400 text-[11px] font-semibold" x-text="tx.noTransaksi"></td>
                                             <td class="p-3 font-mono text-slate-300 text-[11px]" x-text="tx.noReferensi || '-'"></td>
                                             <td class="p-3">
-                                                <span class="px-2 py-0.5 rounded text-[10px] font-medium" :class="tx.tipeTransaksi === 'Barang Masuk' ? 'bg-emerald-500/10 text-emerald-400' : (tx.tipeTransaksi === 'Barang Keluar' ? 'bg-rose-500/10 text-rose-400' : 'bg-blue-500/10 text-blue-400')" x-text="tx.tipeTransaksi"></span>
+                                                <span class="px-2 py-0.5 rounded text-[10px] font-medium" :class="tx.tipeTransaksi === 'Masuk' ? 'bg-emerald-500/10 text-emerald-400' : (tx.tipeTransaksi === 'Keluar' ? 'bg-rose-500/10 text-rose-400' : 'bg-blue-500/10 text-blue-400')" x-text="tx.tipeTransaksi"></span>
                                             </td>
                                             <td class="p-3 text-slate-300" x-text="(tx.gudangAsal || 'Eksternal') + ' → ' + (tx.gudangTujuan || 'Eksternal')"></td>
                                             <td class="p-3 text-slate-200" x-text="tx.kodeProject || '-'"></td>
@@ -1085,7 +1085,7 @@
                         tanggal: '2026-06-01',
                         noTransaksi: 'VTX-IN-202606-001',
                         noReferensi: 'REF-001',
-                        tipeTransaksi: 'Barang Masuk',
+                        tipeTransaksi: 'Masuk',
                         gudangAsal: 'PT Prysmian Cable',
                         gudangTujuan: 'Gudang Utama Jakarta',
                         kodeProject: 'PRJ-BJB-09',
@@ -1099,7 +1099,7 @@
                     tanggal: '',
                     noTransaksi: '',
                     noReferensi: '',
-                    tipeTransaksi: 'Barang Masuk',
+                    tipeTransaksi: 'Masuk',
                     gudangAsal: '',
                     gudangTujuan: '',
                     kodeProject: '',
@@ -1213,8 +1213,8 @@
                 generateNoTransaksi() {
                     if (!this.newTrans.tanggal) return;
                     let typeCode = 'IN';
-                    if (this.newTrans.tipeTransaksi === 'Barang Keluar') typeCode = 'OUT';
-                    else if (this.newTrans.tipeTransaksi === 'Transfer Gudang') typeCode = 'TRF';
+                    if (this.newTrans.tipeTransaksi === 'Keluar') typeCode = 'OUT';
+                    else if (this.newTrans.tipeTransaksi === 'Transfer') typeCode = 'TRF';
 
                     const dateParts = this.newTrans.tanggal.split('-');
                     if (dateParts.length < 2) return;
@@ -1266,7 +1266,7 @@
                         tanggal: localToday,
                         noTransaksi: '',
                         noReferensi: '',
-                        tipeTransaksi: 'Barang Masuk',
+                        tipeTransaksi: 'Masuk',
                         gudangAsal: '',
                         gudangTujuan: '',
                         kodeProject: '',
@@ -1365,7 +1365,7 @@
                 },
 
                 getCategories(item) {
-                    if (this.newTrans.tipeTransaksi === 'Barang Masuk' || !this.newTrans.gudangAsal) {
+                    if (this.newTrans.tipeTransaksi === 'Masuk' || !this.newTrans.gudangAsal) {
                         return [...new Set((this.masterBarang || []).map(b => b.kategori))];
                     }
                     const validKodeBarangSet = new Set((this.stokGudang || []).filter(s => s.gudang === this.newTrans.gudangAsal && Number(s.qty) > 0).map(s => s.kodeBarang));
@@ -1374,7 +1374,7 @@
 
                 getJenis(kategori) {
                     if (!kategori) return [];
-                    if (this.newTrans.tipeTransaksi === 'Barang Masuk' || !this.newTrans.gudangAsal) {
+                    if (this.newTrans.tipeTransaksi === 'Masuk' || !this.newTrans.gudangAsal) {
                         return [...new Set((this.masterBarang || []).filter(b => b.kategori === kategori).map(b => b.jenis))];
                     }
                     const validKodeBarangSet = new Set((this.stokGudang || []).filter(s => s.gudang === this.newTrans.gudangAsal && Number(s.qty) > 0).map(s => s.kodeBarang));
@@ -1384,7 +1384,7 @@
                 getBarangList(kategori, jenis) {
                     if (!kategori || !jenis) return [];
                     const masterList = (this.masterBarang || []).filter(b => b.kategori === kategori && b.jenis === jenis);
-                    if (this.newTrans.tipeTransaksi === 'Barang Masuk' || !this.newTrans.gudangAsal) return masterList;
+                    if (this.newTrans.tipeTransaksi === 'Masuk' || !this.newTrans.gudangAsal) return masterList;
                     
                     const validStokMap = new Map();
                     (this.stokGudang || []).forEach(s => {
@@ -1496,7 +1496,7 @@
 
                     try {
                         // 1. Validasi Dasar Gudang
-                        if (this.newTrans.tipeTransaksi === 'Transfer Gudang') {
+                        if (this.newTrans.tipeTransaksi === 'Transfer') {
                             if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
                                 this.showNotification('Harap pilih Gudang Asal dan Gudang Tujuan untuk transfer.', 'error');
                                 this.isLoading = false; return;
@@ -1505,12 +1505,12 @@
                                 this.showNotification('Gudang Asal dan Gudang Tujuan tidak boleh sama.', 'error');
                                 this.isLoading = false; return;
                             }
-                        } else if (this.newTrans.tipeTransaksi === 'Barang Masuk') {
+                        } else if (this.newTrans.tipeTransaksi === 'Masuk') {
                             if (!this.newTrans.gudangTujuan) {
                                 this.showNotification('Harap pilih Gudang Tujuan penerimaan barang.', 'error');
                                 this.isLoading = false; return;
                             }
-                        } else if (this.newTrans.tipeTransaksi === 'Barang Keluar') {
+                        } else if (this.newTrans.tipeTransaksi === 'Keluar') {
                             if (!this.newTrans.gudangAsal) {
                                 this.showNotification('Harap pilih Gudang Asal pengeluaran barang.', 'error');
                                 this.isLoading = false; return;
@@ -1546,7 +1546,7 @@
                         const sourceWH = this.newTrans.gudangAsal;
 
                         // Validasi Kecukupan Stok (Keluar & Transfer)
-                        if (this.newTrans.tipeTransaksi === 'Barang Keluar' || this.newTrans.tipeTransaksi === 'Transfer Gudang') {
+                        if (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') {
                             for (const [kodeBarang, reqQty] of Object.entries(requestedStockMap)) {
                                 const existingStok = (this.stokGudang || []).find(s => s.kodeBarang === kodeBarang && s.gudang === sourceWH);
                                 const availableQty = existingStok ? existingStok.qty : 0;
@@ -1580,10 +1580,10 @@
                             const satuanBarang = brgInfo ? brgInfo.sat : 'Pcs';
                             const isCable = brgInfo && brgInfo.kategori === 'Cable';
 
-                            let drumTargetWH = transData.tipeTransaksi === 'Barang Masuk' ? transData.gudangTujuan : transData.gudangAsal;
+                            let drumTargetWH = transData.tipeTransaksi === 'Masuk' ? transData.gudangTujuan : transData.gudangAsal;
 
                             // A. BARANG MASUK - KABEL (Auto Split Drum per Max 3000m)
-                            if (transData.tipeTransaksi === 'Barang Masuk' && isCable) {
+                            if (transData.tipeTransaksi === 'Masuk' && isCable) {
                                 let remainingQtyToProcess = qtyNum;
                                 while (remainingQtyToProcess > 0) {
                                     let fillQty = Math.min(remainingQtyToProcess, 3000);
@@ -1609,7 +1609,7 @@
                             }
 
                             // B. TRANSFER GUDANG
-                            if (transData.tipeTransaksi === 'Transfer Gudang') {
+                            if (transData.tipeTransaksi === 'Transfer') {
                                 let stokAsal = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
                                 if (stokAsal) stokAsal.qty = Math.max(0, stokAsal.qty - qtyNum);
                                 
@@ -1647,7 +1647,7 @@
                             } 
                             
                             // C. BARANG MASUK
-                            else if (transData.tipeTransaksi === 'Barang Masuk') {
+                            else if (transData.tipeTransaksi === 'Masuk') {
                                 let targetWH = transData.gudangTujuan;
                                 let existingStok = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
                                 
@@ -1674,7 +1674,7 @@
                             }
 
                             // D. BARANG KELUAR
-                            else if (transData.tipeTransaksi === 'Barang Keluar') {
+                            else if (transData.tipeTransaksi === 'Keluar') {
                                 let targetWH = transData.gudangAsal;
                                 let stokKeluar = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === targetWH);
                                 
