@@ -256,7 +256,7 @@
                                         <th class="p-3 text-right">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
+                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
                                     <template x-for="(item, index) in masterBarang" :key="item.kodeBarang || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 font-medium text-slate-200" x-text="item.kategori"></td>
@@ -303,7 +303,7 @@
                                         <th class="p-3 text-right">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
+                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
                                     <template x-for="(item, index) in masterGudang" :key="item.kodeGudang || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 font-mono text-indigo-400 text-[12px]" x-text="item.kodeGudang"></td>
@@ -358,7 +358,7 @@
                                     <th class="p-3 text-right">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
+                            <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
                                 <template x-for="(item, index) in masterProject" :key="item.kodeProject || index">
                                     <tr class="hover:bg-slate-800/30 transition">
                                         <td class="p-3 text-slate-300" x-text="item.periode"></td>
@@ -592,7 +592,7 @@
                                             <th class="p-3">Satuan</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
+                                    <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
                                         <template x-for="(stok, index) in getFilteredStokGudang()" :key="stok.kodeBarang + '-' + stok.gudang || index">
                                             <tr class="hover:bg-slate-800/30 transition">
                                                 <td class="p-3 font-mono text-indigo-400 text-[11px]" x-text="stok.kodeBarang"></td>
@@ -634,7 +634,7 @@
                                             <th class="p-3">Status Drum</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
+                                    <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
                                         <template x-for="(drum, index) in getFilteredDrumLedger()" :key="drum.drumId || index">
                                             <tr class="hover:bg-slate-800/30 transition">
                                                 <td class="p-3 font-mono text-indigo-400 font-semibold text-[11px]" x-text="drum.drumId"></td>
@@ -695,7 +695,7 @@
                                         <th class="p-3">Tanggal Pakai</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
+                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
                                     <template x-for="(usage, index) in getFilteredMaterialUsage()" :key="usage.id || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 font-mono text-indigo-400 text-[11px] font-semibold" x-text="usage.kodeProject"></td>
@@ -745,7 +745,7 @@
                                         <th class="p-3 text-right">Aksi BAST PDF</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
+                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
                                     <template x-for="(tx, index) in getFilteredTransactions()" :key="tx.noTransaksi || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 text-slate-300" x-text="tx.tanggal"></td>
@@ -1266,8 +1266,11 @@
                 },
 
                 resetInputTransaction() {
-                    const date = new Date();
-                    const localToday = new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    const localToday = `${year}-${month}-${day}`;
                     
                     this.newTrans = {
                         tanggal: localToday,
@@ -1655,7 +1658,7 @@
                                     });
                                 }
 
-                                // Update lokasi Drum Kabel jika Cable
+                                // Mutasi Drum ke Gudang Tujuan jika Cable
                                 if (isCable && item.drumId) {
                                     let drumItem = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === transData.gudangAsal);
                                     if (drumItem) {
@@ -1665,24 +1668,22 @@
                             }
                         }
 
-                        // 4. Simpan Transaksi Ke Log
+                        // Simpan Log Transaksi
                         this.transactions.unshift(transData);
 
-                        // 5. Sinkronisasi Persistensi ke Supabase
+                        // Persist ke Supabase Cloud
                         await this.persistToSupabase('transactions', transData);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
-                        if (transData.tipeTransaksi === 'Keluar' && this.materialUsage.length > 0) {
-                            await this.persistToSupabase('material_usage', this.materialUsage[0]);
-                        }
+                        await this.persistToSupabase('material_usage', this.materialUsage);
 
-                        this.showNotification('Transaksi berhasil disimpan & diproses!', 'success');
+                        this.showNotification('Transaksi berhasil diproses dan disimpan.', 'success');
                         this.resetInputTransaction();
+                        this.switchTab('data-transaksi');
                     } catch (err) {
-                        this.showNotification(err.message, 'error');
+                        this.showNotification(err.message || 'Terjadi kesalahan sistem.', 'error');
                     } finally {
                         this.isLoading = false;
-                        this.refreshIcons();
                     }
                 }
             };
