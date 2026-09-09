@@ -1613,7 +1613,7 @@
                                         .filter(id => id && id.startsWith(prefix))
                                         .map(id => {
                                             let parts = id.split('-');
-                                            return parseInt(parts[2], 10);
+                                            return parseInt(parts[parts.length - 1], 10);
                                         })
                                         .filter(n => !isNaN(n));
 
@@ -1672,58 +1672,54 @@
                             } else if (transData.tipeTransaksi === 'Keluar') {
                                 let stokAsal = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
                                 if (stokAsal) {
-                                    stokAsal.qty = Math.max(0, stokAsal.qty - qtyNum);
+                                    stokAsal.qty -= qtyNum;
                                 }
-
                                 if (i.drumId) {
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
-                                        foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
+                                        foundDrum.remainingLength -= qtyNum;
                                         if (foundDrum.remainingLength <= 0) {
+                                            foundDrum.remainingLength = 0;
                                             foundDrum.status = 'Empty';
                                         } else {
                                             foundDrum.status = 'Partial';
                                         }
                                     }
                                 }
-
-                                // Record Material Usage
-                                const foundProject = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
-                                this.materialUsage.push({
-                                    id: 'USG-' + Date.now() + '-' + Math.floor(Math.random()*1000),
-                                    kodeProject: transData.kodeProject || '-',
-                                    noPO: foundProject ? foundProject.noPO : '-',
-                                    projectName: foundProject ? foundProject.projectName : '-',
-                                    kodeBarang: i.kodeBarang,
-                                    namaBarang: i.namaBarang,
-                                    drumId: i.drumId || '-',
-                                    qty: qtyNum,
-                                    tanggal: transData.tanggal
-                                });
-                            } else if (transData.tipeTransaksi === 'Transfer') {
-                                // Substract from Gudang Asal
-                                let stokAsal = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
-                                if (stokAsal) {
-                                    stokAsal.qty = Math.max(0, stokAsal.qty - qtyNum);
+                                // Catat Material Usage jika Kode Project diisi
+                                if (transData.kodeProject) {
+                                    const prjInfo = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
+                                    this.materialUsage.push({
+                                        id: 'USG-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+                                        kodeProject: transData.kodeProject,
+                                        noPO: prjInfo ? prjInfo.noPO : '-',
+                                        projectName: prjInfo ? prjInfo.projectName : '-',
+                                        kodeBarang: i.kodeBarang,
+                                        namaBarang: i.namaBarang,
+                                        drumId: i.drumId || '-',
+                                        qty: qtyNum,
+                                        tanggal: transData.tanggal
+                                    });
                                 }
+                            } else if (transData.tipeTransaksi === 'Transfer') {
+                                let stokAsal = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
+                                if (stokAsal) stokAsal.qty -= qtyNum;
 
-                                // Add to Gudang Tujuan
                                 let stokTujuan = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangTujuan);
                                 if (stokTujuan) {
                                     stokTujuan.qty += qtyNum;
                                 } else {
-                                    this.stokGudang.push({ 
+                                    this.stokGudang.push({
                                         id: `${i.kodeBarang}_${transData.gudangTujuan}`,
-                                        kodeBarang: i.kodeBarang, 
-                                        namaBarang: i.namaBarang, 
-                                        kategori: brgInfo ? brgInfo.kategori : 'General', 
-                                        gudang: transData.gudangTujuan, 
-                                        qty: qtyNum, 
-                                        sat: satuanBarang 
+                                        kodeBarang: i.kodeBarang,
+                                        namaBarang: i.namaBarang,
+                                        kategori: brgInfo ? brgInfo.kategori : 'General',
+                                        gudang: transData.gudangTujuan,
+                                        qty: qtyNum,
+                                        sat: satuanBarang
                                     });
                                 }
 
-                                // Update Drum location if drumId specified
                                 if (i.drumId) {
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
@@ -1733,28 +1729,28 @@
                             }
                         }
 
-                        // 4. Save Final Transaction Object
-                        const finalTransaction = {
+                        // Simpan Transaksi Lengkap
+                        const finalTrans = {
                             ...transData,
                             items: expandedItems
                         };
-                        this.transactions.unshift(finalTransaction);
+                        this.transactions.unshift(finalTrans);
 
-                        // 5. Persist to Supabase Cloud & Local Storage
-                        await this.persistToSupabase('transactions', finalTransaction);
+                        // Persist ke Supabase
+                        await this.persistToSupabase('transactions', finalTrans);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
-                        if (transData.tipeTransaksi === 'Keluar') {
+                        if (this.materialUsage.length > 0) {
                             await this.persistToSupabase('material_usage', this.materialUsage);
                         }
 
-                        this.showNotification('Transaksi berhasil disimpan & diproses!', 'success');
+                        this.showNotification('Transaksi berhasil diproses & disimpan.', 'success');
                         this.resetInputTransaction();
                         this.switchTab('data-transaksi');
 
                     } catch (err) {
                         console.error('Submit transaction error:', err);
-                        this.showNotification('Terjadi kesalahan saat memproses transaksi: ' + err.message, 'error');
+                        this.showNotification('Gagal memproses transaksi: ' + err.message, 'error');
                     } finally {
                         this.isLoading = false;
                     }
