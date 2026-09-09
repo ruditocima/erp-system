@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Warehouse Management System - VortexWMS</title>
     <!-- Tailwind CSS -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script> <!-- Menggunakan CDN Tailwind v4 / kompatibel -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -1203,7 +1203,6 @@
                     });
                 },
 
-                // GENERATE NO TRANSAKSI (FORMAT: ACM-NPM-IN-202609-01)
                 generateNoTransaksi() {
                     if (!this.newTrans.tanggal) return;
 
@@ -1680,24 +1679,24 @@
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
                                         foundDrum.remainingLength = Math.max(0, Number(foundDrum.remainingLength) - qtyNum);
-                                        if (foundDrum.remainingLength === 0) {
-                                            foundDrum.status = 'Empty';
-                                        } else {
+                                        if (Number(foundDrum.remainingLength) === 0) {
+                                            foundDrum.status = 'Depleted';
+                                        } else if (Number(foundDrum.remainingLength) < Number(foundDrum.initialLength)) {
                                             foundDrum.status = 'Partial';
                                         }
                                     }
                                 }
-
                                 if (transData.kodeProject) {
-                                    const projDetail = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
+                                    const projInfo = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
+                                    const usageId = 'USG-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
                                     this.materialUsage.push({
-                                        id: 'USG-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+                                        id: usageId,
                                         kodeProject: transData.kodeProject,
-                                        noPO: projDetail ? projDetail.noPO : '-',
-                                        projectName: projDetail ? projDetail.projectName : '-',
+                                        noPO: projInfo ? projInfo.noPO : '-',
+                                        projectName: projInfo ? projInfo.projectName : '-',
                                         kodeBarang: i.kodeBarang,
                                         namaBarang: i.namaBarang,
-                                        drumId: i.drumId || '',
+                                        drumId: i.drumId || '-',
                                         qty: qtyNum,
                                         tanggal: transData.tanggal
                                     });
@@ -1707,7 +1706,6 @@
                                 if (stokAsal) {
                                     stokAsal.qty = Math.max(0, Number(stokAsal.qty) - qtyNum);
                                 }
-
                                 let stokTujuan = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangTujuan);
                                 if (stokTujuan) {
                                     stokTujuan.qty = Number(stokTujuan.qty) + qtyNum;
@@ -1722,7 +1720,6 @@
                                         sat: satuanBarang
                                     });
                                 }
-
                                 if (i.drumId) {
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
@@ -1738,19 +1735,20 @@
                         await this.persistToSupabase('transactions', transData);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
-                        await this.persistToSupabase('material_usage', this.materialUsage);
+                        if (this.materialUsage.length > 0) {
+                            await this.persistToSupabase('material_usage', this.materialUsage);
+                        }
 
-                        this.showNotification('Transaksi berhasil diproses & stok diperbarui!', 'success');
+                        this.showNotification('Transaksi berhasil disimpan, stok & drum ledger diperbarui.', 'success');
                         this.isLoading = false;
                         this.switchTab('data-transaksi');
-                        this.resetInputTransaction();
                     } catch (err) {
-                        console.error('Error submitting transaction:', err);
+                        console.error('Error in submitTransaction:', err);
                         this.showNotification('Terjadi kesalahan saat memproses transaksi: ' + err.message, 'error');
                         this.isLoading = false;
                     }
                 }
-            };
+            }
         }
     </script>
 </body>
