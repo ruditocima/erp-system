@@ -1072,12 +1072,12 @@
                 ]),
 
                 drumLedger: safeLoadStorage('vortex_drumLedger', [
-                    { drumId: 'DRM-ADSS024-202606-001', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
-                    { drumId: 'DRM-ADSS024-202606-002', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 1000, status: 'Partial' }
+                    { drumId: 'ADSS024-20260601-01', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
+                    { drumId: 'ADSS024-20260601-02', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 1000, status: 'Partial' }
                 ]),
 
                 materialUsage: safeLoadStorage('vortex_materialUsage', [
-                    { id: 'USG-INIT-001', kodeProject: 'PRJ-BJB-09', noPO: 'PO/2026/0192', projectName: 'Project Jabar FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-002', qty: 2000, tanggal: '2026-06-02' }
+                    { id: 'USG-INIT-001', kodeProject: 'PRJ-BJB-09', noPO: 'PO/2026/0192', projectName: 'Project Jabar FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'ADSS024-20260601-02', qty: 2000, tanggal: '2026-06-02' }
                 ]),
 
                 transactions: safeLoadStorage('vortex_transactions', [
@@ -1091,7 +1091,7 @@
                         kodeProject: 'PRJ-BJB-09',
                         keterangan: 'Penerimaan awal material kabel project',
                         lampiran: '',
-                        items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM-ADSS024-202606-001', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
+                        items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'ADSS024-20260601-01', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
                     }
                 ]),
 
@@ -1489,7 +1489,7 @@
                     }));
                 },
 
-                // CORE TRANSACTION LOGIC (Penyelesaian Komplit & Robust)
+                // CORE TRANSACTION LOGIC
                 async submitTransaction() {
                     if (this.isLoading) return;
                     this.isLoading = true;
@@ -1582,14 +1582,34 @@
 
                             let drumTargetWH = transData.tipeTransaksi === 'Masuk' ? transData.gudangTujuan : transData.gudangAsal;
 
-                            // A. BARANG MASUK - KABEL (Auto Split Drum per Max 3000m)
+                            // A. BARANG MASUK - KABEL (Auto Split Drum Induk per Max 3000m dengan Format [KODEBARANG]-[YYYYMMDD]-[SEQ2DIGIT])
                             if (transData.tipeTransaksi === 'Masuk' && isCable) {
                                 let remainingQtyToProcess = qtyNum;
                                 while (remainingQtyToProcess > 0) {
                                     let fillQty = Math.min(remainingQtyToProcess, 3000);
                                     const dateStr = transData.tanggal ? transData.tanggal.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
-                                    const randomSeq = Math.floor(1000 + Math.random() * 9000);
-                                    let drumIdToUse = `DRM-${i.kodeBarang.replace(/[^a-zA-Z0-9]/g, '')}-${dateStr}-${randomSeq}`;
+                                    
+                                    // Sederhanakan Kode Barang (Menghapus DRM-, CBL-, CB-, dan karakter khusus)
+                                    let cleanKode = i.kodeBarang.replace(/^(CBL|CB|DRM)[-_]?/i, '').replace(/[^a-zA-Z0-9]/g, '');
+                                    if (!cleanKode) cleanKode = i.kodeBarang.replace(/[^a-zA-Z0-9]/g, '');
+
+                                    // Generator Urutan 2 Digit Otomatis
+                                    let prefix = `${cleanKode}-${dateStr}-`;
+                                    let existingSeqs = (this.drumLedger || [])
+                                        .map(d => d.drumId)
+                                        .filter(id => id && id.startsWith(prefix))
+                                        .map(id => {
+                                            let parts = id.split('-');
+                                            return parseInt(parts[2], 10);
+                                        })
+                                        .filter(n => !isNaN(n));
+
+                                    let nextSeq = 1;
+                                    if (existingSeqs.length > 0) {
+                                        nextSeq = Math.max(...existingSeqs) + 1;
+                                    }
+                                    let seqStr = String(nextSeq).padStart(2, '0');
+                                    let drumIdToUse = `${cleanKode}-${dateStr}-${seqStr}`;
 
                                     this.drumLedger.push({
                                         drumId: drumIdToUse, 
@@ -1608,7 +1628,7 @@
                                 expandedItems.push(i);
                             }
 
-                            // B. TRANSFER GUDANG
+                            // B. TRANSFER GUDANG & POTONGAN KABEL (Format: [DRUM_INDUK]-C[SEQ2DIGIT])
                             if (transData.tipeTransaksi === 'Transfer') {
                                 let stokAsal = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
                                 if (stokAsal) stokAsal.qty = Math.max(0, stokAsal.qty - qtyNum);
@@ -1636,8 +1656,34 @@
                                         } else if (qtyNum < foundDrum.remainingLength) {
                                             foundDrum.remainingLength -= qtyNum;
                                             foundDrum.status = 'Partial';
-                                            const newDrumId = `${foundDrum.drumId}-CUT-${Math.floor(100 + Math.random()*900)}`;
-                                            this.drumLedger.push({ drumId: newDrumId, kodeBarang: i.kodeBarang, namaBarang: i.namaBarang, gudang: transData.gudangTujuan, initialLength: qtyNum, remainingLength: qtyNum, status: 'Full' });
+                                            
+                                            // Generator Urutan Potongan Kabel (C01, C02, dst.)
+                                            let cutPrefix = `${foundDrum.drumId}-C`;
+                                            let existingCutSeqs = (this.drumLedger || [])
+                                                .map(d => d.drumId)
+                                                .filter(id => id && id.startsWith(cutPrefix))
+                                                .map(id => {
+                                                    let suffix = id.substring(cutPrefix.length);
+                                                    return parseInt(suffix, 10);
+                                                })
+                                                .filter(n => !isNaN(n));
+
+                                            let nextCutSeq = 1;
+                                            if (existingCutSeqs.length > 0) {
+                                                nextCutSeq = Math.max(...existingCutSeqs) + 1;
+                                            }
+                                            let cutSeqStr = String(nextCutSeq).padStart(2, '0');
+                                            let newDrumId = `${foundDrum.drumId}-C${cutSeqStr}`;
+
+                                            this.drumLedger.push({ 
+                                                drumId: newDrumId, 
+                                                kodeBarang: i.kodeBarang, 
+                                                namaBarang: i.namaBarang, 
+                                                gudang: transData.gudangTujuan, 
+                                                initialLength: qtyNum, 
+                                                remainingLength: qtyNum, 
+                                                status: 'Full' 
+                                            });
                                             
                                             const activeItem = expandedItems.find(ex => ex.drumId === i.drumId && ex.kodeBarang === i.kodeBarang);
                                             if (activeItem) activeItem.drumId = newDrumId;
