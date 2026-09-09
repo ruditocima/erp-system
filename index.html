@@ -1489,13 +1489,13 @@
                     }));
                 },
 
-                // CORE TRANSACTION LOGIC
+                // CORE TRANSACTION LOGIC (Penyelesaian Komplit & Robust)
                 async submitTransaction() {
                     if (this.isLoading) return;
                     this.isLoading = true;
 
                     try {
-                        // 1. Validasi Dasar Gudang
+                        // 1. Validasi Dasar Gudang & Input Form
                         if (this.newTrans.tipeTransaksi === 'Transfer') {
                             if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
                                 this.showNotification('Harap pilih Gudang Asal dan Gudang Tujuan untuk transfer.', 'error');
@@ -1570,7 +1570,7 @@
                             }
                         }
 
-                        // 3. Proses Eksekusi Mutasi Stok
+                        // 3. Eksekusi Mutasi Stok & Drum Ledger
                         const transData = JSON.parse(JSON.stringify(this.newTrans));
                         let expandedItems = [];
 
@@ -1667,7 +1667,11 @@
 
                                 if (i.drumId && !isCable) {
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
-                                    if (!foundDrum) {
+                                    if (foundDrum) {
+                                        foundDrum.remainingLength += qtyNum;
+                                        foundDrum.initialLength += qtyNum;
+                                        foundDrum.status = foundDrum.remainingLength === foundDrum.initialLength ? 'Full' : 'Partial';
+                                    } else {
                                         this.drumLedger.push({
                                             drumId: i.drumId,
                                             kodeBarang: i.kodeBarang,
@@ -1692,23 +1696,18 @@
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
                                         foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
-                                        if (foundDrum.remainingLength === 0) {
-                                            foundDrum.status = 'Empty';
-                                        } else if (foundDrum.remainingLength < foundDrum.initialLength) {
-                                            foundDrum.status = 'Partial';
-                                        }
+                                        foundDrum.status = foundDrum.remainingLength === 0 ? 'Empty' : 'Partial';
                                     }
                                 }
 
-                                // Pencatatan Material Usage jika terhubung dengan Kode Project
+                                // Pencatatan Otomatis ke Material Usage Jika Mengisi Kode Project
                                 if (transData.kodeProject) {
-                                    const prjInfo = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
-                                    const usageId = `USG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-                                    this.materialUsage.unshift({
-                                        id: usageId,
+                                    const proj = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
+                                    this.materialUsage.push({
+                                        id: 'USG-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
                                         kodeProject: transData.kodeProject,
-                                        noPO: prjInfo ? prjInfo.noPO : '-',
-                                        projectName: prjInfo ? prjInfo.projectName : '-',
+                                        noPO: proj ? proj.noPO : '-',
+                                        projectName: proj ? proj.projectName : (transData.gudangTujuan || '-'),
                                         kodeBarang: i.kodeBarang,
                                         namaBarang: i.namaBarang,
                                         drumId: i.drumId || '-',
@@ -1719,27 +1718,22 @@
                             }
                         }
 
-                        // Simpan item yang telah diproses ke data transaksi
+                        // 4. Update Log Transaksi & Persistensi Cloud/Local
                         transData.items = expandedItems;
-
-                        // Tambahkan ke log transaksi
                         this.transactions.unshift(transData);
 
-                        // Sinkronisasi ke Supabase Cloud
                         await this.persistToSupabase('transactions', transData);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
-                        if (this.materialUsage.length > 0) {
+                        if (transData.tipeTransaksi === 'Keluar' && transData.kodeProject) {
                             await this.persistToSupabase('material_usage', this.materialUsage);
                         }
 
-                        this.showNotification('Transaksi berhasil disimpan & mutasi stok berhasil diproses!', 'success');
+                        this.showNotification(`Transaksi ${transData.noTransaksi} berhasil diproses & disimpan!`, 'success');
                         this.resetInputTransaction();
-                        this.switchTab('data-transaksi');
-
                     } catch (err) {
-                        console.error('Error processing transaction:', err);
-                        this.showNotification('Gagal memproses transaksi: ' + (err.message || 'Terjadi kesalahan internal'), 'error');
+                        console.error('Error submitting transaction:', err);
+                        this.showNotification('Terjadi kesalahan saat memproses transaksi: ' + err.message, 'error');
                     } finally {
                         this.isLoading = false;
                         this.refreshIcons();
