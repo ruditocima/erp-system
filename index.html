@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warehouse Management System</title>
+    <title>Warehouse Management System - VortexWMS</title>
     <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script> <!-- Menggunakan CDN Tailwind v4 / kompatibel -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -1688,16 +1689,15 @@
                                 }
 
                                 if (transData.kodeProject) {
-                                    const usageId = 'USG-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
-                                    const projInfo = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
+                                    const projDetail = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
                                     this.materialUsage.push({
-                                        id: usageId,
+                                        id: 'USG-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
                                         kodeProject: transData.kodeProject,
-                                        noPO: projInfo ? projInfo.noPO : '-',
-                                        projectName: projInfo ? projInfo.projectName : '-',
+                                        noPO: projDetail ? projDetail.noPO : '-',
+                                        projectName: projDetail ? projDetail.projectName : '-',
                                         kodeBarang: i.kodeBarang,
                                         namaBarang: i.namaBarang,
-                                        drumId: i.drumId || '-',
+                                        drumId: i.drumId || '',
                                         qty: qtyNum,
                                         tanggal: transData.tanggal
                                     });
@@ -1707,6 +1707,7 @@
                                 if (stokAsal) {
                                     stokAsal.qty = Math.max(0, Number(stokAsal.qty) - qtyNum);
                                 }
+
                                 let stokTujuan = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangTujuan);
                                 if (stokTujuan) {
                                     stokTujuan.qty = Number(stokTujuan.qty) + qtyNum;
@@ -1721,29 +1722,11 @@
                                         sat: satuanBarang
                                     });
                                 }
+
                                 if (i.drumId) {
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
-                                        foundDrum.remainingLength = Math.max(0, Number(foundDrum.remainingLength) - qtyNum);
-                                        if (foundDrum.remainingLength === 0) {
-                                            foundDrum.status = 'Empty';
-                                        } else {
-                                            foundDrum.status = 'Partial';
-                                        }
-                                        let destDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId && d.gudang === transData.gudangTujuan);
-                                        if (destDrum) {
-                                            destDrum.remainingLength = Number(destDrum.remainingLength) + qtyNum;
-                                        } else {
-                                            this.drumLedger.push({
-                                                drumId: i.drumId,
-                                                kodeBarang: i.kodeBarang,
-                                                namaBarang: i.namaBarang,
-                                                gudang: transData.gudangTujuan,
-                                                initialLength: foundDrum.initialLength,
-                                                remainingLength: qtyNum,
-                                                status: 'Partial'
-                                            });
-                                        }
+                                        foundDrum.gudang = transData.gudangTujuan;
                                     }
                                 }
                             }
@@ -1757,15 +1740,14 @@
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
                         await this.persistToSupabase('material_usage', this.materialUsage);
 
-                        this.showNotification('Transaksi berhasil disimpan & stok diperbarui!', 'success');
-                        this.resetInputTransaction();
-                        this.currentTab = 'data-transaksi';
-                    } catch (err) {
-                        console.error('Transaction error:', err);
-                        this.showNotification('Terjadi kesalahan saat memproses transaksi.', 'error');
-                    } finally {
+                        this.showNotification('Transaksi berhasil diproses & stok diperbarui!', 'success');
                         this.isLoading = false;
-                        this.refreshIcons();
+                        this.switchTab('data-transaksi');
+                        this.resetInputTransaction();
+                    } catch (err) {
+                        console.error('Error submitting transaction:', err);
+                        this.showNotification('Terjadi kesalahan saat memproses transaksi: ' + err.message, 'error');
+                        this.isLoading = false;
                     }
                 }
             };
