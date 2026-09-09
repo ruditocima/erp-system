@@ -281,7 +281,6 @@
                     </div>
                 </div>
 
-
                 <!-- 3. MASTER GUDANG -->
                 <div x-show="currentTab === 'gudang'" class="space-y-4" x-cloak>
                     <div class="flex items-center justify-between">
@@ -1480,15 +1479,14 @@
                 printBAST(tx) {
                     this.activeBast = tx;
                     const originalTitle = document.title;
-                    document.title = tx.noTransaksi; // Mengatur nama file PDF sesuai nomor transaksi
-    
+                    document.title = tx.noTransaksi || 'BAST';
                     this.$nextTick(() => {
                         window.print();
                         setTimeout(() => {
-                            document.title = originalTitle; // Mengembalikan title asli setelah dialog print ditutup
+                            document.title = originalTitle;
                         }, 1000);
                     });
-                }
+                },
 
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
@@ -1509,7 +1507,6 @@
                     this.isLoading = true;
 
                     try {
-                        // 1. Validasi Dasar Gudang & Input Form
                         if (this.newTrans.tipeTransaksi === 'Transfer') {
                             if (!this.newTrans.gudangAsal || !this.newTrans.gudangTujuan) {
                                 this.showNotification('Harap pilih Gudang Asal dan Gudang Tujuan untuk transfer.', 'error');
@@ -1541,7 +1538,6 @@
                             return;
                         }
 
-                        // 2. Akumulasi Total Kuantitas per SKU & Drum untuk Validasi Stok
                         const requestedStockMap = {};
                         const requestedDrumMap = {};
 
@@ -1566,7 +1562,6 @@
 
                         const sourceWH = this.newTrans.gudangAsal;
 
-                        // Validasi Kecukupan Stok (Keluar & Transfer)
                         if (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') {
                             for (const [kodeBarang, reqQty] of Object.entries(requestedStockMap)) {
                                 const existingStok = (this.stokGudang || []).find(s => s.kodeBarang === kodeBarang && s.gudang === sourceWH);
@@ -1594,7 +1589,6 @@
                             }
                         }
 
-                        // 3. Eksekusi Mutasi Stok & Drum Ledger
                         const transData = JSON.parse(JSON.stringify(this.newTrans));
                         let expandedItems = [];
 
@@ -1606,7 +1600,6 @@
 
                             let drumTargetWH = transData.tipeTransaksi === 'Masuk' ? transData.gudangTujuan : transData.gudangAsal;
 
-                            // A. BARANG MASUK - KABEL (Auto Split Drum Induk per Max 3000m)
                             if (transData.tipeTransaksi === 'Masuk' && isCable) {
                                 let remainingQtyToProcess = qtyNum;
                                 while (remainingQtyToProcess > 0) {
@@ -1648,7 +1641,6 @@
                                 expandedItems.push(i);
                             }
 
-                            // B. UPDATE STOK & DRUM UNTUK MASUK, KELUAR, DAN TRANSFER
                             if (transData.tipeTransaksi === 'Masuk') {
                                 let stokTujuan = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangTujuan);
                                 if (stokTujuan) {
@@ -1703,7 +1695,7 @@
                                         projectName: proj ? proj.projectName : '-',
                                         kodeBarang: i.kodeBarang,
                                         namaBarang: i.namaBarang,
-                                        drumId: i.drumId || '-',
+                                        drumId: i.drumId || '',
                                         qty: qtyNum,
                                         tanggal: transData.tanggal
                                     });
@@ -1736,30 +1728,28 @@
                             }
                         }
 
-                        // Simpan Catatan Transaksi Akhir
                         transData.items = expandedItems;
                         this.transactions.unshift(transData);
 
-                        // Persistensi data lokal & cloud
                         await this.persistToSupabase('transactions', transData);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
-                        if (transData.tipeTransaksi === 'Keluar' && transData.kodeProject) {
-                            await this.persistToSupabase('material_usage', this.materialUsage);
+                        if (this.materialUsage.length > 0) {
+                            await this.persistToSupabase('material_usage', this.materialUsage[this.materialUsage.length - 1]);
                         }
 
-                        this.showNotification(`Transaksi ${transData.noTransaksi} berhasil diproses!`, 'success');
-                        this.resetInputTransaction();
+                        this.showNotification('Transaksi berhasil diproses & stok diperbarui!', 'success');
+                        this.isLoading = false;
                         this.switchTab('data-transaksi');
+                        this.resetInputTransaction();
 
                     } catch (err) {
-                        console.error('Error submitting transaction:', err);
+                        console.error('Error in submitTransaction:', err);
                         this.showNotification('Terjadi kesalahan saat memproses transaksi.', 'error');
-                    } finally {
                         this.isLoading = false;
                     }
                 }
-            };
+            }
         }
     </script>
 </body>
