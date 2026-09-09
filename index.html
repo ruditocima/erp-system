@@ -1686,6 +1686,8 @@
                                         }
                                     }
                                 }
+
+                                // Pencatatan otomatis Material Usage jika transaksi Keluar dan ada Kode Project
                                 if (transData.kodeProject) {
                                     const projInfo = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
                                     const usageId = 'USG-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
@@ -1732,18 +1734,17 @@
                         transData.items = expandedItems;
                         this.transactions.unshift(transData);
 
+                        // Persist to Supabase tables
                         await this.persistToSupabase('transactions', transData);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
-                        if (this.materialUsage.length > 0) {
-                            await this.persistToSupabase('material_usage', this.materialUsage);
-                        }
+                        await this.persistToSupabase('material_usage', this.materialUsage);
 
-                        this.showNotification('Transaksi berhasil disimpan, stok & drum ledger diperbarui.', 'success');
+                        this.showNotification('Transaksi berhasil disimpan, stok & drum ledger diperbarui!', 'success');
                         this.isLoading = false;
                         this.switchTab('data-transaksi');
                     } catch (err) {
-                        console.error('Error in submitTransaction:', err);
+                        console.error('Error submitting transaction:', err);
                         this.showNotification('Terjadi kesalahan saat memproses transaksi: ' + err.message, 'error');
                         this.isLoading = false;
                     }
