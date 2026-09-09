@@ -1574,7 +1574,7 @@
                         const transData = JSON.parse(JSON.stringify(this.newTrans));
                         let expandedItems = [];
 
-                        transData.items.forEach(i => {
+                        for (let i of transData.items) {
                             const qtyNum = Number(i.qty) || 0;
                             const brgInfo = (this.masterBarang || []).find(b => b.kodeBarang === i.kodeBarang);
                             const satuanBarang = brgInfo ? brgInfo.sat : 'Pcs';
@@ -1683,7 +1683,7 @@
 
                             // D. BARANG KELUAR
                             else if (transData.tipeTransaksi === 'Keluar') {
-                                let stokAsal = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === sourceWH);
+                                let stokAsal = (this.stokGudang || []).find(s => s.kodeBarang === i.kodeBarang && s.gudang === transData.gudangAsal);
                                 if (stokAsal) {
                                     stokAsal.qty = Math.max(0, stokAsal.qty - qtyNum);
                                 }
@@ -1694,20 +1694,21 @@
                                         foundDrum.remainingLength = Math.max(0, foundDrum.remainingLength - qtyNum);
                                         if (foundDrum.remainingLength === 0) {
                                             foundDrum.status = 'Empty';
-                                        } else {
+                                        } else if (foundDrum.remainingLength < foundDrum.initialLength) {
                                             foundDrum.status = 'Partial';
                                         }
                                     }
                                 }
 
-                                // Pencatatan Material Usage untuk Project
+                                // Pencatatan Material Usage jika terhubung dengan Kode Project
                                 if (transData.kodeProject) {
-                                    const proj = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
-                                    this.materialUsage.push({
-                                        id: `USG-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+                                    const prjInfo = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
+                                    const usageId = `USG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                                    this.materialUsage.unshift({
+                                        id: usageId,
                                         kodeProject: transData.kodeProject,
-                                        noPO: proj ? proj.noPO : '-',
-                                        projectName: proj ? proj.projectName : transData.keterangan || '-',
+                                        noPO: prjInfo ? prjInfo.noPO : '-',
+                                        projectName: prjInfo ? prjInfo.projectName : '-',
                                         kodeBarang: i.kodeBarang,
                                         namaBarang: i.namaBarang,
                                         drumId: i.drumId || '-',
@@ -1716,26 +1717,29 @@
                                     });
                                 }
                             }
-                        });
+                        }
 
-                        // Masukkan item yang sudah diolah/di-expand kembali ke data transaksi
+                        // Simpan item yang telah diproses ke data transaksi
                         transData.items = expandedItems;
+
+                        // Tambahkan ke log transaksi
                         this.transactions.unshift(transData);
 
-                        // Persist data ke Supabase Cloud jika terhubung
+                        // Sinkronisasi ke Supabase Cloud
                         await this.persistToSupabase('transactions', transData);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
-                        if (transData.tipeTransaksi === 'Keluar' && transData.kodeProject) {
+                        if (this.materialUsage.length > 0) {
                             await this.persistToSupabase('material_usage', this.materialUsage);
                         }
 
-                        this.showNotification('Transaksi berhasil diproses & disimpan!', 'success');
+                        this.showNotification('Transaksi berhasil disimpan & mutasi stok berhasil diproses!', 'success');
                         this.resetInputTransaction();
+                        this.switchTab('data-transaksi');
 
                     } catch (err) {
                         console.error('Error processing transaction:', err);
-                        this.showNotification('Terjadi kesalahan saat memproses transaksi: ' + err.message, 'error');
+                        this.showNotification('Gagal memproses transaksi: ' + (err.message || 'Terjadi kesalahan internal'), 'error');
                     } finally {
                         this.isLoading = false;
                         this.refreshIcons();
