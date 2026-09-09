@@ -1686,16 +1686,18 @@
                                         }
                                     }
                                 }
+
                                 if (transData.kodeProject) {
-                                    const proj = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
+                                    const usageId = 'USG-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+                                    const projInfo = (this.masterProject || []).find(p => p.kodeProject === transData.kodeProject);
                                     this.materialUsage.push({
-                                        id: 'USG-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+                                        id: usageId,
                                         kodeProject: transData.kodeProject,
-                                        noPO: proj ? proj.noPO : '-',
-                                        projectName: proj ? proj.projectName : '-',
+                                        noPO: projInfo ? projInfo.noPO : '-',
+                                        projectName: projInfo ? projInfo.projectName : '-',
                                         kodeBarang: i.kodeBarang,
                                         namaBarang: i.namaBarang,
-                                        drumId: i.drumId || '',
+                                        drumId: i.drumId || '-',
                                         qty: qtyNum,
                                         tanggal: transData.tanggal
                                     });
@@ -1722,7 +1724,26 @@
                                 if (i.drumId) {
                                     let foundDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId);
                                     if (foundDrum) {
-                                        foundDrum.gudang = transData.gudangTujuan;
+                                        foundDrum.remainingLength = Math.max(0, Number(foundDrum.remainingLength) - qtyNum);
+                                        if (foundDrum.remainingLength === 0) {
+                                            foundDrum.status = 'Empty';
+                                        } else {
+                                            foundDrum.status = 'Partial';
+                                        }
+                                        let destDrum = (this.drumLedger || []).find(d => d.drumId === i.drumId && d.gudang === transData.gudangTujuan);
+                                        if (destDrum) {
+                                            destDrum.remainingLength = Number(destDrum.remainingLength) + qtyNum;
+                                        } else {
+                                            this.drumLedger.push({
+                                                drumId: i.drumId,
+                                                kodeBarang: i.kodeBarang,
+                                                namaBarang: i.namaBarang,
+                                                gudang: transData.gudangTujuan,
+                                                initialLength: foundDrum.initialLength,
+                                                remainingLength: qtyNum,
+                                                status: 'Partial'
+                                            });
+                                        }
                                     }
                                 }
                             }
@@ -1734,22 +1755,20 @@
                         await this.persistToSupabase('transactions', transData);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
-                        if (this.materialUsage.length > 0) {
-                            await this.persistToSupabase('material_usage', this.materialUsage[this.materialUsage.length - 1]);
-                        }
+                        await this.persistToSupabase('material_usage', this.materialUsage);
 
-                        this.showNotification('Transaksi berhasil diproses & stok diperbarui!', 'success');
-                        this.isLoading = false;
-                        this.switchTab('data-transaksi');
+                        this.showNotification('Transaksi berhasil disimpan & stok diperbarui!', 'success');
                         this.resetInputTransaction();
-
+                        this.currentTab = 'data-transaksi';
                     } catch (err) {
-                        console.error('Error in submitTransaction:', err);
+                        console.error('Transaction error:', err);
                         this.showNotification('Terjadi kesalahan saat memproses transaksi.', 'error');
+                    } finally {
                         this.isLoading = false;
+                        this.refreshIcons();
                     }
                 }
-            }
+            };
         }
     </script>
 </body>
