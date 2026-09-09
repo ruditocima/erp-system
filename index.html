@@ -592,7 +592,6 @@
                                             <th class="p-3">Satuan</th>
                                         </tr>
                                     </thead>
-                                    <!-- Font diubah hanya untuk list data saja -->
                                     <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
                                         <template x-for="(stok, index) in getFilteredStokGudang()" :key="stok.kodeBarang + '-' + stok.gudang || index">
                                             <tr class="hover:bg-slate-800/30 transition">
@@ -635,7 +634,6 @@
                                             <th class="p-3">Status Drum</th>
                                         </tr>
                                     </thead>
-                                    <!-- Font diubah hanya untuk list data saja -->
                                     <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
                                         <template x-for="(drum, index) in getFilteredDrumLedger()" :key="drum.drumId || index">
                                             <tr class="hover:bg-slate-800/30 transition">
@@ -697,7 +695,6 @@
                                         <th class="p-3">Tanggal Pakai</th>
                                     </tr>
                                 </thead>
-                                <!-- Font diubah hanya untuk list data saja -->
                                 <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
                                     <template x-for="(usage, index) in getFilteredMaterialUsage()" :key="usage.id || index">
                                         <tr class="hover:bg-slate-800/30 transition">
@@ -748,7 +745,6 @@
                                         <th class="p-3 text-right">Aksi BAST PDF</th>
                                     </tr>
                                 </thead>
-                                <!-- Font diubah hanya untuk list data saja -->
                                 <tbody class="divide-y divide-slate-800/60 text-xs" style='font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'>
                                     <template x-for="(tx, index) in getFilteredTransactions()" :key="tx.noTransaksi || index">
                                         <tr class="hover:bg-slate-800/30 transition">
@@ -1659,7 +1655,7 @@
                                     });
                                 }
 
-                                // Pindahkan lokasi Gudang Drum jika Cable
+                                // Update lokasi Drum Kabel jika Cable
                                 if (isCable && item.drumId) {
                                     let drumItem = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === transData.gudangAsal);
                                     if (drumItem) {
@@ -1669,25 +1665,27 @@
                             }
                         }
 
-                        // 4. Simpan Transaksi ke Log State
+                        // 4. Simpan Transaksi Ke Log
                         this.transactions.unshift(transData);
 
-                        // 5. Sync Persisten ke Supabase Cloud
+                        // 5. Sinkronisasi Persistensi ke Supabase
                         await this.persistToSupabase('transactions', transData);
                         await this.persistToSupabase('stok_gudang', this.stokGudang);
                         await this.persistToSupabase('drum_ledger', this.drumLedger);
-                        await this.persistToSupabase('material_usage', this.materialUsage);
+                        if (transData.tipeTransaksi === 'Keluar' && this.materialUsage.length > 0) {
+                            await this.persistToSupabase('material_usage', this.materialUsage[0]);
+                        }
 
-                        this.showNotification('Transaksi berhasil diproses & dicatat.', 'success');
+                        this.showNotification('Transaksi berhasil disimpan & diproses!', 'success');
                         this.resetInputTransaction();
-                        this.switchTab('data-transaksi');
                     } catch (err) {
                         this.showNotification(err.message, 'error');
                     } finally {
                         this.isLoading = false;
+                        this.refreshIcons();
                     }
                 }
-            }
+            };
         }
     </script>
 </body>
