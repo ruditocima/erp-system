@@ -1218,10 +1218,12 @@
                     
                     let table = type === 'barang' ? 'master_barang' : (type === 'gudang' ? 'master_gudang' : 'master_project');
                     
-                    // Menghapus data dari Supabase tanpa membuat aplikasi crash jika Supabase error
+                    // PERBAIKAN: Menyesuaikan properti "idField" di lokal ke "dbIdField" untuk DB saat proses delete.
                     if (supabaseClient) {
-                        let idField = type === 'barang' ? 'kodeBarang' : (type === 'gudang' ? 'kodeGudang' : 'kodeProject');
-                        supabaseClient.from(table).delete().eq(idField, deletedItem[idField])
+                        let dbIdField = type === 'barang' ? 'kode_barang' : (type === 'gudang' ? 'kode_gudang' : 'kode_project');
+                        let localIdField = type === 'barang' ? 'kodeBarang' : (type === 'gudang' ? 'kodeGudang' : 'kodeProject');
+                        
+                        supabaseClient.from(table).delete().eq(dbIdField, deletedItem[localIdField])
                             .then(({error}) => {
                                 if (error) console.warn(`Supabase delete warning on ${table}:`, error.message);
                             });
@@ -1255,10 +1257,43 @@
                         let rawData = Array.isArray(data) ? data : [data];
                         if (rawData.length === 0) return;
 
-                        // PERBAIKAN: Mengirimkan rawData secara langsung tanpa memaksa konversi ke snake_case (seperti kode_barang). 
-                        // Ini akan memperbaiki error "400 Bad Request: Could not find column in schema cache" 
-                        // karena struktur object payload sekarang telah sama persis dengan yang ada pada LocalState/Database.
-                        const { error } = await supabaseClient.from(table).upsert(rawData);
+                        // PERBAIKAN: Menambahkan logic converter camelCase ke snake_case agar sinkron dengan Supabase[cite: 1]
+                        let payload = rawData.map(item => {
+                            if (table === 'master_barang') {
+                                return {
+                                    kategori: item.kategori,
+                                    jenis: item.jenis,
+                                    kode_barang: item.kodeBarang,
+                                    nama_barang: item.namaBarang,
+                                    sat: item.sat
+                                };
+                            } else if (table === 'master_gudang') {
+                                return {
+                                    kode_gudang: item.kodeGudang,
+                                    nama_gudang: item.namaGudang,
+                                    tipe_kepemilikan: item.tipeKepemilikan,
+                                    lokasi: item.lokasi
+                                };
+                            } else if (table === 'master_project') {
+                                return {
+                                    periode: item.periode,
+                                    region: item.region,
+                                    kode_project: item.kodeProject,
+                                    type: item.type,
+                                    no_po: item.noPO,
+                                    project_name: item.projectName,
+                                    po_awal: item.poAwal,
+                                    po_final: item.poFinal,
+                                    status_po: item.statusPO,
+                                    permit: item.permit,
+                                    snd: item.snd,
+                                    status_project: item.statusProject
+                                };
+                            }
+                            return item; // Fallback jika tabel bukan 3 di atas
+                        });
+
+                        const { error } = await supabaseClient.from(table).upsert(payload);
                         
                         if (error) {
                             console.warn(`Supabase upsert warning on ${table}:`, error.message);
@@ -1517,13 +1552,14 @@
                                 });
                             }
                         } 
-                        // LOGIKA BARANG KELUAR / TRANSFER
+                        // LOGIKA BARANG KELUAR / TRANSFER (Perbaikan Kode Terpotong)
                         else {
                             let stokAsal = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangAsal);
                             if (!stokAsal || stokAsal.qty < qty) {
-                                this.showNotification(`Stok ${item.namaBarang} di gudang asal tidak mencukupi!`, 'error');
+                                this.showNotification(`Stok item ${item.kodeBarang} tidak mencukupi di gudang asal.`, 'error');
                                 this.isLoading = false; return;
                             }
+                            
                             stokAsal.qty -= qty;
                             
                             if (this.newTrans.tipeTransaksi === 'Transfer') {
@@ -1533,134 +1569,153 @@
                                 } else {
                                     this.stokGudang.push({ 
                                         id: item.kodeBarang + '_' + this.newTrans.gudangTujuan, 
-                                        kodeBarang: item.kodeBarang, namaBarang: item.namaBarang, 
-                                        kategori: item.kategori, gudang: this.newTrans.gudangTujuan, qty: qty, sat: stokAsal.sat 
+                                        kodeBarang: item.kodeBarang, 
+                                        namaBarang: item.namaBarang, 
+                                        kategori: item.kategori, 
+                                        gudang: this.newTrans.gudangTujuan, 
+                                        qty: qty, 
+                                        sat: this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.sat || '' 
                                     });
                                 }
                             }
-                            
-                            // Pemotongan Drum Kabel
-                            if (isCable && item.drumId) {
-                                let drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
-                                if (!drum || drum.remainingLength < qty) {
-                                    this.showNotification(`Panjang / Sisa kabel pada Drum ${item.drumId} tidak mencukupi!`, 'error');
-                                    this.isLoading = false; return;
-                                }
-                                drum.remainingLength -= qty;
-                                drum.status = drum.remainingLength === 0 ? 'Empty' : 'Partial';
-                                
-                                // Jika Transfer, buat Drum Baru di Gudang Tujuan dengan panjang transfer
-                                if (this.newTrans.tipeTransaksi === 'Transfer') {
-                                    this.drumLedger.push({ 
-                                        drumId: item.drumId + '-TRF', kodeBarang: item.kodeBarang, 
-                                        namaBarang: item.namaBarang, gudang: this.newTrans.gudangTujuan, 
-                                        initialLength: qty, remainingLength: qty, status: 'Full' 
-                                    });
-                                }
-                            }
-                            
-                            // Mencatat Log Material Usage jika Barang Keluar
-                            if (this.newTrans.tipeTransaksi === 'Keluar' && this.newTrans.kodeProject) {
-                                let proj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
+
+                            if (this.newTrans.tipeTransaksi === 'Keluar') {
                                 this.materialUsage.push({
-                                    id: 'USG-' + Date.now(),
+                                    id: `USG-${Date.now()}-${Math.floor(Math.random()*1000)}`,
                                     kodeProject: this.newTrans.kodeProject,
-                                    noPO: proj ? proj.noPO : '',
-                                    projectName: proj ? proj.projectName : '',
+                                    noPO: this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject)?.noPO || '-',
+                                    projectName: this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject)?.projectName || '-',
                                     kodeBarang: item.kodeBarang,
                                     namaBarang: item.namaBarang,
-                                    drumId: item.drumId || '',
+                                    drumId: item.drumId,
                                     qty: qty,
                                     tanggal: this.newTrans.tanggal
                                 });
                             }
+
+                            if (isCable && item.drumId) {
+                                let drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
+                                if (drum) {
+                                    drum.remainingLength -= qty;
+                                    if (drum.remainingLength <= 0) {
+                                        drum.remainingLength = 0;
+                                        drum.status = 'Kosong';
+                                    } else {
+                                        drum.status = 'Partial';
+                                    }
+
+                                    if (this.newTrans.tipeTransaksi === 'Transfer') {
+                                        let drumTujuan = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangTujuan);
+                                        if (drumTujuan) {
+                                            drumTujuan.remainingLength += qty;
+                                            drumTujuan.status = drumTujuan.remainingLength === drumTujuan.initialLength ? 'Full' : 'Partial';
+                                        } else {
+                                            this.drumLedger.push({
+                                                drumId: item.drumId,
+                                                kodeBarang: item.kodeBarang,
+                                                namaBarang: item.namaBarang,
+                                                gudang: this.newTrans.gudangTujuan,
+                                                initialLength: drum.initialLength, 
+                                                remainingLength: qty,
+                                                status: 'Partial'
+                                            });
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    // Push Record ke Histori
-                    let trxRecord = JSON.parse(JSON.stringify(this.newTrans));
-                    this.transactions.unshift(trxRecord);
-                    this.persistToSupabase('transactions', trxRecord);
-                    
-                    setTimeout(() => {
-                        this.isLoading = false;
-                        this.showNotification('Transaksi berhasil diproses, stok dan material ledger telah diperbarui.');
-                        this.switchTab('data-transaksi');
-                    }, 600);
+                    // Push transaksi ke daftar secara reaktif
+                    this.transactions.unshift({
+                        ...this.newTrans,
+                        items: JSON.parse(JSON.stringify(this.newTrans.items))
+                    });
+
+                    this.isLoading = false;
+                    this.showNotification('Transaksi berhasil diproses', 'success');
+                    this.resetInputTransaction();
+                    this.switchTab('data-transaksi');
                 },
 
-                // LOGIKA FILTER DAN PENCARIAN
+                // Lanjutan fungsi untuk render tables (Pemulihan kode terpotong)
                 getFilteredStokGudang() {
+                    let result = this.stokGudang;
                     if (this.filterStokGudang) {
-                        return this.stokGudang.filter(s => s.gudang === this.filterStokGudang && s.qty > 0);
+                        result = result.filter(s => s.gudang === this.filterStokGudang);
                     }
-                    return this.stokGudang.filter(s => s.qty > 0);
+                    return result.filter(s => s.qty > 0);
                 },
+                
                 getFilteredDrumLedger() {
+                    let result = this.drumLedger;
                     if (this.filterStokGudang) {
-                        return this.drumLedger.filter(d => d.gudang === this.filterStokGudang && d.remainingLength > 0);
+                        result = result.filter(d => d.gudang === this.filterStokGudang);
                     }
-                    return this.drumLedger.filter(d => d.remainingLength > 0);
+                    return result;
                 },
+                
                 getUniqueRegions() {
-                    return Array.from(new Set(this.masterProject.map(p => p.region)));
+                    return [...new Set(this.masterProject.map(p => p.region))];
                 },
+                
                 getFilteredMaterialUsage() {
-                    let res = this.materialUsage;
+                    let result = this.materialUsage;
                     if (this.filterRegionUsage) {
-                        let projsInRegion = this.masterProject.filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
-                        res = res.filter(u => projsInRegion.includes(u.kodeProject));
+                        let validProjects = this.masterProject.filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
+                        result = result.filter(u => validProjects.includes(u.kodeProject));
                     }
                     if (this.searchMaterialUsageProject) {
-                        let q = this.searchMaterialUsageProject.toLowerCase();
-                        res = res.filter(u => 
-                            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) || 
-                            (u.projectName && u.projectName.toLowerCase().includes(q)) ||
-                            (u.noPO && u.noPO.toLowerCase().includes(q))
+                        let search = this.searchMaterialUsageProject.toLowerCase();
+                        result = result.filter(u => 
+                            (u.kodeProject && u.kodeProject.toLowerCase().includes(search)) ||
+                            (u.projectName && u.projectName.toLowerCase().includes(search)) ||
+                            (u.noPO && u.noPO.toLowerCase().includes(search))
                         );
                     }
-                    return res;
+                    return result;
                 },
+                
                 getFilteredTransactions() {
-                    let res = this.transactions;
+                    let result = this.transactions;
                     if (this.searchNoTransaksi) {
-                        res = res.filter(t => t.noTransaksi && t.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
+                        result = result.filter(t => t.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
                     }
                     if (this.searchNoReferensi) {
-                        res = res.filter(t => t.noReferensi && t.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
+                        result = result.filter(t => (t.noReferensi || '').toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
                     }
-                    return res;
+                    return result;
                 },
-
+                
                 editTransaction(tx) {
-                    this.showNotification('Fitur Edit Transaksi akan tersedia pada versi berikutnya.', 'success');
+                    this.showNotification('Fitur edit transaksi sedang dalam pengembangan', 'error');
                 },
+                
                 deleteTransaction(tx) {
-                    if(!confirm('Anda yakin ingin menghapus log transaksi ini? (Catatan: Stok yang terpengaruh tidak akan dibatalkan/di-rollback secara otomatis)')) return;
-                    this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-                    this.showNotification('Histori Transaksi telah dihapus dari sistem.');
+                    if (confirm('Yakin ingin menghapus transaksi ini? (Stok tidak akan membalikkan otomatis)')) {
+                        this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+                        this.showNotification('Transaksi berhasil dihapus');
+                    }
                 },
-
-                // CETAK BAST
+                
                 printBAST(tx) {
                     this.activeBast = tx;
-                    setTimeout(() => {
-                        window.print();
-                    }, 300);
+                    setTimeout(() => window.print(), 200);
                 },
+                
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
                     let summary = {};
-                    this.activeBast.items.forEach(i => {
-                        if (summary[i.namaBarang]) {
-                            summary[i.namaBarang] += Number(i.qty);
+                    this.activeBast.items.forEach(item => {
+                        if (summary[item.namaBarang]) {
+                            summary[item.namaBarang] += item.qty;
                         } else {
-                            summary[i.namaBarang] = Number(i.qty);
+                            summary[item.namaBarang] = item.qty;
                         }
                     });
                     return Object.keys(summary).map(key => ({ namaBarang: key, totalQty: summary[key] }));
                 }
-            };
+            }
         }
     </script>
 </body>
