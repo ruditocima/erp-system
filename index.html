@@ -1769,7 +1769,11 @@
                                     const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === tx.gudangAsal);
                                     if (drum) {
                                         drum.remainingLength = Math.min(drum.initialLength, Number(drum.remainingLength) + Number(item.qty));
-                                        drum.status = drum.remainingLength === drum.initialLength ? 'Full' : (drum.remainingLength > 0 ? 'Partial' : 'Empty');
+                                        if (drum.remainingLength === drum.initialLength) {
+                                            drum.status = 'Full';
+                                        } else if (drum.remainingLength > 0) {
+                                            drum.status = 'Partial';
+                                        }
                                     }
                                 }
                                 this.materialUsage = this.materialUsage.filter(u => u.kodeProject !== tx.kodeProject || u.kodeBarang !== item.kodeBarang || u.qty !== Number(item.qty));
@@ -1785,13 +1789,17 @@
                             }
                         });
 
-                        this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-                        this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus dan stok dikembalikan.`);
+                        const txIndex = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
+                        if (txIndex !== -1) {
+                            this.transactions.splice(txIndex, 1);
+                        }
 
                         this.persistToSupabase('transactions', this.transactions);
                         this.persistToSupabase('stok_gudang', this.stokGudang);
                         this.persistToSupabase('drum_ledger', this.drumLedger);
                         this.persistToSupabase('material_usage', this.materialUsage);
+
+                        this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus dan stok dipulihkan.`);
                         this.refreshIcons();
                     }
                 },
@@ -1807,18 +1815,14 @@
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
                     const map = {};
-                    this.activeBast.items.forEach(item => {
-                        const name = item.namaBarang || item.kodeBarang || 'Unknown';
-                        const qty = Number(item.qty) || 0;
+                    this.activeBast.items.forEach(i => {
+                        const name = i.namaBarang || i.kodeBarang || 'Unknown Item';
                         if (!map[name]) {
                             map[name] = 0;
                         }
-                        map[name] += qty;
+                        map[name] += Number(i.qty) || 0;
                     });
-                    return Object.keys(map).map(namaBarang => ({
-                        namaBarang,
-                        totalQty: map[namaBarang]
-                    }));
+                    return Object.keys(map).map(namaBarang => ({ namaBarang, totalQty: map[namaBarang] }));
                 }
             };
         }
