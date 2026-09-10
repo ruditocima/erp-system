@@ -1328,7 +1328,6 @@
                     }
                 },
 
-                // Fungsi Kompresi Foto Otomatis sebelum diunggah ke Supabase Storage
                 async compressFileIfNeeded(file) {
                     if (file && file.type.startsWith('image/')) {
                         return new Promise((resolve) => {
@@ -1399,7 +1398,6 @@
                     if (this.newTrans.tipeTransaksi === 'Masuk') {
                         return [...new Set(this.masterBarang.map(b => b.kategori))];
                     }
-                    // Untuk Transaksi Keluar/Transfer, filter berdasarkan stok yang tersedia di Gudang Asal
                     const availBarangKode = this.stokGudang
                         .filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0)
                         .map(s => s.kodeBarang);
@@ -1455,7 +1453,6 @@
                     return this.masterProject || [];
                 },
 
-                // submitTransaction dengan Dukungan Upload File & Auto-Compress
                 async submitTransaction() {
                     if (!this.newTrans.tanggal || !this.newTrans.noTransaksi) {
                         this.showNotification('Mohon lengkapi Tanggal & No Transaksi.', 'error');
@@ -1466,7 +1463,6 @@
                         return;
                     }
 
-                    // Validasi item detail
                     for (let i = 0; i < this.newTrans.items.length; i++) {
                         const itm = this.newTrans.items[i];
                         if (!itm.kodeBarang || !itm.qty || itm.qty <= 0) {
@@ -1490,7 +1486,6 @@
 
                     this.isLoading = true;
 
-                    // Proses Unggah Lampiran ke Supabase Storage (Jika Ada)
                     if (this.selectedFile && supabaseClient) {
                         try {
                             const compressedFile = await this.compressFileIfNeeded(this.selectedFile);
@@ -1514,10 +1509,8 @@
                         }
                     }
 
-                    // Eksekusi Pembaruan Stok & Drum Ledger
                     this.processInventoryUpdates();
 
-                    // Simpan Transaksi
                     const txCopy = JSON.parse(JSON.stringify(this.newTrans));
                     this.transactions.unshift(txCopy);
 
@@ -1532,7 +1525,6 @@
                     this.switchTab('data-transaksi');
                 },
 
-                // Logika Pembaruan Inventory & Material Usage
                 processInventoryUpdates() {
                     const type = this.newTrans.tipeTransaksi;
 
@@ -1541,11 +1533,9 @@
                         const masterItem = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
                         const sat = masterItem ? masterItem.sat : 'Pcs';
 
-                        // 1. DOKUMEN / KELUAR / TRANSFER
                         if (type === 'Masuk') {
                             this.updateStok(this.newTrans.gudangTujuan, item, sat, item.qty);
                             
-                            // Jika Kabel, Tambah Drum Baru ke Ledger
                             if (isCable) {
                                 let drumId = item.drumId;
                                 if (!drumId) {
@@ -1571,7 +1561,6 @@
                                 this.updateDrumLength(item.drumId, this.newTrans.gudangAsal, item.qty);
                             }
 
-                            // Catat ke Material Usage jika ada Kode Project
                             if (this.newTrans.kodeProject) {
                                 const proj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
                                 this.materialUsage.unshift({
@@ -1629,7 +1618,6 @@
                     }
                 },
 
-                // FILTER & TABLE DATA COMPUTED METHODS
                 getFilteredStokGudang() {
                     if (!this.filterStokGudang) return this.stokGudang;
                     return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
@@ -1676,7 +1664,6 @@
                     });
                 },
 
-                // EDIT & DELETE TRANSAKSI / MASTER DATA
                 editTransaction(tx) {
                     this.newTrans = JSON.parse(JSON.stringify(tx));
                     this.currentTab = 'input-transaksi';
@@ -1692,6 +1679,31 @@
                             this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus.`);
                         }
                     }
+                },
+
+                printBAST(tx) {
+                    this.activeBast = JSON.parse(JSON.stringify(tx));
+                    this.refreshIcons();
+                    setTimeout(() => {
+                        window.print();
+                    }, 300);
+                },
+
+                getBastSummaryTotals() {
+                    if (!this.activeBast || !this.activeBast.items) return [];
+                    const map = {};
+                    this.activeBast.items.forEach(item => {
+                        const name = item.namaBarang || 'Unknown Item';
+                        const qty = Number(item.qty) || 0;
+                        if (!map[name]) {
+                            map[name] = 0;
+                        }
+                        map[name] += qty;
+                    });
+                    return Object.keys(map).map(namaBarang => ({
+                        namaBarang,
+                        totalQty: map[namaBarang]
+                    }));
                 },
 
                 openModal(type) {
@@ -1737,31 +1749,10 @@
                         if (type === 'barang') this.masterBarang.splice(index, 1);
                         else if (type === 'gudang') this.masterGudang.splice(index, 1);
                         else if (type === 'project') this.masterProject.splice(index, 1);
-                        this.showNotification(`Data Master ${type} berhasil dihapus.`);
+                        
+                        this.showNotification(`Data master ${type} berhasil dihapus.`);
+                        this.refreshIcons();
                     }
-                },
-
-                // PRINT BAST PDF
-                printBAST(tx) {
-                    this.activeBast = JSON.parse(JSON.stringify(tx));
-                    this.$nextTick(() => {
-                        window.print();
-                    });
-                },
-
-                getBastSummaryTotals() {
-                    if (!this.activeBast || !this.activeBast.items) return [];
-                    const map = {};
-                    this.activeBast.items.forEach(item => {
-                        const name = item.namaBarang || item.kodeBarang;
-                        const qty = Number(item.qty) || 0;
-                        if (map[name]) {
-                            map[name] += qty;
-                        } else {
-                            map[name] = qty;
-                        }
-                    });
-                    return Object.keys(map).map(k => ({ namaBarang: k, totalQty: map[k] }));
                 }
             };
         }
