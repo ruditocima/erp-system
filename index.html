@@ -1248,7 +1248,8 @@
                             }));
                         }
 
-                        const { error } = await supabaseClient.from(table).upsert(payload, { onConflict: table === 'master_gudang' ? 'kode_gudang' : undefined });
+                        // Menggunakan upsert standar tanpa onConflict eksplisit untuk mencegah error 400 schema cache
+                        const { error } = await supabaseClient.from(table).upsert(payload);
                         if (error) {
                             console.warn(`Supabase upsert warning on ${table}:`, error.message);
                         }
@@ -1744,11 +1745,13 @@
                                 });
                             }
                         } else if (tipe === 'Transfer') {
+                            // Kurangi stok di gudang asal
                             let stokAsal = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === asal);
                             if (stokAsal) {
                                 stokAsal.qty = Math.max(0, stokAsal.qty - Number(item.qty));
                             }
 
+                            // Tambah stok di gudang tujuan
                             let stokTujuan = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tujuan);
                             if (stokTujuan) {
                                 stokTujuan.qty += Number(item.qty);
@@ -1765,6 +1768,7 @@
                                 });
                             }
 
+                            // Pindahkan lokasi drum kabel ke gudang tujuan
                             if (isCable && item.drumId) {
                                 let drum = this.drumLedger.find(d => d.drumId === item.drumId);
                                 if (drum) {
@@ -1775,48 +1779,9 @@
                     });
                 },
 
-                editTransaction(tx) {
-                    this.newTrans = JSON.parse(JSON.stringify(tx));
-                    this.currentTab = 'input-transaksi';
-                    this.refreshIcons();
-                },
-
-                deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?`)) {
-                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
-                        if (idx !== -1) {
-                            this.transactions.splice(idx, 1);
-                            this.persistToSupabase('transactions', this.transactions);
-                            this.showNotification('Transaksi berhasil dihapus.');
-                            this.refreshIcons();
-                        }
-                    }
-                },
-
-                printBAST(tx) {
-                    this.activeBast = JSON.parse(JSON.stringify(tx));
-                    this.refreshIcons();
-                    setTimeout(() => {
-                        window.print();
-                    }, 300);
-                },
-
-                getBastSummaryTotals() {
-                    if (!this.activeBast.items || this.activeBast.items.length === 0) return [];
-                    const summaryMap = {};
-                    this.activeBast.items.forEach(item => {
-                        const key = item.namaBarang || item.kodeBarang;
-                        if (!summaryMap[key]) {
-                            summaryMap[key] = { namaBarang: item.namaBarang || item.kodeBarang, totalQty: 0 };
-                        }
-                        summaryMap[key].totalQty += Number(item.qty || 0);
-                    });
-                    return Object.values(summaryMap);
-                },
-
                 getFilteredStokGudang() {
-                    if (!this.filterStokGudang) return this.stokGudang;
-                    return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
+                    if (!this.filterStokGudang) return this.stokGudang || [];
+                    return (this.stokGudang || []).filter(s => s.gudang === this.filterStokGudang);
                 },
 
                 getFilteredDrumLedger() {
@@ -1855,8 +1820,47 @@
                         list = list.filter(t => t.noReferensi && t.noReferensi.toLowerCase().includes(q));
                     }
                     return list;
+                },
+
+                editTransaction(tx) {
+                    this.newTrans = JSON.parse(JSON.stringify(tx));
+                    this.currentTab = 'input-transaksi';
+                    this.refreshIcons();
+                },
+
+                deleteTransaction(tx) {
+                    if (confirm(`Hapus transaksi ${tx.noTransaksi}? (Catatan: Data inventaris yang terpengaruh dapat disesuaikan kembali secara manual jika diperlukan).`)) {
+                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
+                        if (idx !== -1) {
+                            this.transactions.splice(idx, 1);
+                            this.persistToSupabase('transactions', this.transactions);
+                            this.showNotification('Transaksi berhasil dihapus.');
+                            this.refreshIcons();
+                        }
+                    }
+                },
+
+                printBAST(tx) {
+                    this.activeBast = JSON.parse(JSON.stringify(tx));
+                    this.refreshIcons();
+                    setTimeout(() => {
+                        window.print();
+                    }, 300);
+                },
+
+                getBastSummaryTotals() {
+                    if (!this.activeBast || !this.activeBast.items) return [];
+                    const map = {};
+                    this.activeBast.items.forEach(i => {
+                        const key = i.namaBarang || i.kodeBarang;
+                        if (!map[key]) {
+                            map[key] = { namaBarang: i.namaBarang, totalQty: 0 };
+                        }
+                        map[key].totalQty += Number(i.qty || 0);
+                    });
+                    return Object.values(map);
                 }
-            };
+            }
         }
     </script>
 </body>
