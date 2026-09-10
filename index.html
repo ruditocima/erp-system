@@ -1177,7 +1177,15 @@
                     if (!supabaseClient) return;
                     try {
                         const { data: barangData } = await supabaseClient.from('master_barang').select('*');
-                        if (barangData && barangData.length > 0) this.masterBarang = barangData;
+                        if (barangData && barangData.length > 0) {
+                            this.masterBarang = barangData.map(b => ({
+                                kodeBarang: b.kodeBarang || b.kode_barang || '',
+                                namaBarang: b.namaBarang || b.nama_barang || '',
+                                kategori: b.kategori || '',
+                                jenis: b.jenis || '',
+                                sat: b.sat || ''
+                            }));
+                        }
                         
                         const { data: gudangData } = await supabaseClient.from('master_gudang').select('*');
                         if (gudangData && gudangData.length > 0) {
@@ -1190,7 +1198,22 @@
                         }
                         
                         const { data: projData } = await supabaseClient.from('master_project').select('*');
-                        if (projData && projData.length > 0) this.masterProject = projData;
+                        if (projData && projData.length > 0) {
+                            this.masterProject = projData.map(p => ({
+                                kodeProject: p.kodeProject || p.kode_project || '',
+                                periode: p.periode || '',
+                                region: p.region || '',
+                                type: p.type || '',
+                                noPO: p.noPO || p.no_po || '',
+                                projectName: p.projectName || p.project_name || '',
+                                poAwal: p.poAwal || p.po_awal || '',
+                                poFinal: p.poFinal || p.po_final || '',
+                                statusPO: p.statusPO || p.status_po || 'Approved',
+                                permit: p.permit || '',
+                                snd: p.snd || '',
+                                statusProject: p.statusProject || p.status_project || ''
+                            }));
+                        }
                         
                         const { data: stokData } = await supabaseClient.from('stok_gudang').select('*');
                         if (stokData && stokData.length > 0) this.stokGudang = stokData;
@@ -1216,39 +1239,39 @@
                         let payload = Array.isArray(data) ? data : [data];
                         if (payload.length === 0) return;
 
+                        // Perbaikan penyesuaian kolom sesuai skema database Supabase (CamelCase)
                         if (table === 'master_gudang') {
                             payload = payload.map(item => ({
-                                kode_gudang: item.kodeGudang || item.kode_gudang,
-                                nama_gudang: item.namaGudang || item.nama_gudang,
-                                tipe_kepemilikan: item.tipeKepemilikan || item.tipe_kepemilikan,
+                                kodeGudang: item.kodeGudang || item.kode_gudang,
+                                namaGudang: item.namaGudang || item.nama_gudang,
+                                tipeKepemilikan: item.tipeKepemilikan || item.tipe_kepemilikan,
                                 lokasi: item.lokasi
                             }));
                         } else if (table === 'master_barang') {
                             payload = payload.map(item => ({
-                                kode_barang: item.kodeBarang || item.kode_barang,
-                                nama_barang: item.namaBarang || item.nama_barang,
+                                kodeBarang: item.kodeBarang || item.kode_barang,
+                                namaBarang: item.namaBarang || item.nama_barang,
                                 kategori: item.kategori,
                                 jenis: item.jenis,
                                 sat: item.sat
                             }));
                         } else if (table === 'master_project') {
                             payload = payload.map(item => ({
-                                kode_project: item.kodeProject || item.kode_project,
+                                kodeProject: item.kodeProject || item.kode_project,
                                 periode: item.periode,
                                 region: item.region,
                                 type: item.type,
-                                no_po: item.noPO || item.no_po,
-                                project_name: item.projectName || item.project_name,
-                                po_awal: item.poAwal || item.po_awal,
-                                po_final: item.poFinal || item.po_final,
-                                status_po: item.statusPO || item.status_po,
+                                noPO: item.noPO || item.no_po,
+                                projectName: item.projectName || item.project_name,
+                                poAwal: item.poAwal || item.po_awal,
+                                poFinal: item.poFinal || item.po_final,
+                                statusPO: item.statusPO || item.status_po,
                                 permit: item.permit,
                                 snd: item.snd,
-                                status_project: item.statusProject || item.status_project
+                                statusProject: item.statusProject || item.status_project
                             }));
                         }
 
-                        // Menggunakan upsert standar tanpa onConflict eksplisit untuk mencegah error 400 schema cache
                         const { error } = await supabaseClient.from(table).upsert(payload);
                         if (error) {
                             console.warn(`Supabase upsert warning on ${table}:`, error.message);
@@ -1731,27 +1754,24 @@
                                 }
                             }
 
-                            if (kodeProj) {
-                                this.materialUsage.unshift({
-                                    id: 'USG-' + Date.now() + '-' + Math.floor(Math.random()*1000),
-                                    kodeProject: kodeProj,
-                                    noPO: noPO,
-                                    projectName: projName,
-                                    kodeBarang: item.kodeBarang,
-                                    namaBarang: item.namaBarang,
-                                    drumId: item.drumId || '-',
-                                    qty: Number(item.qty),
-                                    tanggal: tx.tanggal
-                                });
-                            }
+                            const usageId = 'USG-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+                            this.materialUsage.unshift({
+                                id: usageId,
+                                kodeProject: kodeProj,
+                                noPO: noPO,
+                                projectName: projName,
+                                kodeBarang: item.kodeBarang,
+                                namaBarang: item.namaBarang,
+                                drumId: item.drumId || '-',
+                                qty: Number(item.qty),
+                                tanggal: tx.tanggal
+                            });
                         } else if (tipe === 'Transfer') {
-                            // Kurangi stok di gudang asal
                             let stokAsal = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === asal);
                             if (stokAsal) {
                                 stokAsal.qty = Math.max(0, stokAsal.qty - Number(item.qty));
                             }
 
-                            // Tambah stok di gudang tujuan
                             let stokTujuan = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tujuan);
                             if (stokTujuan) {
                                 stokTujuan.qty += Number(item.qty);
@@ -1768,7 +1788,6 @@
                                 });
                             }
 
-                            // Pindahkan lokasi drum kabel ke gudang tujuan
                             if (isCable && item.drumId) {
                                 let drum = this.drumLedger.find(d => d.drumId === item.drumId);
                                 if (drum) {
@@ -1780,8 +1799,8 @@
                 },
 
                 getFilteredStokGudang() {
-                    if (!this.filterStokGudang) return this.stokGudang || [];
-                    return (this.stokGudang || []).filter(s => s.gudang === this.filterStokGudang);
+                    if (!this.filterStokGudang) return this.stokGudang;
+                    return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
                 },
 
                 getFilteredDrumLedger() {
@@ -1789,13 +1808,13 @@
                 },
 
                 getUniqueRegions() {
-                    return [...new Set((this.masterProject || []).map(p => p.region))];
+                    return [...new Set(this.masterProject.map(p => p.region).filter(Boolean))];
                 },
 
                 getFilteredMaterialUsage() {
                     let list = this.materialUsage || [];
                     if (this.filterRegionUsage) {
-                        const projCodesInRegion = (this.masterProject || []).filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
+                        const projCodesInRegion = this.masterProject.filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
                         list = list.filter(u => projCodesInRegion.includes(u.kodeProject));
                     }
                     if (this.searchMaterialUsageProject) {
@@ -1829,14 +1848,11 @@
                 },
 
                 deleteTransaction(tx) {
-                    if (confirm(`Hapus transaksi ${tx.noTransaksi}? (Catatan: Data inventaris yang terpengaruh dapat disesuaikan kembali secara manual jika diperlukan).`)) {
-                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
-                        if (idx !== -1) {
-                            this.transactions.splice(idx, 1);
-                            this.persistToSupabase('transactions', this.transactions);
-                            this.showNotification('Transaksi berhasil dihapus.');
-                            this.refreshIcons();
-                        }
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"?`)) {
+                        this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+                        this.persistToSupabase('transactions', this.transactions);
+                        this.showNotification('Transaksi berhasil dihapus.');
+                        this.refreshIcons();
                     }
                 },
 
@@ -1850,17 +1866,21 @@
 
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
-                    const map = {};
-                    this.activeBast.items.forEach(i => {
-                        const key = i.namaBarang || i.kodeBarang;
-                        if (!map[key]) {
-                            map[key] = { namaBarang: i.namaBarang, totalQty: 0 };
+                    const summaryMap = {};
+                    this.activeBast.items.forEach(item => {
+                        const name = item.namaBarang || item.kodeBarang;
+                        const qty = Number(item.qty) || 0;
+                        if (!summaryMap[name]) {
+                            summaryMap[name] = 0;
                         }
-                        map[key].totalQty += Number(i.qty || 0);
+                        summaryMap[name] += qty;
                     });
-                    return Object.values(map);
+                    return Object.keys(summaryMap).map(namaBarang => ({
+                        namaBarang,
+                        totalQty: summaryMap[namaBarang]
+                    }));
                 }
-            }
+            };
         }
     </script>
 </body>
