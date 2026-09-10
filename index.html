@@ -1141,13 +1141,15 @@
                                 this.currentUser = session.user.email;
                                 let assignedRole = localStorage.getItem('vortex_role') || 'Admin';
                                 try {
-                                    const { data: roleData } = await supabaseClient
-                                        .from('user_roles')
-                                        .select('role')
-                                        .eq('user_id', session.user.id)
-                                        .maybeSingle();
-                                    if (roleData && roleData.role) assignedRole = roleData.role;
-                                } catch (e) {}
+                                    const { data: roleData, error } = await supabaseClient
+                                      .from('user_roles')
+                                      .select('role')
+                                      .eq('user_id', session.user.id);
+                                    if (error) {
+                                      console.error('Gagal mengambil role:', error.message);
+                                    } 
+                                    const userRole = roleData && roleData.length > 0 ? roleData[0].role : null;
+                                    catch (e) {}
                                 this.currentRole = assignedRole;
                                 localStorage.setItem('vortex_logged_in', 'true');
                                 localStorage.setItem('vortex_user', this.currentUser);
