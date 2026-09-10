@@ -1134,15 +1134,24 @@
                     this.resetInputTransaction();
                     this.syncWithSupabaseOnStart();
 
-                    this.$watch('masterBarang', val => { localStorage.setItem('vortex_masterBarang', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('masterGudang', val => { localStorage.setItem('vortex_masterGudang', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('masterProject', val => { localStorage.setItem('vortex_masterProject', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('stokGudang', val => { localStorage.setItem('vortex_stokGudang', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('drumLedger', val => { localStorage.setItem('vortex_drumLedger', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('transactions', val => { localStorage.setItem('vortex_transactions', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('materialUsage', val => { localStorage.setItem('vortex_materialUsage', JSON.stringify(val)); }, { deep: true });
+                    this.$watch('masterBarang', val => { this.safeSaveStorage('vortex_masterBarang', val); }, { deep: true });
+                    this.$watch('masterGudang', val => { this.safeSaveStorage('vortex_masterGudang', val); }, { deep: true });
+                    this.$watch('masterProject', val => { this.safeSaveStorage('vortex_masterProject', val); }, { deep: true });
+                    this.$watch('stokGudang', val => { this.safeSaveStorage('vortex_stokGudang', val); }, { deep: true });
+                    this.$watch('drumLedger', val => { this.safeSaveStorage('vortex_drumLedger', val); }, { deep: true });
+                    this.$watch('transactions', val => { this.safeSaveStorage('vortex_transactions', val); }, { deep: true });
+                    this.$watch('materialUsage', val => { this.safeSaveStorage('vortex_materialUsage', val); }, { deep: true });
 
                     this.refreshIcons();
+                },
+
+                safeSaveStorage(key, val) {
+                    try {
+                        localStorage.setItem(key, JSON.stringify(val));
+                    } catch (e) {
+                        console.warn(`LocalStorage quota exceeded for ${key}:`, e);
+                        this.showNotification('Peringatan: Penyimpanan lokal penuh, sinkronkan ke cloud.', 'error');
+                    }
                 },
 
                 refreshIcons() {
