@@ -1232,120 +1232,139 @@
                 },
 
                 saveModalData() {
-                    let targetArray = this.modalType === 'barang' ? this.masterBarang : (this.modalType === 'gudang' ? this.masterGudang : this.masterProject);
-                    
-                    if (this.isEdit) {
-                        targetArray[this.editIndex] = { ...this.modalForm };
-                        this.showNotification('Data berhasil diupdate.');
-                    } else {
-                        targetArray.push({ ...this.modalForm });
-                        this.showNotification('Data berhasil ditambahkan.');
-                    }
-                    
-                    let table = this.modalType === 'barang' ? 'master_barang' : (this.modalType === 'gudang' ? 'master_gudang' : 'master_project');
-                    
-                    this.persistToSupabase(table, { ...this.modalForm });
-                    
-                    this.showModal = false;
-                },
+    let targetArray = this.modalType === 'barang' ? this.masterBarang : (this.modalType === 'gudang' ? this.masterGudang : this.masterProject);
+    
+    // Menentukan nama tabel dan kolom Primary Key
+    let table = this.modalType === 'barang' ? 'master_barang' : (this.modalType === 'gudang' ? 'master_gudang' : 'master_project');
+    let dbIdField = this.modalType === 'barang' ? 'kode_barang' : (this.modalType === 'gudang' ? 'kode_gudang' : 'kode_project');
+    let localIdField = this.modalType === 'barang' ? 'kodeBarang' : (this.modalType === 'gudang' ? 'kodeGudang' : 'kodeProject');
 
-                async persistToSupabase(table, data) {
-                    if (!supabaseClient) return;
-                    try {
-                        let rawData = Array.isArray(data) ? data : [data];
-                        if (rawData.length === 0) return;
+    if (this.isEdit) {
+        // Simpan nilai ID lama sebagai acuan pencarian di database (jika user mengubah kode)
+        let oldData = targetArray[this.editIndex];
+        let oldIdValue = oldData[localIdField];
+        
+        targetArray[this.editIndex] = { ...this.modalForm };
+        this.showNotification('Data berhasil diupdate.');
+        
+        // Kirim instruksi update eksplisit dengan parameter isEdit = true
+        this.persistToSupabase(table, { ...this.modalForm }, true, dbIdField, oldIdValue);
+    } else {
+        targetArray.push({ ...this.modalForm });
+        this.showNotification('Data berhasil ditambahkan.');
+        
+        // Simpan data baru seperti biasa
+        this.persistToSupabase(table, { ...this.modalForm });
+    }
+    
+    this.showModal = false;
+}
 
-                        let payload = rawData.map(item => {
-                            if (table === 'master_barang') {
-                                return {
-                                    kategori: item.kategori,
-                                    jenis: item.jenis,
-                                    kode_barang: item.kodeBarang,
-                                    nama_barang: item.namaBarang,
-                                    sat: item.sat
-                                };
-                            } else if (table === 'master_gudang') {
-                                return {
-                                    kode_gudang: item.kodeGudang,
-                                    nama_gudang: item.namaGudang,
-                                    tipe_kepemilikan: item.tipeKepemilikan,
-                                    lokasi: item.lokasi
-                                };
-                            } else if (table === 'master_project') {
-                                return {
-                                    periode: item.periode,
-                                    region: item.region,
-                                    kode_project: item.kodeProject,
-                                    type: item.type,
-                                    no_po: item.noPO,
-                                    project_name: item.projectName,
-                                    po_awal: item.poAwal,
-                                    po_final: item.poFinal,
-                                    status_po: item.statusPO,
-                                    permit: item.permit,
-                                    snd: item.snd,
-                                    status_project: item.statusProject
-                                };
-                            } else if (table === 'transactions') {
-                                return {
-                                    tanggal: item.tanggal,
-                                    no_transaksi: item.noTransaksi,
-                                    no_referensi: item.noReferensi,
-                                    tipe_transaksi: item.tipeTransaksi,
-                                    gudang_asal: item.gudangAsal,
-                                    gudang_tujuan: item.gudangTujuan,
-                                    kode_project: item.kodeProject,
-                                    keterangan: item.keterangan,
-                                    lampiran: item.lampiran,
-                                    lampiran_url: item.lampiranUrl,
-                                    items: typeof item.items === 'string' ? item.items : JSON.stringify(item.items || [])
-                                };
-                            } else if (table === 'stok_gudang') {
-                                return {
-                                    id: item.id || `${item.kodeBarang}_${item.gudang}`,
-                                    kode_barang: item.kodeBarang,
-                                    nama_barang: item.namaBarang,
-                                    kategori: item.kategori,
-                                    gudang: item.gudang,
-                                    qty: Number(item.qty),
-                                    sat: item.sat
-                                };
-                            } else if (table === 'drum_ledger') {
-                                return {
-                                    drum_id: item.drumId,
-                                    kode_barang: item.kodeBarang,
-                                    nama_barang: item.namaBarang,
-                                    gudang: item.gudang,
-                                    initial_length: Number(item.initialLength),
-                                    remaining_length: Number(item.remainingLength),
-                                    status: item.status
-                                };
-                            } else if (table === 'material_usage') {
-                                return {
-                                    id: item.id,
-                                    kode_project: item.kodeProject,
-                                    no_po: item.noPO,
-                                    project_name: item.projectName,
-                                    kode_barang: item.kodeBarang,
-                                    nama_barang: item.namaBarang,
-                                    drum_id: item.drumId,
-                                    qty: Number(item.qty),
-                                    tanggal: item.tanggal
-                                };
-                            }
-                            return item;
-                        });
+                async persistToSupabase(table, data, isEdit = false, matchCol = null, matchVal = null) {
+    if (!supabaseClient) return;
+    try {
+        let rawData = Array.isArray(data) ? data : [data];
+        if (rawData.length === 0) return;
 
-                        const { error } = await supabaseClient.from(table).upsert(payload);
-                        
-                        if (error) {
-                            console.warn(`Supabase upsert warning on ${table}:`, error.message);
-                        }
-                    } catch (err) {
-                        console.error(`Error persisting to Supabase (${table}):`, err);
-                    }
-                },
+        let payload = rawData.map(item => {
+            if (table === 'master_barang') {
+                return {
+                    kategori: item.kategori,
+                    jenis: item.jenis,
+                    kode_barang: item.kodeBarang,
+                    nama_barang: item.namaBarang,
+                    sat: item.sat
+                };
+            } else if (table === 'master_gudang') {
+                return {
+                    kode_gudang: item.kodeGudang,
+                    nama_gudang: item.namaGudang,
+                    tipe_kepemilikan: item.tipeKepemilikan,
+                    lokasi: item.lokasi
+                };
+            } else if (table === 'master_project') {
+                return {
+                    periode: item.periode,
+                    region: item.region,
+                    kode_project: item.kodeProject,
+                    type: item.type,
+                    no_po: item.noPO,
+                    project_name: item.projectName,
+                    po_awal: item.poAwal,
+                    po_final: item.poFinal,
+                    status_po: item.statusPO,
+                    permit: item.permit,
+                    snd: item.snd,
+                    status_project: item.statusProject
+                };
+            } else if (table === 'transactions') {
+                return {
+                    tanggal: item.tanggal,
+                    no_transaksi: item.noTransaksi,
+                    no_referensi: item.noReferensi,
+                    tipe_transaksi: item.tipeTransaksi,
+                    gudang_asal: item.gudangAsal,
+                    gudang_tujuan: item.gudangTujuan,
+                    kode_project: item.kodeProject,
+                    keterangan: item.keterangan,
+                    lampiran: item.lampiran,
+                    lampiran_url: item.lampiranUrl,
+                    items: typeof item.items === 'string' ? item.items : JSON.stringify(item.items || [])
+                };
+            } else if (table === 'stok_gudang') {
+                return {
+                    id: item.id || `${item.kodeBarang}_${item.gudang}`,
+                    kode_barang: item.kodeBarang,
+                    nama_barang: item.namaBarang,
+                    kategori: item.kategori,
+                    gudang: item.gudang,
+                    qty: Number(item.qty),
+                    sat: item.sat
+                };
+            } else if (table === 'drum_ledger') {
+                return {
+                    drum_id: item.drumId,
+                    kode_barang: item.kodeBarang,
+                    nama_barang: item.namaBarang,
+                    gudang: item.gudang,
+                    initial_length: Number(item.initialLength),
+                    remaining_length: Number(item.remainingLength),
+                    status: item.status
+                };
+            } else if (table === 'material_usage') {
+                return {
+                    id: item.id,
+                    kode_project: item.kodeProject,
+                    no_po: item.noPO,
+                    project_name: item.projectName,
+                    kode_barang: item.kodeBarang,
+                    nama_barang: item.namaBarang,
+                    drum_id: item.drumId,
+                    qty: Number(item.qty),
+                    tanggal: item.tanggal
+                };
+            }
+            return item;
+        });
 
+        // Logika utama yang diubah untuk mengatasi masalah update
+        if (isEdit && matchCol && matchVal) {
+            // Melakukan update secara presisi pada row yang spesifik
+            const { error } = await supabaseClient.from(table).update(payload[0]).eq(matchCol, matchVal);
+            if (error) {
+                console.warn(`Supabase update warning on ${table}:`, error.message);
+            }
+        } else {
+            // Berlaku untuk insert baru, atau sinkronisasi data lain yang tidak spesifik diedit
+            const { error } = await supabaseClient.from(table).upsert(payload);
+            if (error) {
+                console.warn(`Supabase upsert warning on ${table}:`, error.message);
+            }
+        }
+    } catch (err) {
+        console.error(`Error persisting to Supabase (${table}):`, err);
+    }
+},
                 async syncWithSupabaseOnStart() {
                     if (!supabaseClient) return;
                     try {
