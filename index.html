@@ -1750,28 +1750,24 @@
                     }
                 },
 
-                // Added Missing Helper & Filter Functions
                 getFilteredStokGudang() {
-                    if (!this.filterStokGudang) return this.stokGudang || [];
-                    return (this.stokGudang || []).filter(s => s.gudang === this.filterStokGudang);
+                    if (!this.filterStokGudang) return this.stokGudang;
+                    return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
                 },
 
                 getFilteredDrumLedger() {
-                    if (!this.filterStokGudang) return this.drumLedger || [];
-                    return (this.drumLedger || []).filter(d => d.gudang === this.filterStokGudang);
+                    return this.drumLedger || [];
                 },
 
                 getUniqueRegions() {
-                    return [...new Set((this.masterProject || []).map(p => p.region).filter(Boolean))];
+                    return [...new Set(this.masterProject.map(p => p.region))];
                 },
 
                 getFilteredMaterialUsage() {
                     let list = this.materialUsage || [];
                     if (this.filterRegionUsage) {
-                        const matchingProjects = (this.masterProject || [])
-                            .filter(p => p.region === this.filterRegionUsage)
-                            .map(p => p.kodeProject);
-                        list = list.filter(u => matchingProjects.includes(u.kodeProject));
+                        const projCodesInRegion = this.masterProject.filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
+                        list = list.filter(u => projCodesInRegion.includes(u.kodeProject));
                     }
                     if (this.searchMaterialUsageProject) {
                         const q = this.searchMaterialUsageProject.toLowerCase();
@@ -1806,16 +1802,15 @@
                 },
 
                 deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Stok dan drum ledger terkait akan dikembalikan.`)) {
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"? Stok dan drum ledger terkait akan dikembalikan/dibalikkan.`)) {
                         const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
                         if (idx !== -1) {
                             this.reverseTransactionEffects(tx);
                             this.transactions.splice(idx, 1);
-                            this.persistToSupabase('transactions', this.transactions);
-                            this.persistToSupabase('stok_gudang', this.stokGudang);
-                            this.persistToSupabase('drum_ledger', this.drumLedger);
-                            this.persistToSupabase('material_usage', this.materialUsage);
-                            this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus dan stok dipulihkan.`);
+                            if (supabaseClient) {
+                                supabaseClient.from('transactions').delete().eq('noTransaksi', tx.noTransaksi).then();
+                            }
+                            this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus.`);
                             this.refreshIcons();
                         }
                     }
@@ -1831,16 +1826,18 @@
 
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
-                    const map = {};
+                    const summary = {};
                     this.activeBast.items.forEach(item => {
                         const name = item.namaBarang || item.kodeBarang;
-                        const qty = Number(item.qty) || 0;
-                        if (!map[name]) {
-                            map[name] = { namaBarang: name, totalQty: 0 };
+                        if (!summary[name]) {
+                            summary[name] = 0;
                         }
-                        map[name].totalQty += qty;
+                        summary[name] += Number(item.qty || 0);
                     });
-                    return Object.values(map);
+                    return Object.keys(summary).map(namaBarang => ({
+                        namaBarang,
+                        totalQty: summary[namaBarang]
+                    }));
                 }
             };
         }
