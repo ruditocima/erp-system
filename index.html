@@ -1200,6 +1200,82 @@
                     }
                 },
 
+                openModal(type) {
+                    this.modalType = type;
+                    this.isEdit = false;
+                    this.editIndex = null;
+                    this.modalForm = {};
+                    this.showModal = true;
+                    this.refreshIcons();
+                },
+
+                openEditModal(type, index) {
+                    this.modalType = type;
+                    this.isEdit = true;
+                    this.editIndex = index;
+                    let targetList = [];
+                    if (type === 'barang') targetList = this.masterBarang;
+                    else if (type === 'gudang') targetList = this.masterGudang;
+                    else if (type === 'project') targetList = this.masterProject;
+
+                    this.modalForm = JSON.parse(JSON.stringify(targetList[index] || {}));
+                    this.showModal = true;
+                    this.refreshIcons();
+                },
+
+                saveModalData() {
+                    let targetTable = '';
+                    let targetList = [];
+                    if (this.modalType === 'barang') {
+                        targetTable = 'master_barang';
+                        targetList = this.masterBarang;
+                    } else if (this.modalType === 'gudang') {
+                        targetTable = 'master_gudang';
+                        targetList = this.masterGudang;
+                    } else if (this.modalType === 'project') {
+                        targetTable = 'master_project';
+                        targetList = this.masterProject;
+                    }
+
+                    if (this.isEdit && this.editIndex !== null) {
+                        targetList[this.editIndex] = JSON.parse(JSON.stringify(this.modalForm));
+                        this.showNotification(`Master ${this.modalType} berhasil diperbarui.`);
+                    } else {
+                        targetList.unshift(JSON.parse(JSON.stringify(this.modalForm)));
+                        this.showNotification(`Master ${this.modalType} baru berhasil ditambahkan.`);
+                    }
+
+                    this.persistToSupabase(targetTable, targetList);
+                    this.showModal = false;
+                    this.refreshIcons();
+                },
+
+                deleteItem(type, index) {
+                    let targetTable = '';
+                    let targetList = [];
+                    let name = '';
+                    if (type === 'barang') {
+                        targetTable = 'master_barang';
+                        targetList = this.masterBarang;
+                        name = targetList[index].namaBarang;
+                    } else if (type === 'gudang') {
+                        targetTable = 'master_gudang';
+                        targetList = this.masterGudang;
+                        name = targetList[index].namaGudang;
+                    } else if (type === 'project') {
+                        targetTable = 'master_project';
+                        targetList = this.masterProject;
+                        name = targetList[index].kodeProject;
+                    }
+
+                    if (confirm(`Apakah Anda yakin ingin menghapus ${type} "${name}"?`)) {
+                        targetList.splice(index, 1);
+                        this.showNotification(`Data ${type} berhasil dihapus.`);
+                        this.persistToSupabase(targetTable, targetList);
+                        this.refreshIcons();
+                    }
+                },
+
                 login() {
                     if (!this.loginForm.email || !this.loginForm.password) {
                         this.showNotification('Mohon masukkan email dan password!', 'error');
@@ -1671,7 +1747,6 @@
                     this.refreshIcons();
                 },
 
-                // FITUR INVENTORY REVERSAL: Mengembalikan stok & drum saat transaksi dihapus
                 deleteTransaction(tx) {
                     if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Stok dan data terkait akan dikembalikan secara otomatis.`)) {
                         const type = tx.tipeTransaksi;
@@ -1736,65 +1811,13 @@
                     this.activeBast.items.forEach(item => {
                         const name = item.namaBarang || 'Unknown Item';
                         const qty = Number(item.qty) || 0;
-                        if (!map[name]) {
-                            map[name] = 0;
+                        if (map[name]) {
+                            map[name] += qty;
+                        } else {
+                            map[name] = qty;
                         }
-                        map[name] += qty;
                     });
-                    return Object.keys(map).map(namaBarang => ({
-                        namaBarang,
-                        totalQty: map[namaBarang]
-                    }));
-                },
-
-                openModal(type) {
-                    this.modalType = type;
-                    this.isEdit = false;
-                    this.modalForm = {};
-                    this.showModal = true;
-                    this.refreshIcons();
-                },
-
-                openEditModal(type, index) {
-                    this.modalType = type;
-                    this.isEdit = true;
-                    this.editIndex = index;
-                    if (type === 'barang') this.modalForm = { ...this.masterBarang[index] };
-                    else if (type === 'gudang') this.modalForm = { ...this.masterGudang[index] };
-                    else if (type === 'project') this.modalForm = { ...this.masterProject[index] };
-                    this.showModal = true;
-                    this.refreshIcons();
-                },
-
-                saveModalData() {
-                    if (this.modalType === 'barang') {
-                        if (this.isEdit) this.masterBarang[this.editIndex] = { ...this.modalForm };
-                        else this.masterBarang.push({ ...this.modalForm });
-                        this.persistToSupabase('master_barang', this.modalForm);
-                    } else if (this.modalType === 'gudang') {
-                        if (this.isEdit) this.masterGudang[this.editIndex] = { ...this.modalForm };
-                        else this.masterGudang.push({ ...this.modalForm });
-                        this.persistToSupabase('master_gudang', this.modalForm);
-                    } else if (this.modalType === 'project') {
-                        if (this.isEdit) this.masterProject[this.editIndex] = { ...this.modalForm };
-                        else this.masterProject.push({ ...this.modalForm });
-                        this.persistToSupabase('master_project', this.modalForm);
-                    }
-
-                    this.showModal = false;
-                    this.showNotification(`Data Master ${this.modalType} berhasil disimpan!`);
-                    this.refreshIcons();
-                },
-
-                deleteItem(type, index) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus data master ${type} ini?`)) {
-                        if (type === 'barang') this.masterBarang.splice(index, 1);
-                        else if (type === 'gudang') this.masterGudang.splice(index, 1);
-                        else if (type === 'project') this.masterProject.splice(index, 1);
-                        
-                        this.showNotification(`Data master ${type} berhasil dihapus.`);
-                        this.refreshIcons();
-                    }
+                    return Object.keys(map).map(namaBarang => ({ namaBarang, totalQty: map[namaBarang] }));
                 }
             }
         }
