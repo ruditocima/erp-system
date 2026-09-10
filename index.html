@@ -1759,6 +1759,33 @@
                     }
                 },
 
+                editTransaction(tx) {
+                    this.newTrans = JSON.parse(JSON.stringify(tx));
+                    this.currentTab = 'input-transaksi';
+                    this.refreshIcons();
+                },
+
+                deleteTransaction(tx) {
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?`)) {
+                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
+                        if (idx !== -1) {
+                            this.reverseTransactionEffects(tx);
+                            this.transactions.splice(idx, 1);
+                            this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus.`);
+                            this.persistToSupabase('transactions', this.transactions);
+                            this.refreshIcons();
+                        }
+                    }
+                },
+
+                printBAST(tx) {
+                    this.activeBast = JSON.parse(JSON.stringify(tx));
+                    this.refreshIcons();
+                    setTimeout(() => {
+                        window.print();
+                    }, 300);
+                },
+
                 getFilteredStokGudang() {
                     if (!this.filterStokGudang) return this.stokGudang;
                     return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
@@ -1768,25 +1795,26 @@
                     return this.drumLedger || [];
                 },
 
+                getUniqueRegions() {
+                    return [...new Set((this.masterProject || []).map(p => p.region).filter(Boolean))];
+                },
+
                 getFilteredMaterialUsage() {
                     let list = this.materialUsage || [];
                     if (this.filterRegionUsage) {
-                        const projCodesInRegion = this.masterProject.filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
-                        list = list.filter(u => projCodesInRegion.includes(u.kodeProject));
+                        const projCodes = (this.masterProject || []).filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
+                        list = list.filter(u => projCodes.includes(u.kodeProject));
                     }
                     if (this.searchMaterialUsageProject) {
                         const q = this.searchMaterialUsageProject.toLowerCase();
                         list = list.filter(u => 
                             (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
                             (u.projectName && u.projectName.toLowerCase().includes(q)) ||
-                            (u.noPO && u.noPO.toLowerCase().includes(q))
+                            (u.noPO && u.noPO.toLowerCase().includes(q)) ||
+                            (u.namaBarang && u.namaBarang.toLowerCase().includes(q))
                         );
                     }
                     return list;
-                },
-
-                getUniqueRegions() {
-                    return [...new Set(this.masterProject.map(p => p.region))];
                 },
 
                 getFilteredTransactions() {
@@ -1802,44 +1830,15 @@
                     return list;
                 },
 
-                editTransaction(tx) {
-                    this.newTrans = JSON.parse(JSON.stringify(tx));
-                    this.currentTab = 'input-transaksi';
-                    this.refreshIcons();
-                },
-
-                deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"? Efek stok akan direverse.`)) {
-                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
-                        if (idx !== -1) {
-                            this.reverseTransactionEffects(tx);
-                            this.transactions.splice(idx, 1);
-                            if (supabaseClient) {
-                                supabaseClient.from('transactions').delete().eq('noTransaksi', tx.noTransaksi).then();
-                            }
-                            this.showNotification('Transaksi berhasil dihapus dan stok direverse.');
-                            this.refreshIcons();
-                        }
-                    }
-                },
-
-                printBAST(tx) {
-                    this.activeBast = JSON.parse(JSON.stringify(tx));
-                    this.refreshIcons();
-                    setTimeout(() => {
-                        window.print();
-                    }, 300);
-                },
-
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
                     const map = {};
                     this.activeBast.items.forEach(item => {
-                        const name = item.namaBarang || item.kodeBarang;
-                        if (!map[name]) {
-                            map[name] = { namaBarang: name, totalQty: 0 };
+                        const key = item.namaBarang || item.kodeBarang;
+                        if (!map[key]) {
+                            map[key] = { namaBarang: item.namaBarang || item.kodeBarang, totalQty: 0 };
                         }
-                        map[name].totalQty += Number(item.qty || 0);
+                        map[key].totalQty += Number(item.qty) || 0;
                     });
                     return Object.values(map);
                 }
