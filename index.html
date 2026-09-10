@@ -1771,12 +1771,12 @@
                                         drum.remainingLength = Math.min(drum.initialLength, Number(drum.remainingLength) + Number(item.qty));
                                         if (drum.remainingLength === drum.initialLength) {
                                             drum.status = 'Full';
-                                        } else if (drum.remainingLength > 0) {
+                                        } else {
                                             drum.status = 'Partial';
                                         }
                                     }
                                 }
-                                this.materialUsage = this.materialUsage.filter(u => u.kodeProject !== tx.kodeProject || u.kodeBarang !== item.kodeBarang || u.qty !== Number(item.qty));
+                                this.materialUsage = this.materialUsage.filter(u => u.kodeProject !== tx.kodeProject || u.kodeBarang !== item.kodeBarang || u.qty !== item.qty);
                             } else if (type === 'Transfer') {
                                 this.updateStok(tx.gudangAsal, item, sat, item.qty);
                                 this.updateStok(tx.gudangTujuan, item, sat, -item.qty);
@@ -1789,15 +1789,17 @@
                             }
                         });
 
-                        const txIndex = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
-                        if (txIndex !== -1) {
-                            this.transactions.splice(txIndex, 1);
+                        const index = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
+                        if (index !== -1) {
+                            this.transactions.splice(index, 1);
                         }
 
-                        this.persistToSupabase('transactions', this.transactions);
-                        this.persistToSupabase('stok_gudang', this.stokGudang);
-                        this.persistToSupabase('drum_ledger', this.drumLedger);
-                        this.persistToSupabase('material_usage', this.materialUsage);
+                        if (supabaseClient) {
+                            supabaseClient.from('transactions').delete().eq('noTransaksi', tx.noTransaksi).then();
+                            this.persistToSupabase('stok_gudang', this.stokGudang);
+                            this.persistToSupabase('drum_ledger', this.drumLedger);
+                            this.persistToSupabase('material_usage', this.materialUsage);
+                        }
 
                         this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus dan stok dipulihkan.`);
                         this.refreshIcons();
@@ -1806,23 +1808,25 @@
 
                 printBAST(tx) {
                     this.activeBast = JSON.parse(JSON.stringify(tx));
-                    this.refreshIcons();
-                    setTimeout(() => {
+                    this.$nextTick(() => {
                         window.print();
-                    }, 300);
+                    });
                 },
 
                 getBastSummaryTotals() {
-                    if (!this.activeBast || !this.activeBast.items) return [];
+                    if (!this.activeBast.items) return [];
                     const map = {};
                     this.activeBast.items.forEach(i => {
-                        const name = i.namaBarang || i.kodeBarang || 'Unknown Item';
+                        const name = i.namaBarang || i.kodeBarang;
                         if (!map[name]) {
                             map[name] = 0;
                         }
-                        map[name] += Number(i.qty) || 0;
+                        map[name] += Number(i.qty || 0);
                     });
-                    return Object.keys(map).map(namaBarang => ({ namaBarang, totalQty: map[namaBarang] }));
+                    return Object.keys(map).map(namaBarang => ({
+                        namaBarang,
+                        totalQty: map[namaBarang]
+                    }));
                 }
             };
         }
