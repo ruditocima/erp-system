@@ -1205,34 +1205,52 @@
                 },
 
                 async persistToSupabase(table, data) {
-                    if (!supabaseClient) return;
-                    try {
-                        let payload = Array.isArray(data) ? data : [data];
-                        if (payload.length === 0) return;
+    if (!supabaseClient) return;
+    try {
+        let payload = Array.isArray(data) ? data : [data];
+        if (payload.length === 0) return;
 
-                        // Proteksi khusus master_gudang: jika kolom database berbeda, sesuaikan objeknya
-                        if (table === 'master_gudang') {
-                            payload = payload.map(item => ({
-                                kode_gudang: item.kodeGudang,
-                                nama_gudang: item.namaGudang,
-                                tipe_kepemilikan: item.tipeKepemilikan,
-                                lokasi: item.lokasi
-                            }));
-                        }
+        // Pemetaan khusus kolom tabel agar kompatibel dengan snake_case database Supabase
+        if (table === 'master_gudang') {
+            payload = payload.map(item => ({
+                kode_gudang: item.kodeGudang || item.kode_gudang,
+                nama_gudang: item.namaGudang || item.nama_gudang,
+                tipe_kepemilikan: item.tipeKepemilikan || item.tipe_kepemilikan,
+                lokasi: item.lokasi
+            }));
+        } else if (table === 'master_barang') {
+            payload = payload.map(item => ({
+                kode_barang: item.kodeBarang || item.kode_barang,
+                nama_barang: item.namaBarang || item.nama_barang,
+                kategori: item.kategori,
+                jenis: item.jenis,
+                sat: item.sat
+            }));
+        } else if (table === 'master_project') {
+            payload = payload.map(item => ({
+                kode_project: item.kodeProject || item.kode_project,
+                periode: item.periode,
+                region: item.region,
+                type: item.type,
+                no_po: item.noPO || item.no_po,
+                project_name: item.projectName || item.project_name,
+                po_awal: item.poAwal || item.po_awal,
+                po_final: item.poFinal || item.po_final,
+                status_po: item.statusPO || item.status_po,
+                permit: item.permit,
+                snd: item.snd,
+                status_project: item.statusProject || item.status_project
+            }));
+        }
 
-                        const { error } = await supabaseClient.from(table).upsert(payload);
-                        if (error) {
-                            console.warn(`Supabase upsert warning on ${table}:`, error.message);
-                            // Fallback jika skema pakai camelCase atau kolom alternatif
-                            if (table === 'master_gudang' && error.message.includes('column')) {
-                                await supabaseClient.from(table).upsert(Array.isArray(data) ? data : [data]);
-                            }
-                        }
-                    } catch (e) {
-                        console.warn(`Failed to sync table ${table} to Supabase:`, e);
-                    }
-                },
-
+        const { error } = await supabaseClient.from(table).upsert(payload);
+        if (error) {
+            console.warn(`Supabase upsert warning on ${table}:`, error.message);
+        }
+    } catch (e) {
+        console.warn(`Failed to sync table ${table} to Supabase:`, e);
+    }
+}
                 openModal(type) {
                     this.modalType = type;
                     this.isEdit = false;
