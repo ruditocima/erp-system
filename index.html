@@ -1749,9 +1749,57 @@
                     }
                 },
 
+                editTransaction(tx) {
+                    this.newTrans = JSON.parse(JSON.stringify(tx));
+                    this.currentTab = 'input-transaksi';
+                    this.refreshIcons();
+                },
+
+                deleteTransaction(tx) {
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Stok dan drum ledger terkait akan dikembalikan.`)) {
+                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
+                        if (idx !== -1) {
+                            this.reverseTransactionEffects(tx);
+                            this.transactions.splice(idx, 1);
+                            this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus.`);
+                            if (supabaseClient) {
+                                supabaseClient.from('transactions').delete().eq('noTransaksi', tx.noTransaksi).then(({ error }) => {
+                                    if (error) console.warn('Supabase delete error:', error.message);
+                                });
+                                this.persistToSupabase('stok_gudang', this.stokGudang);
+                                this.persistToSupabase('drum_ledger', this.drumLedger);
+                                this.persistToSupabase('material_usage', this.materialUsage);
+                            }
+                            this.refreshIcons();
+                        }
+                    }
+                },
+
+                printBAST(tx) {
+                    this.activeBast = JSON.parse(JSON.stringify(tx));
+                    this.refreshIcons();
+                    setTimeout(() => {
+                        window.print();
+                    }, 300);
+                },
+
+                getBastSummaryTotals() {
+                    if (!this.activeBast || !this.activeBast.items) return [];
+                    const map = {};
+                    this.activeBast.items.forEach(i => {
+                        const name = i.namaBarang || i.kodeBarang;
+                        if (!map[name]) map[name] = 0;
+                        map[name] += Number(i.qty) || 0;
+                    });
+                    return Object.keys(map).map(namaBarang => ({ namaBarang, totalQty: map[namaBarang] }));
+                },
+
                 getFilteredStokGudang() {
-                    if (!this.filterStokGudang) return this.stokGudang || [];
-                    return (this.stokGudang || []).filter(s => s.gudang === this.filterStokGudang);
+                    let list = this.stokGudang || [];
+                    if (this.filterStokGudang) {
+                        list = list.filter(s => s.gudang === this.filterStokGudang);
+                    }
+                    return list;
                 },
 
                 getFilteredDrumLedger() {
@@ -1759,14 +1807,15 @@
                 },
 
                 getUniqueRegions() {
-                    return [...new Set((this.masterProject || []).map(p => p.region).filter(Boolean))];
+                    const regions = (this.masterProject || []).map(p => p.region).filter(Boolean);
+                    return [...new Set(regions)];
                 },
 
                 getFilteredMaterialUsage() {
                     let list = this.materialUsage || [];
                     if (this.filterRegionUsage) {
-                        const matchingProjects = (this.masterProject || []).filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
-                        list = list.filter(u => matchingProjects.includes(u.kodeProject));
+                        const validProjects = (this.masterProject || []).filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
+                        list = list.filter(u => validProjects.includes(u.kodeProject));
                     }
                     if (this.searchMaterialUsageProject) {
                         const q = this.searchMaterialUsageProject.toLowerCase();
@@ -1791,52 +1840,6 @@
                         list = list.filter(t => t.noReferensi && t.noReferensi.toLowerCase().includes(q));
                     }
                     return list;
-                },
-
-                editTransaction(tx) {
-                    this.newTrans = JSON.parse(JSON.stringify(tx));
-                    this.currentTab = 'input-transaksi';
-                    this.refreshIcons();
-                },
-
-                deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"? Stok & Drum Ledger akan dikembalikan.`)) {
-                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
-                        if (idx !== -1) {
-                            this.reverseTransactionEffects(tx);
-                            this.transactions.splice(idx, 1);
-                            this.persistToSupabase('transactions', this.transactions);
-                            this.persistToSupabase('stok_gudang', this.stokGudang);
-                            this.persistToSupabase('drum_ledger', this.drumLedger);
-                            this.persistToSupabase('material_usage', this.materialUsage);
-                            this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus.`);
-                            this.refreshIcons();
-                        }
-                    }
-                },
-
-                printBAST(tx) {
-                    this.activeBast = JSON.parse(JSON.stringify(tx));
-                    this.refreshIcons();
-                    setTimeout(() => {
-                        window.print();
-                    }, 300);
-                },
-
-                getBastSummaryTotals() {
-                    if (!this.activeBast || !this.activeBast.items) return [];
-                    const map = {};
-                    this.activeBast.items.forEach(i => {
-                        const name = i.namaBarang || i.kodeBarang;
-                        if (!map[name]) {
-                            map[name] = 0;
-                        }
-                        map[name] += Number(i.qty || 0);
-                    });
-                    return Object.keys(map).map(namaBarang => ({
-                        namaBarang,
-                        totalQty: map[namaBarang]
-                    }));
                 }
             };
         }
