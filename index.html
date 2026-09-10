@@ -744,7 +744,7 @@
                                         <th class="p-3">Gudang Asal → Tujuan</th>
                                         <th class="p-3">Project</th>
                                         <th class="p-3">Keterangan</th>
-                                        <th class="p-3 text-right">Aksi BAST PDF</th>
+                                        <th class="p-3 text-right">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs">
@@ -760,9 +760,17 @@
                                             <td class="p-3 text-slate-200" x-text="tx.kodeProject || '-'"></td>
                                             <td class="p-3 text-slate-300" x-text="tx.keterangan || '-'"></td>
                                             <td class="p-3 text-right">
-                                                <button type="button" @click="printBAST(tx)" class="bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 px-3 py-1.5 rounded-lg text-[11px] font-medium transition flex items-center gap-1.5 ml-auto">
-                                                    <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print BAST PDF
-                                                </button>
+                                                <div class="flex items-center justify-end gap-1.5">
+                                                    <button type="button" @click="editTransaction(tx)" class="text-slate-400 hover:text-indigo-400 p-1.5 rounded-lg hover:bg-slate-800 transition" title="Edit Transaksi">
+                                                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                    <button type="button" @click="deleteTransaction(tx)" class="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition" title="Hapus Transaksi">
+                                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                    <button type="button" @click="printBAST(tx)" class="bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition flex items-center gap-1.5" title="Print BAST PDF">
+                                                        <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print BAST
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     </template>
@@ -1476,6 +1484,31 @@
                     return result;
                 },
 
+                editTransaction(tx) {
+                    this.newTrans = JSON.parse(JSON.stringify(tx));
+                    this.switchTab('input-transaksi');
+                    this.showNotification(`Data transaksi ${tx.noTransaksi} dimuat ke form input untuk diedit.`, 'success');
+                },
+
+                async deleteTransaction(tx) {
+                    if (!tx || !tx.noTransaksi) return;
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?`)) {
+                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
+                        if (idx !== -1) {
+                            this.transactions.splice(idx, 1);
+                            if (supabaseClient) {
+                                try { 
+                                    await supabaseClient.from('transactions').delete().eq('noTransaksi', tx.noTransaksi); 
+                                } catch (e) { 
+                                    console.warn('Failed to delete transaction from Supabase:', e); 
+                                }
+                            }
+                            this.showNotification('Data transaksi berhasil dihapus.', 'success');
+                            this.refreshIcons();
+                        }
+                    }
+                },
+
                 printBAST(tx) {
                     this.activeBast = tx;
                     const originalTitle = document.title;
@@ -1732,7 +1765,13 @@
                         }
 
                         transData.items = expandedItems;
-                        this.transactions.unshift(transData);
+                        
+                        const existingIdx = this.transactions.findIndex(t => t.noTransaksi === transData.noTransaksi);
+                        if (existingIdx !== -1) {
+                            this.transactions.splice(existingIdx, 1, transData);
+                        } else {
+                            this.transactions.unshift(transData);
+                        }
 
                         // Persist to Supabase tables
                         await this.persistToSupabase('transactions', transData);
