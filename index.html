@@ -659,7 +659,7 @@
                                         </template>
                                         <template x-if="getFilteredDrumLedger().length === 0">
                                             <tr>
-                                                <td colspan="7" class="p-6 text-center text-slate-500 text-xs">Belum ada data Drum Ledger.</td>
+                                                <td colspan="7" class="p-6 text-center text-slate-500 text-xs">Belum ada data Drum Ledger untuk gudang ini.</td>
                                             </tr>
                                         </template>
                                     </tbody>
@@ -1316,10 +1316,12 @@
                         localStorage.setItem('vortex_masterGudang', JSON.stringify(this.masterGudang));
 
                         this.stokGudang = this.stokGudang.filter(s => s.gudang !== targetItem.namaGudang);
+                        this.drumLedger = this.drumLedger.filter(d => d.gudang !== targetItem.namaGudang);
 
                         if (supabaseClient) {
                             await supabaseClient.from('master_gudang').delete().eq('kodeGudang', targetItem.kodeGudang);
                             await supabaseClient.from('stok_gudang').delete().eq('gudang', targetItem.namaGudang);
+                            await supabaseClient.from('drum_ledger').delete().eq('gudang', targetItem.namaGudang);
                         }
                     }
 
@@ -1466,7 +1468,6 @@
                     this.newTrans.noTransaksi = `ACM-NPM-${typeCode}-${datePart}-${rand}`;
                 },
 
-                // Generator Drum ID baru sesuai format [DRM024-PDG-01]
                 generateNewDrumId(gudangTujuan, kodeBarang) {
                     let gudangObj = this.masterGudang.find(g => g.namaGudang === gudangTujuan);
                     let kodeGudang = gudangObj ? gudangObj.kodeGudang : (gudangTujuan || 'GEN');
@@ -1852,26 +1853,33 @@
                     return result;
                 },
 
+                // PERUBAHAN UTAMA: Pelacakan drum difilter berdasarkan filterStokGudang
                 getFilteredDrumLedger() {
-                    return this.drumLedger;
+                    let result = this.drumLedger;
+                    if (this.filterStokGudang) {
+                        result = result.filter(d => d.gudang === this.filterStokGudang);
+                    }
+                    return result;
                 },
 
                 getUniqueRegions() {
-                    return [...new Set(this.masterProject.map(p => p.region).filter(Boolean))];
+                    return [...new Set(this.masterProject.map(p => p.region))];
                 },
 
                 getFilteredMaterialUsage() {
                     let result = this.materialUsage;
                     if (this.filterRegionUsage) {
-                        const projCodesInRegion = this.masterProject.filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
-                        result = result.filter(u => projCodesInRegion.includes(u.kodeProject));
+                        result = result.filter(u => {
+                            let proj = this.masterProject.find(p => p.kodeProject === u.kodeProject);
+                            return proj && proj.region === this.filterRegionUsage;
+                        });
                     }
                     if (this.searchMaterialUsageProject) {
-                        const q = this.searchMaterialUsageProject.toLowerCase();
+                        let query = this.searchMaterialUsageProject.toLowerCase();
                         result = result.filter(u => 
-                            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) || 
-                            (u.projectName && u.projectName.toLowerCase().includes(q)) || 
-                            (u.noPO && u.noPO.toLowerCase().includes(q))
+                            (u.kodeProject && u.kodeProject.toLowerCase().includes(query)) ||
+                            (u.projectName && u.projectName.toLowerCase().includes(query)) ||
+                            (u.noPO && u.noPO.toLowerCase().includes(query))
                         );
                     }
                     return result;
@@ -1880,11 +1888,11 @@
                 getFilteredTransactions() {
                     let result = this.transactions;
                     if (this.searchNoTransaksi) {
-                        const q = this.searchNoTransaksi.toLowerCase();
+                        let q = this.searchNoTransaksi.toLowerCase();
                         result = result.filter(t => t.noTransaksi && t.noTransaksi.toLowerCase().includes(q));
                     }
                     if (this.searchNoReferensi) {
-                        const q = this.searchNoReferensi.toLowerCase();
+                        let q = this.searchNoReferensi.toLowerCase();
                         result = result.filter(t => t.noReferensi && t.noReferensi.toLowerCase().includes(q));
                     }
                     return result;
