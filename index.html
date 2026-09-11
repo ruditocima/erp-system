@@ -1847,15 +1847,57 @@
                     this.refreshIcons();
                 },
 
-                deleteItem(type, index) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus data master ${type} ini?`)) {
-                        if (type === 'barang') this.masterBarang.splice(index, 1);
-                        else if (type === 'gudang') this.masterGudang.splice(index, 1);
-                        else if (type === 'project') this.masterProject.splice(index, 1);
-                        
-                        this.showNotification(`Data master ${type} berhasil dihapus.`);
-                        this.refreshIcons();
-                    }
+                async deleteItem(type, index) {
+    if (!confirm('Apakah Anda yakin ingin menghapus data ini beserta seluruh relasinya?')) return;
+
+    let targetItem = null;
+
+    // 1. Hapus berdasarkan tipe data master / stok
+    if (type === 'barang') {
+        targetItem = this.masterBarang[index];
+        this.masterBarang.splice(index, 1);
+        localStorage.setItem('vortex_masterBarang', JSON.stringify(this.masterBarang));
+        
+        // Bersihkan stok & drum ledger yang terkait dengan kode barang ini
+        this.stokGudang = this.stokGudang.filter(s => s.kodeBarang !== targetItem.kodeBarang);
+        this.drumLedger = this.drumLedger.filter(d => d.kodeBarang !== targetItem.kodeBarang);
+
+        if (supabaseClient) {
+            await supabaseClient.from('master_barang').delete().eq('kodeBarang', targetItem.kodeBarang);
+            await supabaseClient.from('stok_gudang').delete().eq('kodeBarang', targetItem.kodeBarang);
+            await supabaseClient.from('drum_ledger').delete().eq('kodeBarang', targetItem.kodeBarang);
+        }
+    } 
+    else if (type === 'project') {
+        targetItem = this.masterProject[index];
+        this.masterProject.splice(index, 1);
+        localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
+
+        // Bersihkan material usage terkait project ini
+        this.materialUsage = this.materialUsage.filter(m => m.kodeProject !== targetItem.kodeProject);
+
+        if (supabaseClient) {
+            await supabaseClient.from('master_project').delete().eq('kodeProject', targetItem.kodeProject);
+            await supabaseClient.from('material_usage').delete().eq('kodeProject', targetItem.kodeProject);
+        }
+    }
+    else if (type === 'gudang') {
+        targetItem = this.masterGudang[index];
+        this.masterGudang.splice(index, 1);
+        localStorage.setItem('vortex_masterGudang', JSON.stringify(this.masterGudang));
+
+        // Bersihkan stok di gudang tersebut
+        this.stokGudang = this.stokGudang.filter(s => s.gudang !== targetItem.namaGudang);
+
+        if (supabaseClient) {
+            await supabaseClient.from('master_gudang').delete().eq('kodeGudang', targetItem.kodeGudang);
+            await supabaseClient.from('stok_gudang').delete().eq('gudang', targetItem.namaGudang);
+        }
+    }
+
+    this.showNotification('Data dan relasinya berhasil dihapus!', 'success');
+    this.refreshIcons();
+}
                 }
             }
         }
