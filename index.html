@@ -574,13 +574,18 @@
                             <div>
                                 <h3 class="text-sm font-semibold text-white">Stok Gudang</h3>
                             </div>
-                            <div class="w-full sm:w-64">
-                                <select x-model="filterStokGudang" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                                    <option value="">Semua Gudang</option>
-                                    <template x-for="g in masterGudang" :key="g.kodeGudang">
-                                        <option :value="g.namaGudang" x-text="g.namaGudang"></option>
-                                    </template>
-                                </select>
+                            <div class="flex items-center gap-2 w-full sm:w-auto">
+                                <div class="w-full sm:w-64">
+                                    <select x-model="filterStokGudang" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                                        <option value="">Semua Gudang</option>
+                                        <template x-for="g in masterGudang" :key="g.kodeGudang">
+                                            <option :value="g.namaGudang" x-text="g.namaGudang"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <button type="button" @click="exportStokCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5 shrink-0" title="Ekspor CSV">
+                                    <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+                                </button>
                             </div>
                         </div>
                         <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
@@ -682,6 +687,9 @@
                             <div class="w-full sm:w-64">
                                 <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                             </div>
+                            <button type="button" @click="exportUsageCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5 shrink-0" title="Ekspor CSV">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+                            </button>
                         </div>
                     </div>
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
@@ -732,6 +740,9 @@
                         <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                             <input type="text" x-model="searchNoTransaksi" placeholder="Cari No Transaksi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
                             <input type="text" x-model="searchNoReferensi" placeholder="Cari No Referensi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
+                            <button type="button" @click="exportTransactionCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-1.5 rounded-lg shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5 shrink-0" title="Ekspor CSV">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+                            </button>
                         </div>
                     </div>
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
@@ -1162,6 +1173,75 @@
                     this.notification = { show: true, message: msg, type: type };
                     this.refreshIcons();
                     setTimeout(() => { this.notification.show = false; }, 4000);
+                },
+
+                // FITUR EKSPOR CSV UTILITY
+                exportToCSV(filename, rows) {
+                    if (!rows || rows.length === 0) {
+                        this.showNotification('Tidak ada data untuk diekspor!', 'error');
+                        return;
+                    }
+                    const keys = Object.keys(rows[0]);
+                    let csvContent = keys.join(',') + '\n';
+                    rows.forEach(row => {
+                        const values = keys.map(key => {
+                            let val = row[key] !== undefined && row[key] !== null ? row[key] : '';
+                            if (typeof val === 'object') val = JSON.stringify(val);
+                            val = '"' + String(val).replace(/"/g, '""') + '"';
+                            return val;
+                        });
+                        csvContent += values.join(',') + '\n';
+                    });
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', filename);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    this.showNotification('Laporan CSV berhasil diunduh!', 'success');
+                },
+
+                exportStokCSV() {
+                    const data = this.getFilteredStokGudang().map(s => ({
+                        KodeBarang: s.kodeBarang,
+                        NamaBarang: s.namaBarang,
+                        Kategori: s.kategori,
+                        Gudang: s.gudang,
+                        Qty: s.qty,
+                        Satuan: s.sat
+                    }));
+                    this.exportToCSV('laporan_stok_gudang.csv', data);
+                },
+
+                exportUsageCSV() {
+                    const data = this.getFilteredMaterialUsage().map(u => ({
+                        KodeProject: u.kodeProject,
+                        NoPO: u.noPO,
+                        ProjectName: u.projectName,
+                        KodeBarang: u.kodeBarang,
+                        NamaBarang: u.namaBarang,
+                        DrumID: u.drumId,
+                        QtyDipakai: u.qty,
+                        Tanggal: u.tanggal
+                    }));
+                    this.exportToCSV('laporan_material_usage.csv', data);
+                },
+
+                exportTransactionCSV() {
+                    const data = this.getFilteredTransactions().map(t => ({
+                        Tanggal: t.tanggal,
+                        NoTransaksi: t.noTransaksi,
+                        NoReferensi: t.noReferensi || '',
+                        Tipe: t.tipeTransaksi,
+                        GudangAsal: t.gudangAsal || '',
+                        GudangTujuan: t.gudangTujuan || '',
+                        KodeProject: t.kodeProject || '',
+                        Keterangan: t.keterangan || ''
+                    }));
+                    this.exportToCSV('laporan_data_transaksi.csv', data);
                 },
 
                 async syncWithSupabaseOnStart() {
