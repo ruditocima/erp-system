@@ -1467,11 +1467,8 @@
                     this.newTrans.items = [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1, keterangan: '' }];
                 },
 
-                // UPDATE FUNGSI GENERATE NO TRANSAKSI SESUAI PERMINTAAN
                 generateNoTransaksi() {
                     const companyCode = 'ACM';
-
-                    // 1. Ambil 3 huruf depan dari kode Gudang tujuan (NPM)
                     let warehousePrefix = 'NPM';
                     let targetWarehouse = this.newTrans.gudangTujuan;
                     if (targetWarehouse) {
@@ -1483,16 +1480,12 @@
                         }
                     }
 
-                    // 2. Kode Tipe Transaksi (IN, OUT, TRF)
                     const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-
-                    // 3. Elemen Waktu (Tahun dan Bulan / YYYYMM) dari tanggal transaksi
                     const dateVal = this.newTrans.tanggal ? new Date(this.newTrans.tanggal) : new Date();
                     const year = dateVal.getFullYear();
                     const month = String(dateVal.getMonth() + 1).padStart(2, '0');
                     const yearMonth = `${year}${month}`;
 
-                    // 4. Nomor urut mulai 01 pada bulan yang sama, reset kembali ke 01 jika berganti bulan
                     let sequenceNum = 1;
                     if (this.transactions && Array.isArray(this.transactions)) {
                         const prefixBase = `${companyCode}-${warehousePrefix}-${typeCode}-${yearMonth}-`;
@@ -1500,8 +1493,6 @@
                         sequenceNum = matching.length + 1;
                     }
                     const seqFormatted = String(sequenceNum).padStart(2, '0');
-
-                    // Gabungkan menjadi format final: [ACM-NPM-IN-202609-09]
                     this.newTrans.noTransaksi = `${companyCode}-${warehousePrefix}-${typeCode}-${yearMonth}-${seqFormatted}`;
                 },
 
@@ -1633,6 +1624,40 @@
                     this.isLoading = true;
 
                     try {
+                        // VALIDASI KETAT STOK & DRUM LEDGER (Mencegah Stok Negatif / Melebihi Remaining Length)
+                        for (let rawItem of this.newTrans.items) {
+                            const isCable = this.getCategoryByKode(rawItem.kodeBarang) === 'Cable';
+                            if (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') {
+                                let sourceGudang = this.newTrans.gudangAsal;
+                                let sourceStok = this.stokGudang.find(s => s.kodeBarang === rawItem.kodeBarang && s.gudang === sourceGudang);
+                                
+                                if (!sourceStok || sourceStok.qty < Number(rawItem.qty)) {
+                                    this.showNotification(`Validasi Gagal: Stok barang "${rawItem.namaBarang || rawItem.kodeBarang}" di gudang "${sourceGudang}" tidak mencukupi!`, 'error');
+                                    this.isLoading = false;
+                                    return;
+                                }
+
+                                if (isCable && rawItem.drumId) {
+                                    let drum = this.drumLedger.find(d => d.drumId === rawItem.drumId);
+                                    if (!drum) {
+                                        this.showNotification(`Validasi Gagal: Drum ID "${rawItem.drumId}" tidak ditemukan dalam ledger!`, 'error');
+                                        this.isLoading = false;
+                                        return;
+                                    }
+                                    if (drum.gudang !== sourceGudang) {
+                                        this.showNotification(`Validasi Gagal: Drum ID "${rawItem.drumId}" tidak berada di gudang asal "${sourceGudang}"!`, 'error');
+                                        this.isLoading = false;
+                                        return;
+                                    }
+                                    if (drum.remainingLength < Number(rawItem.qty)) {
+                                        this.showNotification(`Validasi Gagal: Panjang pemakaian/transfer (${rawItem.qty}m) melebihi sisa panjang drum "${rawItem.drumId}" (${drum.remainingLength}m)!`, 'error');
+                                        this.isLoading = false;
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+
                         const txData = { ...this.newTrans, items: [] };
                         
                         for (let rawItem of this.newTrans.items) {
@@ -1731,11 +1756,6 @@
                                     let sourceGudang = txData.gudangAsal;
                                     let existingStok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === sourceGudang);
                                     
-                                    if (!existingStok || existingStok.qty < Number(item.qty)) {
-                                        this.showNotification(`Stok tidak mencukupi untuk barang ${item.namaBarang} di ${sourceGudang}!`, 'error');
-                                        this.isLoading = false;
-                                        return;
-                                    }
                                     existingStok.qty -= Number(item.qty);
 
                                     if (isCable && item.drumId) {
@@ -1765,11 +1785,6 @@
                                     let destGudang = txData.gudangTujuan;
 
                                     let sourceStok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === sourceGudang);
-                                    if (!sourceStok || sourceStok.qty < Number(item.qty)) {
-                                        this.showNotification(`Stok transfer tidak mencukupi untuk ${item.namaBarang} di ${sourceGudang}!`, 'error');
-                                        this.isLoading = false;
-                                        return;
-                                    }
                                     sourceStok.qty -= Number(item.qty);
 
                                     let destStok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === destGudang);
@@ -1852,42 +1867,6 @@
                         namaBarang,
                         totalQty: map[namaBarang]
                     }));
-                },
-
-                getFilteredStokGudang() {
-                    if (!this.filterStokGudang) return this.stokGudang;
-                    return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
-                },
-
-                getFilteredDrumLedger() {
-                    if (!this.filterStokGudang) return this.drumLedger;
-                    return this.drumLedger.filter(d => d.gudang === this.filterStokGudang);
-                },
-
-                getUniqueRegions() {
-                    return [...new Set(this.masterProject.map(p => p.region))];
-                },
-
-                getFilteredMaterialUsage() {
-                    return this.materialUsage.filter(u => {
-                        const matchRegion = !this.filterRegionUsage || (() => {
-                            const proj = this.masterProject.find(p => p.kodeProject === u.kodeProject);
-                            return proj && proj.region === this.filterRegionUsage;
-                        })();
-                        const matchSearch = !this.searchMaterialUsageProject || 
-                            (u.kodeProject && u.kodeProject.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase())) ||
-                            (u.projectName && u.projectName.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase())) ||
-                            (u.noPO && u.noPO.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase()));
-                        return matchRegion && matchSearch;
-                    });
-                },
-
-                getFilteredTransactions() {
-                    return this.transactions.filter(tx => {
-                        const matchNo = !this.searchNoTransaksi || tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
-                        const matchRef = !this.searchNoReferensi || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
-                        return matchNo && matchRef;
-                    });
                 }
             };
         }
