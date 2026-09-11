@@ -531,7 +531,7 @@
                                             </div>
                                             <div class="md:col-span-2">
                                                 <template x-if="getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer')">
-                                                    <select x-model="item.drumId" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
+                                                    <select x-model="item.drumId" required class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
                                                         <option value="">Pilih Drum ID</option>
                                                         <template x-for="d in getDrumList(item)" :key="d.drumId">
                                                             <option :value="d.drumId" :title="'Sisa Stok / Panjang: ' + d.remainingLength + ' m'" x-text="d.drumId + ' (Sisa: ' + d.remainingLength + 'm)'"></option>
@@ -1553,6 +1553,37 @@
                         const gAsal = this.newTrans.gudangAsal;
                         const gTujuan = this.newTrans.gudangTujuan;
 
+                        // 1. VALIDASI KETAT STOK & BATASAN PANJANG DRUM KABEL (KELUAR / TRANSFER)
+                        for (let item of this.newTrans.items) {
+                            const kat = this.getCategoryByKode(item.kodeBarang);
+                            const qty = Number(item.qty);
+
+                            if (qty <= 0) {
+                                throw new Error(`Qty untuk barang ${item.namaBarang} harus lebih besar dari 0!`);
+                            }
+
+                            if (tipe === 'Keluar' || tipe === 'Transfer') {
+                                let sourceStok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === gAsal);
+                                if (!sourceStok || sourceStok.qty < qty) {
+                                    throw new Error(`Stok tidak mencukupi untuk barang ${item.namaBarang} di gudang ${gAsal}!`);
+                                }
+
+                                if (kat === 'Cable') {
+                                    if (!item.drumId) {
+                                        throw new Error(`Nomor Drum ID wajib dipilih untuk material kabel ${item.namaBarang}!`);
+                                    }
+                                    let drumObj = this.drumLedger.find(d => d.drumId === item.drumId);
+                                    if (!drumObj) {
+                                        throw new Error(`Drum dengan ID ${item.drumId} tidak ditemukan di sistem!`);
+                                    }
+                                    if (qty > drumObj.remainingLength) {
+                                        throw new Error(`Transaksi melebihi sisa meteran! Drum ${item.drumId} hanya memiliki sisa ${drumObj.remainingLength}m (Diminta: ${qty}m).`);
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. PROSES EKSEKUSI PENGURANGAN / PENAMBAHAN STOK & DRUM LEDGER
                         for (let item of this.newTrans.items) {
                             const kat = this.getCategoryByKode(item.kodeBarang);
                             const qty = Number(item.qty);
@@ -1603,9 +1634,6 @@
                             }
                             else if (tipe === 'Keluar' || tipe === 'Transfer') {
                                 let sourceStok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === gAsal);
-                                if (!sourceStok || sourceStok.qty < qty) {
-                                    throw new Error(`Stok tidak mencukupi untuk barang ${item.namaBarang} di gudang ${gAsal}!`);
-                                }
                                 sourceStok.qty -= qty;
 
                                 if (tipe === 'Transfer') {
@@ -1627,11 +1655,20 @@
                                     }
                                 }
 
+                                // Update sisa meteran drum & status otomatis menjadi Depleted saat habis
                                 if (kat === 'Cable' && item.drumId) {
                                     let drumObj = this.drumLedger.find(d => d.drumId === item.drumId);
                                     if (drumObj) {
                                         drumObj.remainingLength = Math.max(0, drumObj.remainingLength - qty);
-                                        drumObj.status = drumObj.remainingLength === 0 ? 'Empty' : (drumObj.remainingLength < drumObj.initialLength ? 'Partial' : 'Full');
+                                        
+                                        if (drumObj.remainingLength === 0) {
+                                            drumObj.status = 'Depleted';
+                                        } else if (drumObj.remainingLength < drumObj.initialLength) {
+                                            drumObj.status = 'Partial';
+                                        } else {
+                                            drumObj.status = 'Full';
+                                        }
+
                                         if (tipe === 'Transfer') {
                                             drumObj.gudang = gTujuan;
                                         }
