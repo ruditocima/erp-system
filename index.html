@@ -1557,28 +1557,23 @@
                     this.refreshIcons();
                 },
 
-                // --- KODE YANG DISISIPKAN SESUAI PERMINTAAN ---
                 async deleteTransaction(tx) {
                     if (!confirm(`Hapus transaksi ${tx.noTransaksi} dan sesuaikan kembali stok/drum terkait?`)) return;
 
-                    // 1. Rollback Stok, Drum Ledger, & Material Usage berdasarkan Tipe Transaksi
                     for (const it of (tx.items || [])) {
                         const qtyNum = parseInt(it.qty, 10) || 0;
                         const isCable = (this.getCategoryByKode(it.kodeBarang) === 'Cable');
 
                         if (tx.tipeTransaksi === 'Masuk') {
-                            // Kurangi kembali stok di gudang tujuan
                             let stok = this.stokGudang.find(s => s.kodeBarang === it.kodeBarang && s.gudang === tx.gudangTujuan);
                             if (stok) {
                                 stok.qty = Math.max(0, stok.qty - qtyNum);
                             }
-                            // Hapus drum ledger jika kabel
                             if (isCable && it.drumId) {
                                 this.drumLedger = this.drumLedger.filter(d => d.drumId !== it.drumId);
                             }
                         } 
                         else if (tx.tipeTransaksi === 'Keluar') {
-                            // Kembalikan stok ke gudang asal
                             let stok = this.stokGudang.find(s => s.kodeBarang === it.kodeBarang && s.gudang === tx.gudangAsal);
                             if (stok) {
                                 stok.qty += qtyNum;
@@ -1593,7 +1588,6 @@
                                     sat: 'Meter'
                                 });
                             }
-                            // Kembalikan sisa panjang (remaining length) pada drum
                             if (isCable && it.drumId) {
                                 let drum = this.drumLedger.find(d => d.drumId === it.drumId);
                                 if (drum) {
@@ -1601,11 +1595,9 @@
                                     drum.status = drum.remainingLength === drum.initialLength ? 'Full' : 'Partial';
                                 }
                             }
-                            // Hapus dari catatan material usage
                             this.materialUsage = this.materialUsage.filter(u => !(u.kodeProject === tx.kodeProject && u.kodeBarang === it.kodeBarang && u.qty === qtyNum));
                         }
                         else if (tx.tipeTransaksi === 'Transfer') {
-                            // Kembalikan stok dari gudang tujuan ke gudang asal
                             let dstStok = this.stokGudang.find(s => s.kodeBarang === it.kodeBarang && s.gudang === tx.gudangTujuan);
                             if (dstStok) dstStok.qty = Math.max(0, dstStok.qty - qtyNum);
 
@@ -1630,7 +1622,6 @@
                         }
                     }
 
-                    // 2. Hapus Transaksi dari State & Sinkronisasi ke Supabase
                     this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
                     
                     if (supabaseClient) {
@@ -1702,7 +1693,9 @@
                             this.masterBarang.push({ ...this.modalForm });
                         }
                         localStorage.setItem('vortex_masterBarang', JSON.stringify(this.masterBarang));
-                        await this.persistToSupabase('master_barang', this.masterBarang);
+                        if (supabaseClient) {
+                            await supabaseClient.from('master_barang').upsert([this.modalForm]);
+                        }
                     } else if (this.modalType === 'gudang') {
                         if (this.isEdit) {
                             this.masterGudang[this.editIndex] = { ...this.modalForm };
@@ -1710,7 +1703,9 @@
                             this.masterGudang.push({ ...this.modalForm });
                         }
                         localStorage.setItem('vortex_masterGudang', JSON.stringify(this.masterGudang));
-                        await this.persistToSupabase('master_gudang', this.masterGudang);
+                        if (supabaseClient) {
+                            await supabaseClient.from('master_gudang').upsert([this.modalForm]);
+                        }
                     } else if (this.modalType === 'project') {
                         if (this.isEdit) {
                             this.masterProject[this.editIndex] = { ...this.modalForm };
@@ -1718,10 +1713,12 @@
                             this.masterProject.push({ ...this.modalForm });
                         }
                         localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
-                        await this.persistToSupabase('master_project', this.masterProject);
+                        if (supabaseClient) {
+                            await supabaseClient.from('master_project').upsert([this.modalForm]);
+                        }
                     }
                     this.showModal = false;
-                    this.showNotification('Data master berhasil disimpan!', 'success');
+                    this.showNotification('Data master berhasil disimpan & disinkronisasi!', 'success');
                     this.refreshIcons();
                 }
             };
