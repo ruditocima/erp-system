@@ -1686,55 +1686,104 @@
                 },
 
                 // FITUR INVENTORY REVERSAL: Mengembalikan stok & drum saat transaksi dihapus
-                deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Stok dan data terkait akan dikembalikan secara otomatis.`)) {
-                        const type = tx.tipeTransaksi;
-                        tx.items.forEach(item => {
-                            const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
-                            const masterItem = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                            const sat = masterItem ? masterItem.sat : 'Pcs';
+                async deleteTransaction(tx) {
+    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Stok, data terkait, dan lampiran file akan dihapus secara permanen.`)) {
+        const type = tx.tipeTransaksi;
+        tx.items.forEach(item => {
+            const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
+            const masterItem = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
+            const sat = masterItem ? masterItem.sat : 'Pcs';
 
-                            if (type === 'Masuk') {
-                                this.updateStok(tx.gudangTujuan, item, sat, -item.qty);
-                                if (isCable && item.drumId) {
-                                    const drumIdx = this.drumLedger.findIndex(d => d.drumId === item.drumId && d.gudang === tx.gudangTujuan);
-                                    if (drumIdx !== -1) {
-                                        this.drumLedger.splice(drumIdx, 1);
-                                    }
-                                }
-                            } else if (type === 'Keluar') {
-                                this.updateStok(tx.gudangAsal, item, sat, item.qty);
-                                if (isCable && item.drumId) {
-                                    const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === tx.gudangAsal);
-                                    if (drum) {
-                                        drum.remainingLength = Math.min(drum.initialLength, Number(drum.remainingLength) + Number(item.qty));
-                                        drum.status = drum.remainingLength === drum.initialLength ? 'Full' : 'Partial';
-                                    }
-                                }
-                                const usageIdx = this.materialUsage.findIndex(u => u.kodeProject === tx.kodeProject && u.kodeBarang === item.kodeBarang && u.qty === item.qty && u.tanggal === tx.tanggal);
-                                if (usageIdx !== -1) {
-                                    this.materialUsage.splice(usageIdx, 1);
-                                }
-                            } else if (type === 'Transfer') {
-                                this.updateStok(tx.gudangTujuan, item, sat, -item.qty);
-                                this.updateStok(tx.gudangAsal, item, sat, item.qty);
-                                if (isCable && item.drumId) {
-                                    const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === tx.gudangTujuan);
-                                    if (drum) {
-                                        drum.gudang = tx.gudangAsal;
-                                    }
+            if (type === 'Masuk') {
+                this.updateStok(tx.gudangTujuan, item, sat, -item.qty);
+                if (isCable && item.drumId) {
+                    const drumIdx = this.drumLedger.findIndex(d => d.drumId === item.drumId && d.gudang === tx.gudangTujuan);
+                    if (drumIdx !== -1) {
+                        this.drumLedger.splice(drumIdx, 1);
+                    }
+                }
+            } else if (type === 'Keluar') {
+                this.updateStok(tx.gudangAsal, item, sat, item.qty);
+                if (isCable && item.drumId) {
+                    const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === tx.gudangAsal);
+                    if (drum) {
+                        drum.remainingLength = Math.min(drum.initialLength, Number(drum.remainingLength) + Number(item.qty));
+                        drum.status = drum.remainingLength === drum.initialLength ? 'Full' : 'Partial';
+                    }
+                }
+                const usageIdx = this.materialUsage.findIndex(u => u.kodeProject === tx.kodeProject && u.kodeBarang === item.kodeBarang && u.qty === item.qty && u.tanggal === tx.tanggal);
+                if (usageIdx !== -1) {
+                    this.materialUsage.splice(usageIdx, 1);
+                }
+            } else if (type === 'Transfer') {
+                this.updateStok(tx.gudangTujuan, item, sat, -item.qty);
+                this.updateStok(tx.gudangAsal, item, sat, item.qty);
+                if (isCable && item.drumId) {
+                    const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === tx.gudangTujuan);
+                    if (drum) {
+                        drum.gudang = tx.gudangAsal;
+                    }
+                }
+            }
+        });
+
+        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
+        if (idx !== -1) {
+            // 1. Hapus dari State Lokal
+            this.transactions.splice(idx, 1);
+            
+            // 2. EKSEKUSI KE SUPABASE
+            if (supabaseClient) {
+                try {
+                    // A. Hapus data baris transaksi dari Database
+                    const { error } = await supabaseClient
+                        .from('transactions')
+                        .delete()
+                        .eq('noTransaksi', tx.noTransaksi);
+                        
+                    if (error) {
+                        console.error('Supabase Delete Error:', error);
+                        this.showNotification('Gagal menghapus transaksi di Cloud Supabase', 'error');
+                    }
+
+                    // B. Hapus file lampiran dari Supabase Storage (jika ada)
+                    if (tx.lampiranUrl) {
+                        try {
+                            // Mengambil nama file unik dari URL publik Supabase Storage
+                            const urlObj = new URL(tx.lampiranUrl);
+                            const pathSegments = urlObj.pathname.split('/');
+                            // Biasanya format path public: /storage/v1/object/public/attachments/NAMA_FILE
+                            const fileName = pathSegments[pathSegments.length - 1];
+
+                            if (fileName) {
+                                const { error: storageError } = await supabaseClient.storage
+                                    .from('attachments')
+                                    .remove([fileName]);
+
+                                if (storageError) {
+                                    console.warn('Gagal menghapus file lampiran di Storage:', storageError.message);
                                 }
                             }
-                        });
-
-                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
-                        if (idx !== -1) {
-                            this.transactions.splice(idx, 1);
-                            this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus & stok dipulihkan.`);
+                        } catch (errParse) {
+                            console.warn('Gagal memproses URL lampiran untuk dihapus:', errParse);
                         }
-                        this.refreshIcons();
                     }
-                },
+                    
+                    // C. Sinkronkan kembali pemulihan stok ke Supabase
+                    this.persistToSupabase('stok_gudang', this.stokGudang);
+                    this.persistToSupabase('drum_ledger', this.drumLedger);
+                    this.persistToSupabase('material_usage', this.materialUsage);
+
+                } catch (e) {
+                    console.error('Koneksi bermasalah:', e);
+                }
+            }
+
+            this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus & stok dipulihkan.`);
+        }
+        this.refreshIcons();
+    }
+}
 
                 printBAST(tx) {
                     this.activeBast = JSON.parse(JSON.stringify(tx));
