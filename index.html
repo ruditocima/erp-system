@@ -1555,116 +1555,27 @@
 
                 printBAST(tx) {
                     this.activeBast = JSON.parse(JSON.stringify(tx));
-                    this.refreshIcons();
-                    setTimeout(() => {
+                    this.$nextTick(() => {
                         window.print();
-                    }, 300);
+                        this.refreshIcons();
+                    });
                 },
 
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
                     const map = {};
-                    this.activeBast.items.forEach(it => {
-                        const name = it.namaBarang || it.kodeBarang;
-                        const qty = parseInt(it.qty, 10) || 0;
+                    this.activeBast.items.forEach(item => {
+                        const name = item.namaBarang || item.kodeBarang;
+                        const qty = parseInt(item.qty, 10) || 0;
                         if (!map[name]) map[name] = 0;
                         map[name] += qty;
                     });
-                    return Object.keys(map).map(namaBarang => ({ namaBarang, totalQty: map[namaBarang] }));
-                },
-
-                openModal(type) {
-                    this.modalType = type;
-                    this.isEdit = false;
-                    this.editIndex = null;
-                    if (type === 'barang') {
-                        this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Unit' };
-                    } else if (type === 'gudang') {
-                        this.modalForm = { kodeGudang: '', namaGudang: '', tipeKepemilikan: 'Milik Sendiri', lokasi: '' };
-                    } else if (type === 'project') {
-                        const today = new Date().toISOString().split('T')[0];
-                        this.modalForm = {
-                            periode: '2026-Q1',
-                            region: '',
-                            kodeProject: '',
-                            type: 'FTTH',
-                            noPO: '',
-                            projectName: '',
-                            poAwal: today,
-                            poFinal: today,
-                            statusPO: 'Approved',
-                            permit: 'Clear',
-                            snd: '',
-                            statusProject: 'On Progress'
-                        };
-                    }
-                    this.showModal = true;
-                    this.refreshIcons();
-                },
-
-                openEditModal(type, index) {
-                    this.modalType = type;
-                    this.isEdit = true;
-                    this.editIndex = index;
-                    if (type === 'barang') {
-                        this.modalForm = JSON.parse(JSON.stringify(this.masterBarang[index]));
-                    } else if (type === 'gudang') {
-                        this.modalForm = JSON.parse(JSON.stringify(this.masterGudang[index]));
-                    } else if (type === 'project') {
-                        this.modalForm = JSON.parse(JSON.stringify(this.masterProject[index]));
-                    }
-                    this.showModal = true;
-                    this.refreshIcons();
-                },
-
-                saveModalData() {
-                    if (this.modalType === 'barang') {
-                        if (this.isEdit) {
-                            this.masterBarang[this.editIndex] = JSON.parse(JSON.stringify(this.modalForm));
-                        } else {
-                            this.masterBarang.push(JSON.parse(JSON.stringify(this.modalForm)));
-                        }
-                        localStorage.setItem('vortex_masterBarang', JSON.stringify(this.masterBarang));
-                        this.persistToSupabase('master_barang', this.modalForm);
-                    } else if (this.modalType === 'gudang') {
-                        if (this.isEdit) {
-                            this.masterGudang[this.editIndex] = JSON.parse(JSON.stringify(this.modalForm));
-                        } else {
-                            this.masterGudang.push(JSON.parse(JSON.stringify(this.modalForm)));
-                        }
-                        localStorage.setItem('vortex_masterGudang', JSON.stringify(this.masterGudang));
-                        this.persistToSupabase('master_gudang', this.modalForm);
-                    } else if (this.modalType === 'project') {
-                        if (this.isEdit) {
-                            this.masterProject[this.editIndex] = JSON.parse(JSON.stringify(this.modalForm));
-                        } else {
-                            this.masterProject.push(JSON.parse(JSON.stringify(this.modalForm)));
-                        }
-                        localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
-                        this.persistToSupabase('master_project', this.modalForm);
-                    }
-
-                    this.showModal = false;
-                    this.showNotification('Data master berhasil disimpan!', 'success');
-                    this.refreshIcons();
-                },
-
-                editTransaction(tx) {
-                    this.newTrans = JSON.parse(JSON.stringify(tx));
-                    this.currentTab = 'input-transaksi';
-                    this.refreshIcons();
-                },
-
-                async deleteTransaction(tx) {
-                    if (!confirm(`Hapus transaksi ${tx.noTransaksi}? (Stok tidak otomatis rollback untuk keamanan ledger, pastikan penyesuaian manual jika diperlukan)`)) return;
-                    this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-                    if (supabaseClient) {
-                        await supabaseClient.from('transactions').delete().eq('noTransaksi', tx.noTransaksi);
-                    }
-                    this.showNotification('Transaksi berhasil dihapus.', 'success');
-                    this.refreshIcons();
+                    return Object.keys(map).map(namaBarang => ({
+                        namaBarang,
+                        totalQty: map[namaBarang]
+                    }));
                 }
-            };
+            }
         }
     </script>
 </body>
