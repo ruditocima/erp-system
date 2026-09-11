@@ -1536,24 +1536,38 @@
                         if (type === 'Masuk') {
                             this.updateStok(this.newTrans.gudangTujuan, item, sat, item.qty);
                             
-                            if (isCable) {
-                                let drumId = item.drumId;
-                                if (!drumId) {
-                                    const cleanCode = item.kodeBarang.replace(/[^a-zA-Z0-9]/g, '');
-                                    const dateStr = this.newTrans.tanggal.replace(/-/g, '');
-                                    const count = this.drumLedger.length + 1;
-                                    drumId = `${cleanCode}-${dateStr}-${String(count).padStart(2, '0')}`;
+                            // KODE BARU
+                        if (isCable) {
+                            let totalQty = Number(item.qty);
+                            const maxDrumCapacity = 3000; // Set kapasitas batas maksimal drum
+                            let currentDrumCount = this.drumLedger.length + 1;
+    
+                        // Looping untuk memecah Qty jika melebihi batas maksimal drum
+                        while (totalQty > 0) {
+                            let qtyThisDrum = Math.min(totalQty, maxDrumCapacity);
+        
+                            let drumId = item.drumId; 
+                        // Generate ID otomatis jika user tidak input ID, atau jika ini adalah drum pecahan kedua (dan seterusnya)
+                        if (!drumId || totalQty < Number(item.qty)) { 
+                            const cleanCode = item.kodeBarang.replace(/[^a-zA-Z0-9]/g, '');
+                                const dateStr = this.newTrans.tanggal.replace(/-/g, '');
+                                drumId = `${cleanCode}-${dateStr}-${String(currentDrumCount).padStart(2, '0')}`;
+                                currentDrumCount++;
                                 }
-                                this.drumLedger.unshift({
-                                    drumId: drumId,
-                                    kodeBarang: item.kodeBarang,
-                                    namaBarang: item.namaBarang,
-                                    gudang: this.newTrans.gudangTujuan,
-                                    initialLength: Number(item.qty),
-                                    remainingLength: Number(item.qty),
-                                    status: 'Full'
-                                });
-                            }
+
+                            this.drumLedger.unshift({
+            drumId: drumId,
+            kodeBarang: item.kodeBarang,
+            namaBarang: item.namaBarang,
+            gudang: this.newTrans.gudangTujuan,
+            initialLength: qtyThisDrum,
+            remainingLength: qtyThisDrum,
+            status: qtyThisDrum === maxDrumCapacity ? 'Full' : 'Partial'
+        });
+        
+        totalQty -= qtyThisDrum;
+    }
+}
                         } else if (type === 'Keluar') {
                             this.updateStok(this.newTrans.gudangAsal, item, sat, -item.qty);
 
