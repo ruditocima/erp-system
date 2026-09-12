@@ -1267,7 +1267,7 @@
                     setTimeout(() => { this.notification.show = false; }, 4000);
                 },
 
-                // Sinkronisasi Data dari Supabase ke State Aplikasi
+                // Sinkronisasi Data dari Supabase ke State Aplikasi (Diperbaiki: Menghindari error 400 Bad Request pada order kolom created_at)
                 async syncWithSupabaseOnStart() {
                     if (!supabaseClient) return;
                     try {
@@ -1353,8 +1353,10 @@
                             }));
                         }
 
-                        const { data: txs } = await supabaseClient.from('transactions').select('*').order('created_at', { ascending: false });
-                        if (txs && txs.length > 0) {
+                        // Aman dari Error 400 Bad Request dengan mengambil data murni lalu diurutkan via JS
+                        const { data: txs, error: txError } = await supabaseClient.from('transactions').select('*');
+                        if (!txError && txs && txs.length > 0) {
+                            txs.sort((a, b) => new Date(b.tanggal || 0) - new Date(a.tanggal || 0));
                             this.transactions = txs.map(item => ({
                                 tanggal: item.tanggal,
                                 noTransaksi: item.no_transaksi || item.noTransaksi,
@@ -1706,7 +1708,7 @@
                     return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.remainingLength > 0 && d.gudang === this.newTrans.gudangAsal);
                 },
 
-                // Submit Transaksi & Update Supabase secara Realtime
+                // Submit Transaksi & Mutasi Stok Otomatis
                 async submitTransaction() {
                     this.isLoading = true;
                     try {
@@ -1717,9 +1719,130 @@
                         }
 
                         const tx = { ...this.newTrans };
+                        
+                        // Validasi Drum Kabel Keluar
+                        if (tx.tipeTransaksi === 'Keluar' || tx.tipeTransaksi === 'Transfer') {
+                            for (let itm of tx.items) {
+                                if (this.getCategoryByKode(itm.kodeBarang) === 'Cable') {
+                                    if (!itm.drumId) {
+                                        this.showNotification('Drum ID wajib dipilih untuk item kabel!', 'error');
+                                        this.isLoading = false;
+                                        return;
+                                    }
+                                    const drumTarget = this.drumLedger.find(d => d.drumId === itm.drumId);
+                                    if (drumTarget && Number(itm.qty) > Number(drumTarget.remainingLength)) {
+                                        this.showNotification(`Qty melebihi sisa panjang pada Drum ${itm.drumId} (Sisa: ${drumTarget.remainingLength}m)`, 'error');
+                                        this.isLoading = false;
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Proses Mutasi Stok & Ledger
+                        tx.items.forEach(itm => {
+                            const qty = Number(itm.qty) || 0;
+                            const sat = this.getSatuanBarang(itm.kodeBarang);
+                            const kategori = this.getCategoryByKode(itm.kodeBarang);
+
+                            if (tx.tipeTransaksi === 'Masuk') {
+                                // Update Stok Gudang Tujuan
+                                let stokItem = this.stokGudang.find(s => s.kodeBarang === itm.kodeBarang && s.gudang === tx.gudangTujuan);
+                                if (stokItem) {
+                                    stokItem.qty += qty;
+                                } else {
+                                    this.stokGudang.push({
+                                        id: `${itm.kodeBarang}_${tx.gudangTujuan}`,
+                                        kodeBarang: itm.kodeBarang,
+                                        namaBarang: itm.namaBarang,
+                                        kategori: kategori,
+                                        gudang: tx.gudangTujuan,
+                                        qty: qty,
+                                        sat: sat
+                                    });
+                                }
+
+                                // Handle Drum Masuk
+                                if (kategori === 'Cable') {
+                                    if (!itm.drumId) {
+                                        const randSeq = Math.floor(100 + Math.random() * 900);
+                                        itm.drumId = `DRM-${new Date().getFullYear()}-${randSeq}`;
+                                    }
+                                    this.drumLedger.push({
+                                        drumId: itm.drumId,
+                                        kodeBarang: itm.kodeBarang,
+                                        namaBarang: itm.namaBarang,
+                                        gudang: tx.gudangTujuan,
+                                        initialLength: qty,
+                                        remainingLength: qty,
+                                        status: 'Full'
+                                    });
+                                }
+                            } else if (tx.tipeTransaksi === 'Keluar') {
+                                // Update Stok Gudang Asal
+                                let stokItem = this.stokGudang.find(s => s.kodeBarang === itm.kodeBarang && s.gudang === tx.gudangAsal);
+                                if (stokItem) {
+                                    stokItem.qty = Math.max(0, stokItem.qty - qty);
+                                }
+
+                                // Handle Drum Keluar / Material Usage
+                                if (kategori === 'Cable' && itm.drumId) {
+                                    let drumTarget = this.drumLedger.find(d => d.drumId === itm.drumId);
+                                    if (drumTarget) {
+                                        drumTarget.remainingLength = Math.max(0, drumTarget.remainingLength - qty);
+                                        drumTarget.status = drumTarget.remainingLength === 0 ? 'Empty' : (drumTarget.remainingLength < drumTarget.initialLength ? 'Partial' : 'Full');
+                                    }
+                                }
+
+                                // Catat Material Usage jika ada Project
+                                if (tx.kodeProject) {
+                                    const proj = this.masterProject.find(p => p.kodeProject === tx.kodeProject);
+                                    this.materialUsage.unshift({
+                                        id: 'USG-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+                                        kodeProject: tx.kodeProject,
+                                        noPO: proj ? proj.noPO : '-',
+                                        projectName: proj ? proj.projectName : '-',
+                                        kodeBarang: itm.kodeBarang,
+                                        namaBarang: itm.namaBarang,
+                                        drumId: itm.drumId || '-',
+                                        qty: qty,
+                                        tanggal: tx.tanggal
+                                    });
+                                }
+                            } else if (tx.tipeTransaksi === 'Transfer') {
+                                // Kurangi Gudang Asal
+                                let stokAsal = this.stokGudang.find(s => s.kodeBarang === itm.kodeBarang && s.gudang === tx.gudangAsal);
+                                if (stokAsal) stokAsal.qty = Math.max(0, stokAsal.qty - qty);
+
+                                // Tambah Gudang Tujuan
+                                let stokTujuan = this.stokGudang.find(s => s.kodeBarang === itm.kodeBarang && s.gudang === tx.gudangTujuan);
+                                if (stokTujuan) {
+                                    stokTujuan.qty += qty;
+                                } else {
+                                    this.stokGudang.push({
+                                        id: `${itm.kodeBarang}_${tx.gudangTujuan}`,
+                                        kodeBarang: itm.kodeBarang,
+                                        namaBarang: itm.namaBarang,
+                                        kategori: kategori,
+                                        gudang: tx.gudangTujuan,
+                                        qty: qty,
+                                        sat: sat
+                                    });
+                                }
+
+                                // Update Lokasi Drum
+                                if (kategori === 'Cable' && itm.drumId) {
+                                    let drumTarget = this.drumLedger.find(d => d.drumId === itm.drumId);
+                                    if (drumTarget) {
+                                        drumTarget.gudang = tx.gudangTujuan;
+                                    }
+                                }
+                            }
+                        });
+
                         this.transactions.unshift(tx);
 
-                        // 1. Simpan Transaksi ke Supabase
+                        // Simpan Transaksi ke Supabase
                         if (supabaseClient) {
                             await supabaseClient.from('transactions').insert([{
                                 tanggal: tx.tanggal,
@@ -1732,220 +1855,32 @@
                                 keterangan: tx.keterangan,
                                 lampiran: tx.lampiran,
                                 lampiran_url: tx.lampiranUrl,
-                                items: tx.items
+                                items: JSON.stringify(tx.items)
                             }]);
                         }
 
-                        // 2. Update Stok, Drum Ledger, dan Material Usage
-                        for (let item of tx.items) {
-                            const qty = Number(item.qty) || 0;
-                            const cat = this.getCategoryByKode(item.kodeBarang);
-
-                            if (tx.tipeTransaksi === 'Masuk') {
-                                if (cat === 'Cable') {
-                                    let drumId = item.drumId;
-                                    if (!drumId || drumId.startsWith('Otomatis') || drumId.trim() === '') {
-                                        const dateStr = tx.tanggal.replace(/-/g, '').substring(0, 6);
-                                        drumId = `DRM-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
-                                        item.drumId = drumId;
-                                    }
-                                    const existingDrum = this.drumLedger.find(d => d.drumId === drumId);
-                                    if (existingDrum) {
-                                        existingDrum.initialLength += qty;
-                                        existingDrum.remainingLength += qty;
-                                        existingDrum.status = existingDrum.remainingLength >= existingDrum.initialLength ? 'Full' : 'Partial';
-                                        if (supabaseClient) {
-                                            await supabaseClient.from('drum_ledger').update({
-                                                initial_length: existingDrum.initialLength,
-                                                remaining_length: existingDrum.remainingLength,
-                                                status: existingDrum.status
-                                            }).eq('drum_id', drumId);
-                                        }
-                                    } else {
-                                        const newDrum = {
-                                            drumId: drumId,
-                                            kodeBarang: item.kodeBarang,
-                                            namaBarang: item.namaBarang,
-                                            gudang: tx.gudangTujuan,
-                                            initialLength: qty,
-                                            remainingLength: qty,
-                                            status: 'Full'
-                                        };
-                                        this.drumLedger.push(newDrum);
-                                        if (supabaseClient) {
-                                            await supabaseClient.from('drum_ledger').insert([{
-                                                drum_id: drumId,
-                                                kode_barang: item.kodeBarang,
-                                                nama_barang: item.namaBarang,
-                                                gudang: tx.gudangTujuan,
-                                                initial_length: qty,
-                                                remaining_length: qty,
-                                                status: 'Full'
-                                            }]);
-                                        }
-                                    }
-                                }
-
-                                const stokKey = `${item.kodeBarang}_${tx.gudangTujuan}`;
-                                let existingStok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangTujuan);
-                                if (existingStok) {
-                                    existingStok.qty += qty;
-                                    if (supabaseClient) {
-                                        await supabaseClient.from('stok_gudang').update({ qty: existingStok.qty }).eq('id', existingStok.id);
-                                    }
-                                } else {
-                                    const newStok = {
-                                        id: stokKey,
-                                        kodeBarang: item.kodeBarang,
-                                        namaBarang: item.namaBarang,
-                                        kategori: item.kategori,
-                                        gudang: tx.gudangTujuan,
-                                        qty: qty,
-                                        sat: this.getSatuanBarang(item.kodeBarang)
-                                    };
-                                    this.stokGudang.push(newStok);
-                                    if (supabaseClient) {
-                                        await supabaseClient.from('stok_gudang').insert([{
-                                            id: stokKey,
-                                            kode_barang: item.kodeBarang,
-                                            nama_barang: item.namaBarang,
-                                            kategori: item.kategori,
-                                            gudang: tx.gudangTujuan,
-                                            qty: qty,
-                                            sat: newStok.sat
-                                        }]);
-                                    }
-                                }
-
-                            } else if (tx.tipeTransaksi === 'Keluar') {
-                                let existingStok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangAsal);
-                                if (existingStok) {
-                                    existingStok.qty = Math.max(0, existingStok.qty - qty);
-                                    if (supabaseClient) {
-                                        await supabaseClient.from('stok_gudang').update({ qty: existingStok.qty }).eq('id', existingStok.id);
-                                    }
-                                }
-
-                                if (cat === 'Cable' && item.drumId) {
-                                    let drum = this.drumLedger.find(d => d.drumId === item.drumId);
-                                    if (drum) {
-                                        drum.remainingLength = Math.max(0, drum.remainingLength - qty);
-                                        drum.status = drum.remainingLength === 0 ? 'Depleted' : (drum.remainingLength < drum.initialLength ? 'Partial' : 'Full');
-                                        if (supabaseClient) {
-                                            await supabaseClient.from('drum_ledger').update({
-                                                remaining_length: drum.remainingLength,
-                                                status: drum.status
-                                            }).eq('drum_id', drum.drumId);
-                                        }
-                                    }
-                                }
-
-                                if (tx.kodeProject) {
-                                    const prjObj = this.masterProject.find(p => p.kodeProject === tx.kodeProject);
-                                    const usageId = `USG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-                                    const usageRecord = {
-                                        id: usageId,
-                                        kodeProject: tx.kodeProject,
-                                        noPO: prjObj ? prjObj.noPO : '-',
-                                        projectName: prjObj ? prjObj.projectName : '-',
-                                        kodeBarang: item.kodeBarang,
-                                        namaBarang: item.namaBarang,
-                                        drumId: item.drumId || '-',
-                                        qty: qty,
-                                        tanggal: tx.tanggal
-                                    };
-                                    this.materialUsage.unshift(usageRecord);
-                                    if (supabaseClient) {
-                                        await supabaseClient.from('material_usage').insert([{
-                                            id: usageId,
-                                            kode_project: usageRecord.kodeProject,
-                                            no_po: usageRecord.noPO,
-                                            project_name: usageRecord.projectName,
-                                            kode_barang: usageRecord.kodeBarang,
-                                            nama_barang: usageRecord.namaBarang,
-                                            drum_id: usageRecord.drumId,
-                                            qty: usageRecord.qty,
-                                            tanggal: usageRecord.tanggal
-                                        }]);
-                                    }
-                                }
-
-                            } else if (tx.tipeTransaksi === 'Transfer') {
-                                let stokAsal = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangAsal);
-                                if (stokAsal) {
-                                    stokAsal.qty = Math.max(0, stokAsal.qty - qty);
-                                    if (supabaseClient) {
-                                        await supabaseClient.from('stok_gudang').update({ qty: stokAsal.qty }).eq('id', stokAsal.id);
-                                    }
-                                }
-
-                                let stokTujuan = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangTujuan);
-                                if (stokTujuan) {
-                                    stokTujuan.qty += qty;
-                                    if (supabaseClient) {
-                                        await supabaseClient.from('stok_gudang').update({ qty: stokTujuan.qty }).eq('id', stokTujuan.id);
-                                    }
-                                } else {
-                                    const newStokTujuanId = `${item.kodeBarang}_${tx.gudangTujuan}`;
-                                    const newStokTujuan = {
-                                        id: newStokTujuanId,
-                                        kodeBarang: item.kodeBarang,
-                                        namaBarang: item.namaBarang,
-                                        kategori: item.kategori,
-                                        gudang: tx.gudangTujuan,
-                                        qty: qty,
-                                        sat: this.getSatuanBarang(item.kodeBarang)
-                                    };
-                                    this.stokGudang.push(newStokTujuan);
-                                    if (supabaseClient) {
-                                        await supabaseClient.from('stok_gudang').insert([{
-                                            id: newStokTujuanId,
-                                            kode_barang: item.kodeBarang,
-                                            nama_barang: item.namaBarang,
-                                            kategori: item.kategori,
-                                            gudang: tx.gudangTujuan,
-                                            qty: qty,
-                                            sat: newStokTujuan.sat
-                                        }]);
-                                    }
-                                }
-
-                                if (cat === 'Cable' && item.drumId) {
-                                    let drum = this.drumLedger.find(d => d.drumId === item.drumId);
-                                    if (drum) {
-                                        drum.gudang = tx.gudangTujuan;
-                                        if (supabaseClient) {
-                                            await supabaseClient.from('drum_ledger').update({ gudang: tx.gudangTujuan }).eq('drum_id', drum.drumId);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        this.showNotification('Transaksi berhasil disimpan & disinkronkan ke Supabase!', 'success');
-                        this.resetInputTransaction();
+                        this.showNotification('Transaksi berhasil disimpan & stok diperbaharui!', 'success');
                         this.switchTab('data-transaksi');
-                    } catch (e) {
-                        console.error("Error submitting transaction:", e);
-                        this.showNotification('Gagal menyimpan transaksi ke Supabase: ' + e.message, 'error');
+                        this.resetInputTransaction();
+                    } catch (err) {
+                        console.error("Error submitting transaction:", err);
+                        this.showNotification('Gagal menyimpan transaksi: ' + err.message, 'error');
                     } finally {
                         this.isLoading = false;
-                        this.refreshIcons();
                     }
                 },
 
-                // Hapus Transaksi dari Supabase
                 async deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi} dari Supabase?`)) {
+                    if (confirm(`Hapus transaksi ${tx.noTransaksi}?`)) {
                         try {
                             this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
                             if (supabaseClient) {
                                 await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
                             }
-                            this.showNotification('Transaksi berhasil dihapus dari Supabase!', 'success');
-                        } catch (e) {
-                            console.error("Error deleting transaction:", e);
-                            this.showNotification('Gagal menghapus transaksi dari Supabase!', 'error');
+                            this.showNotification('Transaksi berhasil dihapus!', 'success');
+                        } catch (err) {
+                            console.error("Error deleting transaction:", err);
+                            this.showNotification('Gagal menghapus transaksi di Supabase.', 'error');
                         }
                     }
                 },
@@ -1956,23 +1891,6 @@
                     setTimeout(() => {
                         window.print();
                     }, 300);
-                },
-
-                getBastSummaryTotals() {
-                    if (!this.activeBast || !this.activeBast.items) return [];
-                    const summaryMap = {};
-                    this.activeBast.items.forEach(item => {
-                        const name = item.namaBarang || item.kodeBarang;
-                        const q = Number(item.qty) || 0;
-                        if (!summaryMap[name]) {
-                            summaryMap[name] = 0;
-                        }
-                        summaryMap[name] += q;
-                    });
-                    return Object.keys(summaryMap).map(namaBarang => ({
-                        namaBarang,
-                        totalQty: summaryMap[namaBarang]
-                    }));
                 },
 
                 getFilteredStokGudang() {
@@ -1986,38 +1904,44 @@
                 },
 
                 getUniqueRegions() {
-                    const regs = this.masterProject.map(p => p.region).filter(Boolean);
+                    const regs = this.masterProject.map(p => p.region);
                     return [...new Set(regs)];
                 },
 
                 getFilteredMaterialUsage() {
-                    let res = this.materialUsage;
-                    if (this.filterRegionUsage) {
-                        const matchingProjects = this.masterProject.filter(p => p.region === this.filterRegionUsage).map(p => p.kodeProject);
-                        res = res.filter(u => matchingProjects.includes(u.kodeProject));
-                    }
-                    if (this.searchMaterialUsageProject) {
+                    return this.materialUsage.filter(u => {
+                        const matchRegion = !this.filterRegionUsage || (
+                            this.masterProject.find(p => p.kodeProject === u.kodeProject)?.region === this.filterRegionUsage
+                        );
                         const q = this.searchMaterialUsageProject.toLowerCase();
-                        res = res.filter(u => 
+                        const matchSearch = !q || (
                             (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
                             (u.projectName && u.projectName.toLowerCase().includes(q)) ||
                             (u.noPO && u.noPO.toLowerCase().includes(q))
                         );
-                    }
-                    return res;
+                        return matchRegion && matchSearch;
+                    });
                 },
 
                 getFilteredTransactions() {
-                    let res = this.transactions;
-                    if (this.searchNoTransaksi) {
-                        const q = this.searchNoTransaksi.toLowerCase();
-                        res = res.filter(t => t.noTransaksi && t.noTransaksi.toLowerCase().includes(q));
-                    }
-                    if (this.searchNoReferensi) {
-                        const q = this.searchNoReferensi.toLowerCase();
-                        res = res.filter(t => t.noReferensi && t.noReferensi.toLowerCase().includes(q));
-                    }
-                    return res;
+                    return this.transactions.filter(tx => {
+                        const matchNo = !this.searchNoTransaksi || (tx.noTransaksi && tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
+                        const matchRef = !this.searchNoReferensi || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
+                        return matchNo && matchRef;
+                    });
+                },
+
+                getBastSummaryTotals() {
+                    if (!this.activeBast || !this.activeBast.items) return [];
+                    const summaryMap = {};
+                    this.activeBast.items.forEach(itm => {
+                        const key = itm.namaBarang || itm.kodeBarang;
+                        if (!summaryMap[key]) {
+                            summaryMap[key] = { namaBarang: key, totalQty: 0 };
+                        }
+                        summaryMap[key].totalQty += Number(itm.qty) || 0;
+                    });
+                    return Object.values(summaryMap);
                 },
 
                 exportStokCSV() {
@@ -2025,11 +1949,7 @@
                     this.getFilteredStokGudang().forEach(s => {
                         csv += `"${s.kodeBarang}","${s.namaBarang}","${s.kategori}","${s.gudang}",${s.qty},"${s.sat}"\n`;
                     });
-                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = 'stok_gudang.csv';
-                    link.click();
+                    this.downloadCSV(csv, 'stok_gudang.csv');
                 },
 
                 exportUsageCSV() {
@@ -2037,25 +1957,29 @@
                     this.getFilteredMaterialUsage().forEach(u => {
                         csv += `"${u.kodeProject}","${u.noPO}","${u.projectName}","${u.kodeBarang}","${u.namaBarang}","${u.drumId}",${u.qty},"${u.tanggal}"\n`;
                     });
-                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = 'material_usage.csv';
-                    link.click();
+                    this.downloadCSV(csv, 'material_usage.csv');
                 },
 
                 exportTransactionCSV() {
                     let csv = 'Tanggal,No Transaksi,No Referensi,Tipe,Gudang Asal,Gudang Tujuan,Project,Keterangan\n';
                     this.getFilteredTransactions().forEach(t => {
-                        csv += `"${t.tanggal}","${t.noTransaksi}","${t.noReferensi || ''}","${t.tipeTransaksi}","${t.gudangAsal || ''}","${t.gudangTujuan || ''}","${t.kodeProject || ''}","${t.keterangan || ''}"\n`;
+                        csv += `"${t.tanggal}","${t.noTransaksi}","${t.noReferensi || '-'}","${t.tipeTransaksi}","${t.gudangAsal || '-'}","${t.gudangTujuan || '-'}","${t.kodeProject || '-'}","${t.keterangan || '-'}"\n`;
                     });
+                    this.downloadCSV(csv, 'data_transaksi.csv');
+                },
+
+                downloadCSV(csv, filename) {
                     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = 'transactions.csv';
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', filename);
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
                     link.click();
+                    document.body.removeChild(link);
                 }
-            };
+            }
         }
     </script>
 </body>
