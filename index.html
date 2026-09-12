@@ -369,8 +369,8 @@
                                         <td class="p-3 text-slate-300" x-text="item.type"></td>
                                         <td class="p-3 text-slate-200" x-text="item.noPO"></td>
                                         <td class="p-3 text-slate-200 font-medium" x-text="item.projectName"></td>
-                                        <td class="p-3 text-slate-300" x-text="item.poAwal"></td>
-                                        <td class="p-3 text-slate-300" x-text="item.poFinal || item.poAkhir"></td>
+                                        <td class="p-3 text-slate-300" x-text="item.poAwal || '-'"></td>
+                                        <td class="p-3 text-slate-300" x-text="item.poFinal || item.poAkhir || '-'"></td>
                                         <td class="p-3">
                                             <span class="px-2 py-0.5 rounded text-[10px] font-medium" :class="item.statusPO === 'Sudah' || item.statusPO === 'Closed' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'" x-text="item.statusPO"></span>
                                         </td>
@@ -420,8 +420,10 @@
                                     <input type="text" x-model="newTrans.noTransaksi" readonly class="w-full bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-2 text-xs text-indigo-400 font-mono cursor-not-allowed">
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">No Referensi</label>
-                                    <input type="text" x-model="newTrans.noReferensi" placeholder="REF-0091" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">
+                                        No Referensi <span class="text-rose-400">*</span>
+                                    </label>
+                                    <input type="text" x-model="newTrans.noReferensi" required placeholder="REF-0091 (atau -)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Tipe Transaksi</label>
@@ -468,19 +470,21 @@
                                     </template>
                                 </div>
 
-                                <!-- Kode Project Terkait -->
+                                <!-- Kode Project Terkait (Dropdown Project Name Only & Filtered by Gudang Asal) -->
                                 <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
-                                    <input type="text" x-model="newTrans.kodeProject" list="project-options" placeholder="Pilih atau ketik Kode Project..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                    <datalist id="project-options">
+                                    <select x-model="newTrans.kodeProject" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                        <option value="">Pilih Project</option>
                                         <template x-for="p in getFilteredProjects()" :key="p.kodeProject">
-                                            <option :value="p.kodeProject" x-text="p.kodeProject + ' — ' + p.projectName"></option>
+                                            <option :value="p.kodeProject" x-text="p.projectName"></option>
                                         </template>
-                                    </datalist>
+                                    </select>
                                 </div>
                                 <div class="md:col-span-1">
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Keterangan</label>
-                                    <input type="text" x-model="newTrans.keterangan" placeholder="Catatan transaksi..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">
+                                        Keterangan <span class="text-rose-400">*</span>
+                                    </label>
+                                    <input type="text" x-model="newTrans.keterangan" required placeholder="Catatan transaksi (atau -)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                 </div>
                                 <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Lampiran Dokumen (Auto Compress)</label>
@@ -908,12 +912,12 @@
                             <input type="text" x-model="modalForm.projectName" required placeholder="Nama Project..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
                         </div>
                         <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">PO Awal (Text)</label>
-                            <input type="text" x-model="modalForm.poAwal" required placeholder="Detail / Keterangan PO Awal" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">PO Awal (Text) <span class="text-slate-500 font-normal">(Opsional)</span></label>
+                            <input type="text" x-model="modalForm.poAwal" placeholder="Detail / Keterangan PO Awal" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
                         </div>
                         <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">PO Akhir (Text)</label>
-                            <input type="text" x-model="modalForm.poFinal" required placeholder="Detail / Keterangan PO Akhir" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">PO Akhir (Text) <span class="text-slate-500 font-normal">(Opsional)</span></label>
+                            <input type="text" x-model="modalForm.poFinal" placeholder="Detail / Keterangan PO Akhir" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
                         </div>
                         <div>
                             <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Status PO</label>
@@ -926,6 +930,7 @@
                         <div>
                             <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Permit</label>
                             <select x-model="modalForm.permit" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                                <option value="Non Permit">Non Permit</option>
                                 <option value="BA Open">BA Open</option>
                                 <option value="Donasi">Donasi</option>
                                 <option value="BA Closed">BA Closed</option>
@@ -1274,18 +1279,18 @@
                         const today = new Date().toISOString().split('T')[0];
                         this.modalForm = {
                             periode: today,
-                            region: 'ACH',
+                            region: '',
                             kodeProject: '',
-                            type: 'Distribusi',
+                            type: '',
                             noPO: '',
                             projectName: '',
                             poAwal: '',
                             poFinal: '',
-                            statusPO: 'Belum',
-                            permit: 'BA Open',
-                            snd: 'Survey',
-                            dc: 'On Progres',
-                            statusProject: 'Delivery',
+                            statusPO: '',
+                            permit: '',
+                            snd: '',
+                            dc: '',
+                            statusProject: '',
                             cash: ''
                         };
                         this.generateKodeProject();
@@ -1423,11 +1428,17 @@
                 onTipeTransaksiChange() {
                     this.newTrans.gudangAsal = '';
                     this.newTrans.gudangTujuan = '';
+                    this.newTrans.kodeProject = '';
+                    this.resetItemsOnWarehouseChange();
                     this.generateNoTransaksi();
                 },
 
                 resetItemsOnWarehouseChange() {
                     this.newTrans.items.forEach(item => {
+                        item.kategori = '';
+                        item.jenis = '';
+                        item.kodeBarang = '';
+                        item.namaBarang = '';
                         item.drumId = '';
                     });
                 },
@@ -1439,7 +1450,40 @@
                     return this.masterGudang;
                 },
 
+                // Filter Project berdasarkan Gudang Asal untuk Transaksi Keluar & Transfer
                 getFilteredProjects() {
+                    if (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') {
+                        if (!this.newTrans.gudangAsal) return [];
+                        
+                        const gudangAsalLower = (this.newTrans.gudangAsal || '').toLowerCase();
+                        const gudangObj = this.masterGudang.find(g => g.namaGudang === this.newTrans.gudangAsal);
+                        const gudangLokasiLower = gudangObj ? (gudangObj.lokasi || '').toLowerCase() : '';
+                        const gudangKodeLower = gudangObj ? (gudangObj.kodeGudang || '').toLowerCase() : '';
+
+                        const filtered = this.masterProject.filter(p => {
+                            const regLower = (p.region || '').toLowerCase();
+                            const regCode = this.getRegionCode(p.region).toLowerCase();
+
+                            // 1. Cocokkan Region Project dengan Nama/Lokasi/Kode Gudang Asal
+                            const matchRegion = regLower && (
+                                gudangAsalLower.includes(regLower) || 
+                                gudangLokasiLower.includes(regLower) ||
+                                gudangKodeLower.includes(regCode) ||
+                                gudangAsalLower.includes(regCode)
+                            );
+
+                            // 2. Cocokkan Histori Transaksi di Gudang Asal ini
+                            const matchTx = this.transactions.some(tx => 
+                                tx.kodeProject === p.kodeProject && 
+                                (tx.gudangAsal === this.newTrans.gudangAsal || tx.gudangTujuan === this.newTrans.gudangAsal)
+                            );
+
+                            return matchRegion || matchTx;
+                        });
+
+                        // Jika tidak ada kriteria khusus yang cocok, tetap tampilkan seluruh master project agar form fleksibel
+                        return filtered.length > 0 ? filtered : this.masterProject;
+                    }
                     return this.masterProject;
                 },
 
@@ -1467,19 +1511,40 @@
                     }
                 },
 
+                // Kategori disaring berdasarkan Ketersediaan Stok di Gudang Asal untuk Keluar / Transfer
                 getCategories(item) {
+                    if ((this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') && this.newTrans.gudangAsal) {
+                        const availableStok = this.stokGudang.filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0);
+                        const cats = availableStok.map(s => s.kategori).filter(Boolean);
+                        return [...new Set(cats)];
+                    }
                     const cats = this.masterBarang.map(b => b.kategori);
                     return [...new Set(cats)];
                 },
 
                 getJenis(kategori) {
                     if (!kategori) return [];
+                    if ((this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') && this.newTrans.gudangAsal) {
+                        const availableCodes = this.stokGudang
+                            .filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0 && s.kategori === kategori)
+                            .map(s => s.kodeBarang);
+                        const jns = this.masterBarang
+                            .filter(b => b.kategori === kategori && availableCodes.includes(b.kodeBarang))
+                            .map(b => b.jenis);
+                        return [...new Set(jns)];
+                    }
                     const jns = this.masterBarang.filter(b => b.kategori === kategori).map(b => b.jenis);
                     return [...new Set(jns)];
                 },
 
                 getBarangList(kategori, jenis) {
                     if (!kategori || !jenis) return [];
+                    if ((this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') && this.newTrans.gudangAsal) {
+                        const availableCodes = this.stokGudang
+                            .filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0)
+                            .map(s => s.kodeBarang);
+                        return this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis && availableCodes.includes(b.kodeBarang));
+                    }
                     return this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
                 },
 
@@ -1508,6 +1573,17 @@
                         this.showNotification('Lengkapi data header transaksi terlebih dahulu!', 'error');
                         return;
                     }
+
+                    // Validasi Wajib Isi No Referensi & Keterangan (minimal tanda -)
+                    if (!this.newTrans.noReferensi || !this.newTrans.noReferensi.trim()) {
+                        this.showNotification('No Referensi wajib diisi, setidaknya tanda strip (-)!', 'error');
+                        return;
+                    }
+                    if (!this.newTrans.keterangan || !this.newTrans.keterangan.trim()) {
+                        this.showNotification('Keterangan wajib diisi, setidaknya tanda strip (-)!', 'error');
+                        return;
+                    }
+
                     if (this.newTrans.items.length === 0) {
                         this.showNotification('Tambahkan minimal 1 item material!', 'error');
                         return;
@@ -1609,7 +1685,7 @@
                         });
 
                         this.transactions.unshift({ ...this.newTrans, items: JSON.parse(JSON.stringify(this.newTrans.items)) });
-                        this.showNotification('Transaksi berhasil diproses & dicatat secara atomik!', 'success');
+                        this.showNotification('Transaksi berhasil dipproses & dicatat secara atomik!', 'success');
                         this.resetInputTransaction();
                         this.switchTab('data-transaksi');
                     } catch (e) {
