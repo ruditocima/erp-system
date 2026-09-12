@@ -470,7 +470,7 @@
                                     </template>
                                 </div>
 
-                                <!-- Kode Project Terkait (Dropdown Project Name Only & Filtered by Gudang Asal) -->
+                                <!-- Kode Project Terkait -->
                                 <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
                                     <select x-model="newTrans.kodeProject" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
@@ -1574,13 +1574,13 @@
                         return;
                     }
 
-                    // Validasi Wajib Isi No Referensi & Keterangan (minimal tanda -)
+                    // Validasi Wajib Isi No Referensi & Keterangan
                     if (!this.newTrans.noReferensi || !this.newTrans.noReferensi.trim()) {
-                        this.showNotification('No Referensi wajib diisi !', 'error');
+                        this.showNotification('No Referensi wajib diisi!', 'error');
                         return;
                     }
                     if (!this.newTrans.keterangan || !this.newTrans.keterangan.trim()) {
-                        this.showNotification('Keterangan wajib diisi !', 'error');
+                        this.showNotification('Keterangan wajib diisi!', 'error');
                         return;
                     }
 
@@ -1684,144 +1684,66 @@
                             }
                         });
 
-                        this.transactions.unshift({ ...this.newTrans, items: JSON.parse(JSON.stringify(this.newTrans.items)) });
-                        this.showNotification('Transaksi berhasil dipproses & dicatat secara atomik!', 'success');
+                        const txRecord = JSON.parse(JSON.stringify(this.newTrans));
+                        this.transactions.unshift(txRecord);
+
+                        // Eksekusi Supabase RPC & Cloud Synchronization
+                        if (supabaseClient) {
+                            try {
+                                const { data, error } = await supabaseClient.rpc('process_transaction', {
+                                    p_transaction: txRecord
+                                });
+                                if (error) {
+                                    console.warn('Prosedur Supabase RPC gagal, tersimpan di penyimpanan lokal:', error.message);
+                                } else {
+                                    console.log('Transaksi berhasil disinkronkan ke Supabase Cloud:', data);
+                                }
+                            } catch (err) {
+                                console.warn('Koneksi Supabase terputus, beralih ke penyimpanan lokal:', err);
+                            }
+                        }
+
+                        this.showNotification('Transaksi atomik berhasil diproses & disimpan!', 'success');
                         this.resetInputTransaction();
-                        this.switchTab('data-transaksi');
-                    } catch (e) {
-                        console.error('Error executing transaction:', e);
-                        this.showNotification('Gagal memproses transaksi: ' + e.message, 'error');
+                    } catch (err) {
+                        console.error('Submit transaction error:', err);
+                        this.showNotification('Gagal memproses transaksi: ' + err.message, 'error');
                     } finally {
                         this.isLoading = false;
                     }
                 },
 
-                editTransaction(tx) {
-                    this.showNotification('Fitur edit transaksi sedang disiapkan.', 'error');
-                },
+                // Sinkronisasi Data Awal dari Supabase Cloud
+                async syncWithSupabaseOnStart() {
+                    if (!supabaseClient) return;
+                    try {
+                        const { data: barangData, error: errBarang } = await supabaseClient.from('master_barang').select('*');
+                        if (!errBarang && barangData && barangData.length > 0) this.masterBarang = barangData;
 
-                deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?`)) {
-                        const index = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
-                        if (index !== -1) {
-                            this.transactions.splice(index, 1);
-                            this.showNotification('Transaksi berhasil dihapus!', 'success');
-                        }
+                        const { data: gudangData, error: errGudang } = await supabaseClient.from('master_gudang').select('*');
+                        if (!errGudang && gudangData && gudangData.length > 0) this.masterGudang = gudangData;
+
+                        const { data: projectData, error: errProject } = await supabaseClient.from('master_project').select('*');
+                        if (!errProject && projectData && projectData.length > 0) this.masterProject = projectData;
+
+                        const { data: stokData, error: errStok } = await supabaseClient.from('stok_gudang').select('*');
+                        if (!errStok && stokData && stokData.length > 0) this.stokGudang = stokData;
+
+                        const { data: drumData, error: errDrum } = await supabaseClient.from('drum_ledger').select('*');
+                        if (!errDrum && drumData && drumData.length > 0) this.drumLedger = drumData;
+
+                        const { data: usageData, error: errUsage } = await supabaseClient.from('material_usage').select('*');
+                        if (!errUsage && usageData && usageData.length > 0) this.materialUsage = usageData;
+
+                        const { data: txData, error: errTx } = await supabaseClient.from('transactions').select('*');
+                        if (!errTx && txData && txData.length > 0) this.transactions = txData;
+
+                    } catch (e) {
+                        console.warn('Gagal sinkronisasi data dari Supabase, memuat data penyimpanan lokal:', e);
                     }
                 },
 
-                printBAST(tx) {
-                    this.activeBast = tx;
-                    this.$nextTick(() => {
-                        window.print();
-                    });
-                },
-
-                getBastSummaryTotals() {
-                    if (!this.activeBast || !this.activeBast.items) return [];
-                    const totals = {};
-                    this.activeBast.items.forEach(item => {
-                        const name = item.namaBarang || 'Lainnya';
-                        totals[name] = (totals[name] || 0) + (Number(item.qty) || 0);
-                    });
-                    return Object.keys(totals).map(k => ({ namaBarang: k, totalQty: totals[k] }));
-                },
-
-                exportToCSV(filename, rows) {
-                    if (!rows || rows.length === 0) {
-                        this.showNotification('Tidak ada data untuk diekspor!', 'error');
-                        return;
-                    }
-                    const keys = Object.keys(rows[0]);
-                    let csvContent = keys.join(',') + '\n';
-                    rows.forEach(row => {
-                        const values = keys.map(key => {
-                            let val = row[key] !== undefined && row[key] !== null ? row[key] : '';
-                            if (typeof val === 'object') val = JSON.stringify(val);
-                            val = '"' + String(val).replace(/"/g, '""') + '"';
-                            return val;
-                        });
-                        csvContent += values.join(',') + '\n';
-                    });
-
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', filename);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    this.showNotification('Laporan CSV berhasil diunduh!', 'success');
-                },
-
-                exportStokCSV() {
-                    const data = this.getFilteredStokGudang().map(s => ({
-                        KodeBarang: s.kodeBarang,
-                        NamaBarang: s.namaBarang,
-                        Kategori: s.kategori,
-                        Gudang: s.gudang,
-                        Qty: s.qty,
-                        Satuan: s.sat
-                    }));
-                    this.exportToCSV('laporan_stok_gudang.csv', data);
-                },
-
-                exportUsageCSV() {
-                    const data = this.getFilteredMaterialUsage().map(u => ({
-                        KodeProject: u.kodeProject,
-                        NoPO: u.noPO,
-                        ProjectName: u.projectName,
-                        KodeBarang: u.kodeBarang,
-                        NamaBarang: u.namaBarang,
-                        DrumID: u.drumId,
-                        QtyDipakai: u.qty,
-                        Tanggal: u.tanggal
-                    }));
-                    this.exportToCSV('laporan_material_usage.csv', data);
-                },
-
-                exportTransactionCSV() {
-                    const rows = [];
-                    const filtered = this.getFilteredTransactions();
-
-                    filtered.forEach(t => {
-                        if (t.items && t.items.length > 0) {
-                            t.items.forEach(item => {
-                                rows.push({
-                                    "Tanggal": t.tanggal || '',
-                                    "No Transaksi": t.noTransaksi || '',
-                                    "No Referensi": t.noReferensi || '',
-                                    "Tipe": t.tipeTransaksi || '',
-                                    "Gudang Asal": t.gudangAsal || '',
-                                    "Gudang Tujuan": t.gudangTujuan || '',
-                                    "Kode Project": t.kodeProject || '',
-                                    "Nama Barang": item.namaBarang || '',
-                                    "Drum ID": item.drumId || '',
-                                    "Qty": item.qty !== undefined && item.qty !== null ? item.qty : '',
-                                    "Keterangan": item.keterangan || t.keterangan || ''
-                                });
-                            });
-                        } else {
-                            rows.push({
-                                "Tanggal": t.tanggal || '',
-                                "No Transaksi": t.noTransaksi || '',
-                                "No Referensi": t.noReferensi || '',
-                                "Tipe": t.tipeTransaksi || '',
-                                "Gudang Asal": t.gudangAsal || '',
-                                "Gudang Tujuan": t.gudangTujuan || '',
-                                "Kode Project": t.kodeProject || '',
-                                "Nama Barang": '',
-                                "Drum ID": '',
-                                "Qty": '',
-                                "Keterangan": t.keterangan || ''
-                            });
-                        }
-                    });
-
-                    this.exportToCSV('laporan_data_transaksi.csv', rows);
-                },
-
+                // Filters & Data Views
                 getFilteredStokGudang() {
                     if (!this.filterStokGudang) return this.stokGudang;
                     return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
@@ -1833,39 +1755,130 @@
                 },
 
                 getUniqueRegions() {
-                    const regions = this.masterProject.map(p => p.region).filter(Boolean);
-                    return [...new Set(regions)];
+                    const regList = this.masterProject.map(p => p.region).filter(Boolean);
+                    return [...new Set(regList)];
                 },
 
                 getFilteredMaterialUsage() {
                     return this.materialUsage.filter(u => {
-                        const matchRegion = !this.filterRegionUsage || (this.masterProject.find(p => p.kodeProject === u.kodeProject)?.region === this.filterRegionUsage);
-                        const q = (this.searchMaterialUsageProject || '').toLowerCase();
-                        const matchQuery = !q || (u.kodeProject || '').toLowerCase().includes(q) || (u.noPO || '').toLowerCase().includes(q) || (u.projectName || '').toLowerCase().includes(q);
-                        return matchRegion && matchQuery;
+                        let matchRegion = true;
+                        if (this.filterRegionUsage) {
+                            const prj = this.masterProject.find(p => p.kodeProject === u.kodeProject);
+                            matchRegion = prj && prj.region === this.filterRegionUsage;
+                        }
+
+                        let matchSearch = true;
+                        if (this.searchMaterialUsageProject) {
+                            const q = this.searchMaterialUsageProject.toLowerCase();
+                            const pName = (u.projectName || '').toLowerCase();
+                            const kPrj = (u.kodeProject || '').toLowerCase();
+                            const nPO = (u.noPO || '').toLowerCase();
+                            matchSearch = pName.includes(q) || kPrj.includes(q) || nPO.includes(q);
+                        }
+
+                        return matchRegion && matchSearch;
                     });
                 },
 
                 getFilteredTransactions() {
-                    return this.transactions.filter(t => {
-                        const qNo = (this.searchNoTransaksi || '').toLowerCase();
-                        const qRef = (this.searchNoReferensi || '').toLowerCase();
-                        const matchNo = !qNo || (t.noTransaksi || '').toLowerCase().includes(qNo);
-                        const matchRef = !qRef || (t.noReferensi || '').toLowerCase().includes(qRef);
-                        return matchNo && matchRef;
+                    return this.transactions.filter(tx => {
+                        let matchNoTx = true;
+                        if (this.searchNoTransaksi) {
+                            matchNoTx = (tx.noTransaksi || '').toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
+                        }
+
+                        let matchRef = true;
+                        if (this.searchNoReferensi) {
+                            matchRef = (tx.noReferensi || '').toLowerCase().includes(this.searchNoReferensi.toLowerCase());
+                        }
+
+                        return matchNoTx && matchRef;
                     });
                 },
 
-                async syncWithSupabaseOnStart() {
-                    if (supabaseClient) {
-                        try {
-                            console.log("Supabase client terhubung secara aktif.");
-                        } catch (err) {
-                            console.warn("Supabase fallback ke LocalStorage:", err);
+                // Summary Totals untuk Cetak Dokumen BAST PDF
+                getBastSummaryTotals() {
+                    if (!this.activeBast || !this.activeBast.items) return [];
+                    const totalsMap = {};
+                    this.activeBast.items.forEach(item => {
+                        const key = item.namaBarang || item.kodeBarang;
+                        const qty = Number(item.qty) || 0;
+                        totalsMap[key] = (totalsMap[key] || 0) + qty;
+                    });
+                    return Object.keys(totalsMap).map(key => ({
+                        namaBarang: key,
+                        totalQty: totalsMap[key]
+                    }));
+                },
+
+                // Operasi Print BAST & Edit Transaksi
+                printBAST(tx) {
+                    this.activeBast = JSON.parse(JSON.stringify(tx));
+                    this.$nextTick(() => {
+                        window.print();
+                    });
+                },
+
+                editTransaction(tx) {
+                    this.newTrans = JSON.parse(JSON.stringify(tx));
+                    this.switchTab('input-transaksi');
+                    this.showNotification('Data transaksi dimuat ke dalam form untuk diperbarui.', 'success');
+                },
+
+                deleteTransaction(tx) {
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?`)) {
+                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
+                        if (idx !== -1) {
+                            this.transactions.splice(idx, 1);
+                            this.showNotification('Transaksi berhasil dihapus!', 'success');
                         }
                     }
+                },
+
+                // Export Utilities (CSV)
+                exportCSV(filename, rows) {
+                    if (!rows || !rows.length) {
+                        this.showNotification('Tidak ada data untuk diekspor!', 'error');
+                        return;
+                    }
+                    const separator = ',';
+                    const keys = Object.keys(rows[0]);
+                    const csvContent =
+                        keys.join(separator) + '\n' +
+                        rows.map(row => {
+                            return keys.map(k => {
+                                let cell = row[k] === null || row[k] === undefined ? '' : row[k];
+                                cell = cell.toString().replace(/"/g, '""');
+                                if (cell.search(/("|,|\n)/) >= 0) cell = `"${cell}"`;
+                                return cell;
+                            }).join(separator);
+                        }).join('\n');
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    if (link.download !== undefined) {
+                        const url = URL.createObjectURL(blob);
+                        link.setAttribute('href', url);
+                        link.setAttribute('download', filename);
+                        link.style.visibility = 'hidden';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }
+                },
+
+                exportStokCSV() {
+                    this.exportCSV('stok_gudang.csv', this.getFilteredStokGudang());
+                },
+
+                exportUsageCSV() {
+                    this.exportCSV('material_usage.csv', this.getFilteredMaterialUsage());
+                },
+
+                exportTransactionCSV() {
+                    this.exportCSV('data_transaksi.csv', this.getFilteredTransactions());
                 }
-            };
+            }
         }
     </script>
 </body>
