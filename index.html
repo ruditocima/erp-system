@@ -1182,7 +1182,7 @@
                 ]),
 
                 materialUsage: safeLoadStorage('vortex_materialUsage', [
-                    { id: 'USG-INIT-001', kodeProject: 'ACH-2026-001', noPO: 'PO/2026/0192', projectName: 'Project Aceh FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'CBLADSS024-NPM-02', qty: 2000, tanggal: '2026-06-02' }
+                    { id: 'USG-INIT-001', noTransaksi: '', kodeProject: 'ACH-2026-001', noPO: 'PO/2026/0192', projectName: 'Project Aceh FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'CBLADSS024-NPM-02', qty: 2000, tanggal: '2026-06-02' }
                 ]),
 
                 transactions: safeLoadStorage('vortex_transactions', [
@@ -1579,7 +1579,6 @@
                                     let generatedDrumIds = [];
                                     let drumBreakdown = [];
 
-                                    // Ambil 3 huruf awal kode Gudang Tujuan
                                     let whName = this.newTrans.gudangTujuan;
                                     let whCode3 = 'NPM';
                                     if (whName) {
@@ -1592,11 +1591,9 @@
                                     }
                                     if (!whCode3 || whCode3.length < 3) whCode3 = 'NPM';
 
-                                    // Gabungkan kode barang tanpa pemisah atau tanda strip (-)
                                     const cleanKodeBarang = item.kodeBarang.replace(/-/g, '');
                                     const prefix = `${cleanKodeBarang}-${whCode3}-`;
 
-                                    // Cari nomor urut terakhir yang sudah ada untuk kode barang & gudang tujuan ini
                                     let maxSeq = 0;
                                     this.drumLedger.forEach(d => {
                                         if (d.gudang === this.newTrans.gudangTujuan && d.drumId && d.drumId.startsWith(prefix)) {
@@ -1614,7 +1611,7 @@
                                         let chunkQty = Math.min(remainingQtyToSplit, maxCapacity);
                                         currentSeq++;
                                         if (currentSeq > 99) {
-                                            currentSeq = 1; // Kembali ke 01 jika melebihi 99
+                                            currentSeq = 1;
                                         }
                                         const drumId = `${cleanKodeBarang}-${whCode3}-${String(currentSeq).padStart(2, '0')}`;
                                         
@@ -1654,6 +1651,7 @@
                                     const prj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
                                     this.materialUsage.push({
                                         id: `USG-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+                                        noTransaksi: this.newTrans.noTransaksi,
                                         kodeProject: this.newTrans.kodeProject,
                                         noPO: prj ? prj.noPO : '-',
                                         projectName: prj ? prj.projectName : '-',
@@ -1711,11 +1709,89 @@
                 },
 
                 deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?`)) {
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Tindakan ini akan mengembalikan stok gudang, memperbarui pelacakan drum, dan menghapus catatan material usage terkait.`)) {
                         const index = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
                         if (index !== -1) {
+                            if (tx.tipeTransaksi === 'Keluar') {
+                                // 1. Kembalikan stok ke Gudang Asal & kembalikan sisa panjang drum kabel
+                                tx.items.forEach(item => {
+                                    const qty = Number(item.qty) || 0;
+                                    const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
+
+                                    let stok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangAsal);
+                                    if (stok) {
+                                        stok.qty += qty;
+                                    } else {
+                                        const brg = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
+                                        this.stokGudang.push({
+                                            id: `${item.kodeBarang}_${tx.gudangAsal}`,
+                                            kodeBarang: item.kodeBarang,
+                                            namaBarang: item.namaBarang,
+                                            kategori: item.kategori || (brg ? brg.kategori : ''),
+                                            gudang: tx.gudangAsal,
+                                            qty: qty,
+                                            sat: brg ? brg.sat : 'Pcs'
+                                        });
+                                    }
+
+                                    if (isCable && item.drumId) {
+                                        let drum = this.drumLedger.find(d => d.drumId === item.drumId);
+                                        if (drum) {
+                                            drum.remainingLength = Math.min(drum.initialLength, drum.remainingLength + qty);
+                                            if (drum.remainingLength === drum.initialLength) {
+                                                drum.status = 'Full';
+                                            } else if (drum.remainingLength > 0) {
+                                                drum.status = 'Partial';
+                                            } else {
+                                                drum.status = 'Empty';
+                                            }
+                                        }
+                                    }
+                                });
+
+                                // 2. Hapus data Material Usage terkait transaksi ini
+                                this.materialUsage = this.materialUsage.filter(u => u.noTransaksi !== tx.noTransaksi);
+
+                            } else if (tx.tipeTransaksi === 'Transfer') {
+                                // 1. Kembalikan stok ke Gudang Asal & kurangi dari Gudang Tujuan
+                                tx.items.forEach(item => {
+                                    const qty = Number(item.qty) || 0;
+                                    const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
+
+                                    let stokAsal = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangAsal);
+                                    if (stokAsal) {
+                                        stokAsal.qty += qty;
+                                    } else {
+                                        const brg = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
+                                        this.stokGudang.push({
+                                            id: `${item.kodeBarang}_${tx.gudangAsal}`,
+                                            kodeBarang: item.kodeBarang,
+                                            namaBarang: item.namaBarang,
+                                            kategori: item.kategori || (brg ? brg.kategori : ''),
+                                            gudang: tx.gudangAsal,
+                                            qty: qty,
+                                            sat: brg ? brg.sat : 'Pcs'
+                                        });
+                                    }
+
+                                    let stokTujuan = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangTujuan);
+                                    if (stokTujuan) {
+                                        stokTujuan.qty = Math.max(0, stokTujuan.qty - qty);
+                                    }
+
+                                    // 2. Kembalikan lokasi drum kabel ke Gudang Asal
+                                    if (isCable && item.drumId) {
+                                        let drum = this.drumLedger.find(d => d.drumId === item.drumId);
+                                        if (drum) {
+                                            drum.gudang = tx.gudangAsal;
+                                        }
+                                    }
+                                });
+                            }
+
+                            // Hapus transaksi dari daftar
                             this.transactions.splice(index, 1);
-                            this.showNotification('Transaksi berhasil dihapus!', 'success');
+                            this.showNotification('Transaksi berhasil dihapus & stok serta pelacakan drum berhasil dipulihkan!', 'success');
                         }
                     }
                 },
@@ -1838,7 +1914,7 @@
 
                 exportUsageCSV() {
                     let csv = 'Kode Project,No PO,Project Name,Kode Barang,Nama Barang,Drum ID,Qty,Tanggal\n';
-                    this.getFilteredMaterialUsage().forEach(u => {
+                    this.getFilteredMaterialUsage().exportUsageCSV || this.getFilteredMaterialUsage().forEach(u => {
                         csv += `"${u.kodeProject}","${u.noPO}","${u.projectName}","${u.kodeBarang}","${u.namaBarang}","${u.drumId}",${u.qty},"${u.tanggal}"\n`;
                     });
                     this.downloadCSV(csv, 'material-usage.csv');
@@ -1865,29 +1941,20 @@
                     this.downloadCSV(csv, 'transactions.csv');
                 },
 
-                downloadCSV(csvContent, filename) {
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
+                downloadCSV(csv, filename) {
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                     const link = document.createElement('a');
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', filename);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                },
-
-                async syncWithSupabaseOnStart() {
-                    if (!supabaseClient) return;
-                    try {
-                        const { data, error } = await supabaseClient.from('wms_transactions').select('*');
-                        if (!error && data && data.length > 0) {
-                            // Sync if needed
-                        }
-                    } catch (e) {
-                        console.warn('Supabase sync warning:', e);
+                    if (link.download !== undefined) {
+                        const url = URL.createObjectURL(blob);
+                        link.setAttribute('href', url);
+                        link.setAttribute('download', filename);
+                        link.style.visibility = 'hidden';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
                     }
                 }
-            }
+            };
         }
     </script>
 </body>
