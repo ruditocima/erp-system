@@ -383,7 +383,7 @@
                     </div>
                 </div>
 
-                <!-- 5. INPUT TRANSAKSI (DENGAN VALIDASI WAJIB NO REFERENSI & KETERANGAN) -->
+                <!-- 5. INPUT TRANSAKSI -->
                 <div x-show="currentTab === 'input-transaksi'" class="space-y-4" x-cloak>
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 md:p-6 shadow-sm">
                         <div class="border-b border-slate-800 pb-3 mb-4 flex items-center justify-between">
@@ -1709,94 +1709,99 @@
                 },
 
                 deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Tindakan ini akan mengembalikan stok ke gudang asal dan menghapus catatan terkait.`)) {
-                        try {
-                            // Reverse effects based on transaction type
-                            tx.items.forEach(item => {
-                                const qty = Number(item.qty);
-                                const kb = item.kodeBarang;
-                                const cat = this.getCategoryByKode(kb);
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi} (${tx.tipeTransaksi})? Tindakan ini akan mengembalikan stok & pelacakan drum serta menghapus material usage terkait.`)) {
+                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
+                        if (idx >= 0) {
+                            // Reverse stock & drum ledger & material usage based on transaction type
+                            if (tx.items && tx.items.length > 0) {
+                                tx.items.forEach(item => {
+                                    const qty = Number(item.qty) || 0;
+                                    const kb = item.kodeBarang;
+                                    const cat = this.getCategoryByKode(kb);
 
-                                if (tx.tipeTransaksi === 'Masuk') {
-                                    // Reverse Masuk: subtract from gudangTujuan
-                                    const whTujuan = tx.gudangTujuan;
-                                    let stok = this.stokGudang.find(s => s.kodeBarang === kb && s.gudang === whTujuan);
-                                    if (stok) {
-                                        stok.qty = Math.max(0, stok.qty - qty);
-                                    }
-                                    if (cat === 'Cable' && item.drumId) {
-                                        let drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === whTujuan);
-                                        if (drum) {
-                                            drum.initialLength = Math.max(0, drum.initialLength - qty);
-                                            drum.remainingLength = Math.max(0, drum.remainingLength - qty);
+                                    if (tx.tipeTransaksi === 'Masuk') {
+                                        // Reverse Masuk: subtract from gudangTujuan stok & drum
+                                        const whTujuan = tx.gudangTujuan;
+                                        let stok = this.stokGudang.find(s => s.kodeBarang === kb && s.gudang === whTujuan);
+                                        if (stok) {
+                                            stok.qty = Math.max(0, stok.qty - qty);
+                                        }
+                                        if (cat === 'Cable' && item.drumId) {
+                                            let drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === whTujuan);
+                                            if (drum) {
+                                                drum.initialLength = Math.max(0, drum.initialLength - qty);
+                                                drum.remainingLength = Math.max(0, drum.remainingLength - qty);
+                                            }
+                                        }
+                                    } else if (tx.tipeTransaksi === 'Keluar') {
+                                        // Reverse Keluar: add back to gudangAsal stok & drum
+                                        const whAsal = tx.gudangAsal;
+                                        let stok = this.stokGudang.find(s => s.kodeBarang === kb && s.gudang === whAsal);
+                                        if (stok) {
+                                            stok.qty += qty;
+                                        } else {
+                                            const brgObj = this.masterBarang.find(b => b.kodeBarang === kb);
+                                            const namaB = brgObj ? brgObj.namaBarang : kb;
+                                            const satB = brgObj ? brgObj.sat : 'Pcs';
+                                            this.stokGudang.push({ id: `${kb}_${whAsal}`, kodeBarang: kb, namaBarang: namaB, kategori: cat, gudang: whAsal, qty: qty, sat: satB });
+                                        }
+
+                                        if (cat === 'Cable' && item.drumId) {
+                                            let drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === whAsal);
+                                            if (drum) {
+                                                drum.remainingLength += qty;
+                                            }
+                                        }
+                                    } else if (tx.tipeTransaksi === 'Transfer') {
+                                        // Reverse Transfer: add back to gudangAsal, subtract from gudangTujuan
+                                        const whAsal = tx.gudangAsal;
+                                        const whTujuan = tx.gudangTujuan;
+
+                                        let stokAsal = this.stokGudang.find(s => s.kodeBarang === kb && s.gudang === whAsal);
+                                        if (stokAsal) {
+                                            stokAsal.qty += qty;
+                                        } else {
+                                            const brgObj = this.masterBarang.find(b => b.kodeBarang === kb);
+                                            const namaB = brgObj ? brgObj.namaBarang : kb;
+                                            const satB = brgObj ? brgObj.sat : 'Pcs';
+                                            this.stokGudang.push({ id: `${kb}_${whAsal}`, kodeBarang: kb, namaBarang: namaB, kategori: cat, gudang: whAsal, qty: qty, sat: satB });
+                                        }
+
+                                        let stokTujuan = this.stokGudang.find(s => s.kodeBarang === kb && s.gudang === whTujuan);
+                                        if (stokTujuan) {
+                                            stokTujuan.qty = Math.max(0, stokTujuan.qty - qty);
+                                        }
+
+                                        if (cat === 'Cable' && item.drumId) {
+                                            let drumAsal = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === whAsal);
+                                            if (drumAsal) {
+                                                drumAsal.remainingLength += qty;
+                                            }
+                                            let drumTujuan = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === whTujuan);
+                                            if (drumTujuan) {
+                                                drumTujuan.remainingLength = Math.max(0, drumTujuan.remainingLength - qty);
+                                            }
                                         }
                                     }
-                                } else if (tx.tipeTransaksi === 'Keluar') {
-                                    // Reverse Keluar: add back to gudangAsal
-                                    const whAsal = tx.gudangAsal;
-                                    let stok = this.stokGudang.find(s => s.kodeBarang === kb && s.gudang === whAsal);
-                                    if (stok) {
-                                        stok.qty += qty;
-                                    } else {
-                                        const brgObj = this.masterBarang.find(b => b.kodeBarang === kb);
-                                        const namaB = brgObj ? brgObj.namaBarang : kb;
-                                        const satB = brgObj ? brgObj.sat : 'Pcs';
-                                        this.stokGudang.push({ id: `${kb}_${whAsal}`, kodeBarang: kb, namaBarang: namaB, kategori: cat, gudang: whAsal, qty: qty, sat: satB });
-                                    }
+                                });
+                            }
 
-                                    if (cat === 'Cable' && item.drumId) {
-                                        let drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === whAsal);
-                                        if (drum) {
-                                            drum.remainingLength += qty;
-                                        }
-                                    }
-                                } else if (tx.tipeTransaksi === 'Transfer') {
-                                    // Reverse Transfer: add back to gudangAsal, subtract from gudangTujuan
-                                    const whAsal = tx.gudangAsal;
-                                    const whTujuan = tx.gudangTujuan;
-
-                                    let stokAsal = this.stokGudang.find(s => s.kodeBarang === kb && s.gudang === whAsal);
-                                    if (stokAsal) {
-                                        stokAsal.qty += qty;
-                                    } else {
-                                        const brgObj = this.masterBarang.find(b => b.kodeBarang === kb);
-                                        const namaB = brgObj ? brgObj.namaBarang : kb;
-                                        const satB = brgObj ? brgObj.sat : 'Pcs';
-                                        this.stokGudang.push({ id: `${kb}_${whAsal}`, kodeBarang: kb, namaBarang: namaB, kategori: cat, gudang: whAsal, qty: qty, sat: satB });
-                                    }
-
-                                    let stokTujuan = this.stokGudang.find(s => s.kodeBarang === kb && s.gudang === whTujuan);
-                                    if (stokTujuan) {
-                                        stokTujuan.qty = Math.max(0, stokTujuan.qty - qty);
-                                    }
-
-                                    if (cat === 'Cable' && item.drumId) {
-                                        let drumAsal = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === whAsal);
-                                        if (drumAsal) {
-                                            drumAsal.remainingLength += qty;
-                                        }
-                                        let drumTujuan = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === whTujuan);
-                                        if (drumTujuan) {
-                                            drumTujuan.remainingLength = Math.max(0, drumTujuan.remainingLength - qty);
-                                        }
-                                    }
-                                }
-                            });
-
-                            // Remove from materialUsage if Keluar
+                            // If Keluar, also remove corresponding Material Usage entries
                             if (tx.tipeTransaksi === 'Keluar') {
                                 this.materialUsage = this.materialUsage.filter(u => u.transactionNo !== tx.noTransaksi);
                             }
 
-                            // Remove transaction from list
-                            const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
-                            if (idx >= 0) {
-                                this.transactions.splice(idx, 1);
-                                this.showNotification('Transaksi dihapus, stok & pelacakan drum dikembalikan ke Gudang Asal!', 'success');
+                            // Remove transaction
+                            this.transactions.splice(idx, 1);
+
+                            // Sync Supabase if available
+                            if (supabaseClient) {
+                                supabaseClient.from('transactions').delete().eq('noTransaksi', tx.noTransaksi).then(({ error }) => {
+                                    if (error) console.warn('Supabase delete warning:', error);
+                                });
                             }
-                        } catch (delErr) {
-                            console.error('Error deleting transaction:', delErr);
-                            this.showNotification('Terjadi kesalahan saat menghapus transaksi.', 'error');
+
+                            this.showNotification('Transaksi berhasil dihapus & stok dikembalikan!', 'success');
                         }
                     }
                 },
