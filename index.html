@@ -1177,12 +1177,12 @@
                 ]),
 
                 drumLedger: safeLoadStorage('vortex_drumLedger', [
-                    { drumId: 'DRM024-NPM-01', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
-                    { drumId: 'DRM024-NPM-02', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 1000, status: 'Partial' }
+                    { drumId: 'CBLADSS024-NPM-01', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
+                    { drumId: 'CBLADSS024-NPM-02', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 1000, status: 'Partial' }
                 ]),
 
                 materialUsage: safeLoadStorage('vortex_materialUsage', [
-                    { id: 'USG-INIT-001', kodeProject: 'ACH-2026-001', noPO: 'PO/2026/0192', projectName: 'Project Aceh FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM024-NPM-02', qty: 2000, tanggal: '2026-06-02' }
+                    { id: 'USG-INIT-001', kodeProject: 'ACH-2026-001', noPO: 'PO/2026/0192', projectName: 'Project Aceh FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'CBLADSS024-NPM-02', qty: 2000, tanggal: '2026-06-02' }
                 ]),
 
                 transactions: safeLoadStorage('vortex_transactions', [
@@ -1197,7 +1197,7 @@
                         keterangan: 'Penerimaan awal material kabel project',
                         lampiran: '',
                         lampiranUrl: '',
-                        items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'DRM024-NPM-01', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
+                        items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'CBLADSS024-NPM-01', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
                     }
                 ]),
 
@@ -1420,7 +1420,6 @@
                     const d = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0, 7).replace(/-/g, '');
                     const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
                     
-                    // Tentukan 3 huruf depan gudang: Gudang Tujuan untuk Masuk, Gudang Asal untuk Keluar/Transfer
                     let whName = this.newTrans.tipeTransaksi === 'Masuk' ? this.newTrans.gudangTujuan : this.newTrans.gudangAsal;
                     let whCode3 = 'NPM';
                     if (whName) {
@@ -1447,7 +1446,6 @@
                         }
                     });
 
-                    // Periksa nomor yang belum ada pada periode tersebut (menghindari duplikasi & mengisi celah nomor kosong)
                     let seqNum = 1;
                     while (existingSeqs.includes(seqNum)) {
                         seqNum++;
@@ -1581,10 +1579,44 @@
                                     let generatedDrumIds = [];
                                     let drumBreakdown = [];
 
+                                    // Ambil 3 huruf awal kode Gudang Tujuan
+                                    let whName = this.newTrans.gudangTujuan;
+                                    let whCode3 = 'NPM';
+                                    if (whName) {
+                                        const foundGudang = this.masterGudang.find(g => g.namaGudang === whName);
+                                        if (foundGudang && foundGudang.kodeGudang) {
+                                            whCode3 = foundGudang.kodeGudang.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+                                        } else {
+                                            whCode3 = whName.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+                                        }
+                                    }
+                                    if (!whCode3 || whCode3.length < 3) whCode3 = 'NPM';
+
+                                    // Gabungkan kode barang tanpa pemisah atau tanda strip (-)
+                                    const cleanKodeBarang = item.kodeBarang.replace(/-/g, '');
+                                    const prefix = `${cleanKodeBarang}-${whCode3}-`;
+
+                                    // Cari nomor urut terakhir yang sudah ada untuk kode barang & gudang tujuan ini
+                                    let maxSeq = 0;
+                                    this.drumLedger.forEach(d => {
+                                        if (d.gudang === this.newTrans.gudangTujuan && d.drumId && d.drumId.startsWith(prefix)) {
+                                            const seqPart = d.drumId.replace(prefix, '');
+                                            const seqNum = parseInt(seqPart, 10);
+                                            if (!isNaN(seqNum) && seqNum > maxSeq) {
+                                                maxSeq = seqNum;
+                                            }
+                                        }
+                                    });
+
+                                    let currentSeq = maxSeq;
+
                                     while (remainingQtyToSplit > 0) {
                                         let chunkQty = Math.min(remainingQtyToSplit, maxCapacity);
-                                        const drumSeq = this.drumLedger.length + 1;
-                                        const drumId = `DRM-${item.kodeBarang}-${String(drumSeq).padStart(3, '0')}`;
+                                        currentSeq++;
+                                        if (currentSeq > 99) {
+                                            currentSeq = 1; // Kembali ke 01 jika melebihi 99
+                                        }
+                                        const drumId = `${cleanKodeBarang}-${whCode3}-${String(currentSeq).padStart(2, '0')}`;
                                         
                                         this.drumLedger.push({
                                             drumId: drumId,
