@@ -12,6 +12,8 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Supabase JS Client v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- html2pdf.js for direct PDF download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- Google Fonts: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -20,9 +22,6 @@
 
         /* Pengaturan Khusus Cetak BAST PDF */
         @media print {
-            @page {
-                margin: 10mm;
-            }
             body {
                 background: white !important;
                 color: black !important;
@@ -1054,7 +1053,7 @@
                 </tr>
             </thead>
             <tbody>
-                <template x-for="(item, idx) in getBastExpandedItems()" :key="idx">
+                <template x-for="(item, idx) in getExpandedBastItems()" :key="idx">
                     <tr>
                         <td class="border border-slate-400 p-1.5 text-center" x-text="idx + 1"></td>
                         <td class="border border-slate-400 p-1.5" x-text="item.kategori"></td>
@@ -1068,8 +1067,8 @@
             </tbody>
         </table>
 
-        <!-- Summary (Hanya muncul jika ada multiple drum ID dengan kode barang yang sama) -->
-        <div class="mb-6 text-[11px] bg-slate-50 p-2.5 border border-slate-300 rounded" x-show="hasBastSummary()">
+        <!-- Rekapitulasi Summary -->
+        <div class="mb-6 text-[11px] bg-slate-50 p-2.5 border border-slate-300 rounded" x-show="shouldShowSummary()">
             <p class="font-bold mb-1 uppercase tracking-wider text-[10px] text-slate-700">Summary:</p>
             <div class="space-y-1">
                 <template x-for="summary in getBastSummaryTotals()" :key="summary.namaBarang">
@@ -1268,6 +1267,7 @@
                     setTimeout(() => { this.notification.show = false; }, 4000);
                 },
 
+                // Modal Control Data Master
                 openModal(type) {
                     this.modalType = type;
                     this.isEdit = false;
@@ -1392,6 +1392,7 @@
                     }
                 },
 
+                // Transaksi Operasional
                 openInputTransaction() {
                     this.switchTab('input-transaksi');
                 },
@@ -1652,28 +1653,45 @@
 
                 printBAST(tx) {
                     this.activeBast = tx;
-                    const oldTitle = document.title;
-                    document.title = ''; // Menghilangkan tulisan ACM-WMS / title dari header cetak browser
                     this.$nextTick(() => {
-                        window.print();
-                        setTimeout(() => {
-                            document.title = oldTitle;
-                        }, 500);
+                        const element = document.getElementById('printable-bast');
+                        element.classList.remove('hidden');
+
+                        const noTrans = (tx.noTransaksi || 'BAST').replace(/[/\\?%*:|"<>]/g, '-');
+                        const gudangAsal = (tx.gudangAsal || 'Asal').replace(/[/\\?%*:|"<>]/g, '-');
+                        const gudangTujuan = (tx.gudangTujuan || 'Tujuan').replace(/[/\\?%*:|"<>]/g, '-');
+                        const filename = `${noTrans}-${gudangAsal}-${gudangTujuan}.pdf`;
+
+                        const opt = {
+                            margin:       10,
+                            filename:     filename,
+                            image:        { type: 'jpeg', quality: 0.98 },
+                            html2canvas:  { scale: 2, useCORS: true },
+                            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                        };
+
+                        html2pdf().from(element).set(opt).save().then(() => {
+                            element.classList.add('hidden');
+                        }).catch((err) => {
+                            console.error(err);
+                            element.classList.add('hidden');
+                            window.print();
+                        });
                     });
                 },
 
-                getBastExpandedItems() {
+                getExpandedBastItems() {
                     if (!this.activeBast || !this.activeBast.items) return [];
                     let expanded = [];
                     this.activeBast.items.forEach(item => {
                         if (item.drumId && typeof item.drumId === 'string' && item.drumId.includes(',')) {
-                            const drums = item.drumId.split(',').map(d => d.trim()).filter(Boolean);
-                            const qtyPerDrum = Math.round((Number(item.qty) || 0) / drums.length);
+                            const drums = item.drumId.split(',').map(d => d.trim());
+                            const qtyPerDrum = Math.floor(Number(item.qty || 0) / drums.length);
                             drums.forEach((drum, idx) => {
                                 expanded.push({
                                     ...item,
                                     drumId: drum,
-                                    qty: idx === drums.length - 1 ? (Number(item.qty) || 0) - (qtyPerDrum * (drums.length - 1)) : qtyPerDrum
+                                    qty: idx === drums.length - 1 ? (Number(item.qty || 0) - (qtyPerDrum * (drums.length - 1))) : qtyPerDrum
                                 });
                             });
                         } else {
@@ -1683,32 +1701,29 @@
                     return expanded;
                 },
 
-                hasBastSummary() {
-                    const expanded = this.getBastExpandedItems();
-                    let codeCountMap = {};
-                    let hasMultiple = false;
-                    expanded.forEach(item => {
-                        if (item.kodeBarang) {
-                            if (!codeCountMap[item.kodeBarang]) {
-                                codeCountMap[item.kodeBarang] = new Set();
+                shouldShowSummary() {
+                    const items = this.getExpandedBastItems();
+                    const map = {};
+                    items.forEach(item => {
+                        if (item.kodeBarang && item.drumId && item.drumId !== '-') {
+                            if (!map[item.kodeBarang]) {
+                                map[item.kodeBarang] = new Set();
                             }
-                            if (item.drumId && item.drumId !== '-') {
-                                codeCountMap[item.kodeBarang].add(item.drumId);
-                            }
+                            map[item.kodeBarang].add(item.drumId);
                         }
                     });
-                    Object.keys(codeCountMap).forEach(code => {
-                        if (codeCountMap[code].size > 1 || expanded.filter(i => i.kodeBarang === code).length > 1) {
-                            hasMultiple = true;
+                    for (let kb in map) {
+                        if (map[kb].size > 1) {
+                            return true;
                         }
-                    });
-                    return hasMultiple;
+                    }
+                    return false;
                 },
 
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
-                    const expanded = this.getBastExpandedItems();
                     const totals = {};
+                    const expanded = this.getExpandedBastItems();
                     expanded.forEach(item => {
                         const name = item.namaBarang || 'Lainnya';
                         totals[name] = (totals[name] || 0) + (Number(item.qty) || 0);
@@ -1759,8 +1774,7 @@
                                     "Kode Barang": s.kodeBarang,
                                     "Nama Barang": s.namaBarang,
                                     "Drum ID": d.drumId,
-                                    "Sisa Panjang (m)": d.remainingLength,
-                                    "Total Stok Barang": s.qty,
+                                    "Qty": d.remainingLength,
                                     "Satuan": s.sat
                                 });
                             });
@@ -1771,21 +1785,54 @@
                                 "Kode Barang": s.kodeBarang,
                                 "Nama Barang": s.namaBarang,
                                 "Drum ID": "-",
-                                "Sisa Panjang (m)": 0,
-                                "Total Stok Barang": s.qty,
+                                "Qty": s.qty,
                                 "Satuan": s.sat
                             });
                         }
                     });
-                    this.exportToCSV('stok-gudang-drum.csv', rows);
+
+                    this.exportToCSV('laporan_stok_gudang.csv', rows);
                 },
 
                 exportUsageCSV() {
-                    this.exportToCSV('material-usage.csv', this.getFilteredMaterialUsage());
+                    const data = this.getFilteredMaterialUsage().map(u => ({
+                        KodeProject: u.kodeProject,
+                        NoPO: u.noPO,
+                        ProjectName: u.projectName,
+                        KodeBarang: u.kodeBarang,
+                        NamaBarang: u.namaBarang,
+                        DrumID: u.drumId,
+                        QtyDipakai: u.qty,
+                        Tanggal: u.tanggal
+                    }));
+                    this.exportToCSV('laporan_material_usage.csv', data);
                 },
 
                 exportTransactionCSV() {
-                    this.exportToCSV('data-transaksi.csv', this.getFilteredTransactions());
+                    const rows = [];
+                    const filtered = this.getFilteredTransactions();
+
+                    filtered.forEach(t => {
+                        if (t.items && t.items.length > 0) {
+                            t.items.forEach(item => {
+                                rows.push({
+                                    "Tanggal": t.tanggal || '',
+                                    "No Transaksi": t.noTransaksi || '',
+                                    "No Referensi": t.noReferensi || '',
+                                    "Tipe Transaksi": t.tipeTransaksi || '',
+                                    "Gudang Asal": t.gudangAsal || '',
+                                    "Gudang Tujuan": t.gudangTujuan || '',
+                                    "Kode Project": t.kodeProject || '',
+                                    "Keterangan": t.keterangan || '',
+                                    "Kode Barang": item.kodeBarang || '',
+                                    "Nama Barang": item.namaBarang || '',
+                                    "Drum ID": item.drumId || '',
+                                    "Qty": item.qty || 0
+                                });
+                            });
+                        }
+                    });
+                    this.exportToCSV('laporan_data_transaksi.csv', rows);
                 },
 
                 getFilteredStokGudang() {
@@ -1799,35 +1846,52 @@
                 },
 
                 getFilteredMaterialUsage() {
-                    return this.materialUsage.filter(u => {
-                        const matchRegion = !this.filterRegionUsage || u.kodeProject.startsWith(this.filterRegionUsage);
-                        const matchQuery = !this.searchMaterialUsageProject || 
-                            u.kodeProject.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase()) ||
-                            u.projectName.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase()) ||
-                            u.noPO.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase());
-                        return matchRegion && matchQuery;
-                    });
-                },
-
-                getFilteredTransactions() {
-                    return this.transactions.filter(t => {
-                        const matchNoTx = !this.searchNoTransaksi || t.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
-                        const matchRef = !this.searchNoReferensi || (t.noReferensi && t.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
-                        return matchNoTx && matchRef;
-                    });
+                    let result = this.materialUsage;
+                    if (this.filterRegionUsage) {
+                        result = result.filter(u => {
+                            const prj = this.masterProject.find(p => p.kodeProject === u.kodeProject);
+                            return prj && prj.region === this.filterRegionUsage;
+                        });
+                    }
+                    if (this.searchMaterialUsageProject) {
+                        const q = this.searchMaterialUsageProject.toLowerCase();
+                        result = result.filter(u => 
+                            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
+                            (u.projectName && u.projectName.toLowerCase().includes(q)) ||
+                            (u.noPO && u.noPO.toLowerCase().includes(q))
+                        );
+                    }
+                    return result;
                 },
 
                 getUniqueRegions() {
-                    const regs = this.masterProject.map(p => {
-                        if (!p.kodeProject) return '';
-                        return p.kodeProject.split('-')[0];
-                    });
-                    return [...new Set(regs)].filter(Boolean);
+                    const regs = this.masterProject.map(p => p.region).filter(Boolean);
+                    return [...new Set(regs)];
                 },
 
-                syncWithSupabaseOnStart() {
+                getFilteredTransactions() {
+                    let result = this.transactions;
+                    if (this.searchNoTransaksi) {
+                        const q = this.searchNoTransaksi.toLowerCase();
+                        result = result.filter(t => t.noTransaksi && t.noTransaksi.toLowerCase().includes(q));
+                    }
+                    if (this.searchNoReferensi) {
+                        const q = this.searchNoReferensi.toLowerCase();
+                        result = result.filter(t => t.noReferensi && t.noReferensi.toLowerCase().includes(q));
+                    }
+                    return result;
+                },
+
+                async syncWithSupabaseOnStart() {
                     if (!supabaseClient) return;
-                    // Sinkronisasi opsional dengan Supabase Cloud jika tabel tersedia
+                    try {
+                        const { data, error } = await supabaseClient.from('wms_sync').select('*').limit(1);
+                        if (!error) {
+                            console.log('Supabase connection verified successfully.');
+                        }
+                    } catch (e) {
+                        console.warn('Supabase offline or fallback active:', e);
+                    }
                 }
             }
         }
