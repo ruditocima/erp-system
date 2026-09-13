@@ -20,6 +20,9 @@
 
         /* Pengaturan Khusus Cetak BAST PDF */
         @media print {
+            @page {
+                margin: 10mm;
+            }
             body {
                 background: white !important;
                 color: black !important;
@@ -545,7 +548,7 @@
                                                 <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer'))">
                                                     <input type="text" x-model="item.drumId" 
                                                         :readonly="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable'" 
-                                                        :placeholder="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Ototmatis dibagi per drum (Max 3000m)' : 'Drum ID (Opsional)'" 
+                                                        :placeholder="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis dibagi per drum (Max 3000m)' : 'Drum ID (Opsional)'" 
                                                         :class="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'bg-slate-950/50 text-slate-400 cursor-not-allowed font-sans text-[10px]' : 'bg-slate-900 text-indigo-300'"
                                                         class="w-full border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono">
                                                 </template>
@@ -1051,7 +1054,7 @@
                 </tr>
             </thead>
             <tbody>
-                <template x-for="(item, idx) in activeBast.items" :key="idx">
+                <template x-for="(item, idx) in getBastExpandedItems()" :key="idx">
                     <tr>
                         <td class="border border-slate-400 p-1.5 text-center" x-text="idx + 1"></td>
                         <td class="border border-slate-400 p-1.5" x-text="item.kategori"></td>
@@ -1065,9 +1068,9 @@
             </tbody>
         </table>
 
-        <!-- Rekapitulasi Total Qty Nama Barang Sama -->
-        <div class="mb-6 text-[11px] bg-slate-50 p-2.5 border border-slate-300 rounded" x-show="activeBast.items && activeBast.items.length > 0">
-            <p class="font-bold mb-1 uppercase tracking-wider text-[10px] text-slate-700">Total Qty per Nama Barang:</p>
+        <!-- Summary (Hanya muncul jika ada multiple drum ID dengan kode barang yang sama) -->
+        <div class="mb-6 text-[11px] bg-slate-50 p-2.5 border border-slate-300 rounded" x-show="hasBastSummary()">
+            <p class="font-bold mb-1 uppercase tracking-wider text-[10px] text-slate-700">Summary:</p>
             <div class="space-y-1">
                 <template x-for="summary in getBastSummaryTotals()" :key="summary.namaBarang">
                     <div>
@@ -1265,7 +1268,6 @@
                     setTimeout(() => { this.notification.show = false; }, 4000);
                 },
 
-                // Modal Control Data Master
                 openModal(type) {
                     this.modalType = type;
                     this.isEdit = false;
@@ -1390,7 +1392,6 @@
                     }
                 },
 
-                // Transaksi Operasional
                 openInputTransaction() {
                     this.switchTab('input-transaksi');
                 },
@@ -1651,15 +1652,64 @@
 
                 printBAST(tx) {
                     this.activeBast = tx;
+                    const oldTitle = document.title;
+                    document.title = ''; // Menghilangkan tulisan ACM-WMS / title dari header cetak browser
                     this.$nextTick(() => {
                         window.print();
+                        setTimeout(() => {
+                            document.title = oldTitle;
+                        }, 500);
                     });
+                },
+
+                getBastExpandedItems() {
+                    if (!this.activeBast || !this.activeBast.items) return [];
+                    let expanded = [];
+                    this.activeBast.items.forEach(item => {
+                        if (item.drumId && typeof item.drumId === 'string' && item.drumId.includes(',')) {
+                            const drums = item.drumId.split(',').map(d => d.trim()).filter(Boolean);
+                            const qtyPerDrum = Math.round((Number(item.qty) || 0) / drums.length);
+                            drums.forEach((drum, idx) => {
+                                expanded.push({
+                                    ...item,
+                                    drumId: drum,
+                                    qty: idx === drums.length - 1 ? (Number(item.qty) || 0) - (qtyPerDrum * (drums.length - 1)) : qtyPerDrum
+                                });
+                            });
+                        } else {
+                            expanded.push({ ...item });
+                        }
+                    });
+                    return expanded;
+                },
+
+                hasBastSummary() {
+                    const expanded = this.getBastExpandedItems();
+                    let codeCountMap = {};
+                    let hasMultiple = false;
+                    expanded.forEach(item => {
+                        if (item.kodeBarang) {
+                            if (!codeCountMap[item.kodeBarang]) {
+                                codeCountMap[item.kodeBarang] = new Set();
+                            }
+                            if (item.drumId && item.drumId !== '-') {
+                                codeCountMap[item.kodeBarang].add(item.drumId);
+                            }
+                        }
+                    });
+                    Object.keys(codeCountMap).forEach(code => {
+                        if (codeCountMap[code].size > 1 || expanded.filter(i => i.kodeBarang === code).length > 1) {
+                            hasMultiple = true;
+                        }
+                    });
+                    return hasMultiple;
                 },
 
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
+                    const expanded = this.getBastExpandedItems();
                     const totals = {};
-                    this.activeBast.items.forEach(item => {
+                    expanded.forEach(item => {
                         const name = item.namaBarang || 'Lainnya';
                         totals[name] = (totals[name] || 0) + (Number(item.qty) || 0);
                     });
@@ -1694,7 +1744,6 @@
                     this.showNotification('Laporan CSV berhasil diunduh!', 'success');
                 },
 
-                // FITUR EKSPOR STOK GUDANG DENGAN URUTAN KOLOM YANG DIMINTA
                 exportStokCSV() {
                     let rows = [];
                     const filteredStok = this.getFilteredStokGudang();
@@ -1710,7 +1759,8 @@
                                     "Kode Barang": s.kodeBarang,
                                     "Nama Barang": s.namaBarang,
                                     "Drum ID": d.drumId,
-                                    "Qty": d.remainingLength,
+                                    "Sisa Panjang (m)": d.remainingLength,
+                                    "Total Stok Barang": s.qty,
                                     "Satuan": s.sat
                                 });
                             });
@@ -1721,54 +1771,21 @@
                                 "Kode Barang": s.kodeBarang,
                                 "Nama Barang": s.namaBarang,
                                 "Drum ID": "-",
-                                "Qty": s.qty,
+                                "Sisa Panjang (m)": 0,
+                                "Total Stok Barang": s.qty,
                                 "Satuan": s.sat
                             });
                         }
                     });
-
-                    this.exportToCSV('laporan_stok_gudang.csv', rows);
+                    this.exportToCSV('stok-gudang-drum.csv', rows);
                 },
 
                 exportUsageCSV() {
-                    const data = this.getFilteredMaterialUsage().map(u => ({
-                        KodeProject: u.kodeProject,
-                        NoPO: u.noPO,
-                        ProjectName: u.projectName,
-                        KodeBarang: u.kodeBarang,
-                        NamaBarang: u.namaBarang,
-                        DrumID: u.drumId,
-                        QtyDipakai: u.qty,
-                        Tanggal: u.tanggal
-                    }));
-                    this.exportToCSV('laporan_material_usage.csv', data);
+                    this.exportToCSV('material-usage.csv', this.getFilteredMaterialUsage());
                 },
 
                 exportTransactionCSV() {
-                    const rows = [];
-                    const filtered = this.getFilteredTransactions();
-
-                    filtered.forEach(t => {
-                        if (t.items && t.items.length > 0) {
-                            t.items.forEach(item => {
-                                rows.push({
-                                    "Tanggal": t.tanggal || '',
-                                    "No Transaksi": t.noTransaksi || '',
-                                    "No Referensi": t.noReferensi || '',
-                                    "Tipe Transaksi": t.tipeTransaksi || '',
-                                    "Gudang Asal": t.gudangAsal || '',
-                                    "Gudang Tujuan": t.gudangTujuan || '',
-                                    "Kode Project": t.kodeProject || '',
-                                    "Keterangan": t.keterangan || '',
-                                    "Kode Barang": item.kodeBarang || '',
-                                    "Nama Barang": item.namaBarang || '',
-                                    "Drum ID": item.drumId || '',
-                                    "Qty": item.qty || 0
-                                });
-                            });
-                        }
-                    });
-                    this.exportToCSV('laporan_data_transaksi.csv', rows);
+                    this.exportToCSV('data-transaksi.csv', this.getFilteredTransactions());
                 },
 
                 getFilteredStokGudang() {
@@ -1782,52 +1799,35 @@
                 },
 
                 getFilteredMaterialUsage() {
-                    let result = this.materialUsage;
-                    if (this.filterRegionUsage) {
-                        result = result.filter(u => {
-                            const prj = this.masterProject.find(p => p.kodeProject === u.kodeProject);
-                            return prj && prj.region === this.filterRegionUsage;
-                        });
-                    }
-                    if (this.searchMaterialUsageProject) {
-                        const q = this.searchMaterialUsageProject.toLowerCase();
-                        result = result.filter(u => 
-                            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
-                            (u.projectName && u.projectName.toLowerCase().includes(q)) ||
-                            (u.noPO && u.noPO.toLowerCase().includes(q))
-                        );
-                    }
-                    return result;
-                },
-
-                getUniqueRegions() {
-                    const regs = this.masterProject.map(p => p.region).filter(Boolean);
-                    return [...new Set(regs)];
+                    return this.materialUsage.filter(u => {
+                        const matchRegion = !this.filterRegionUsage || u.kodeProject.startsWith(this.filterRegionUsage);
+                        const matchQuery = !this.searchMaterialUsageProject || 
+                            u.kodeProject.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase()) ||
+                            u.projectName.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase()) ||
+                            u.noPO.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase());
+                        return matchRegion && matchQuery;
+                    });
                 },
 
                 getFilteredTransactions() {
-                    let result = this.transactions;
-                    if (this.searchNoTransaksi) {
-                        const q = this.searchNoTransaksi.toLowerCase();
-                        result = result.filter(t => t.noTransaksi && t.noTransaksi.toLowerCase().includes(q));
-                    }
-                    if (this.searchNoReferensi) {
-                        const q = this.searchNoReferensi.toLowerCase();
-                        result = result.filter(t => t.noReferensi && t.noReferensi.toLowerCase().includes(q));
-                    }
-                    return result;
+                    return this.transactions.filter(t => {
+                        const matchNoTx = !this.searchNoTransaksi || t.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
+                        const matchRef = !this.searchNoReferensi || (t.noReferensi && t.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
+                        return matchNoTx && matchRef;
+                    });
                 },
 
-                async syncWithSupabaseOnStart() {
+                getUniqueRegions() {
+                    const regs = this.masterProject.map(p => {
+                        if (!p.kodeProject) return '';
+                        return p.kodeProject.split('-')[0];
+                    });
+                    return [...new Set(regs)].filter(Boolean);
+                },
+
+                syncWithSupabaseOnStart() {
                     if (!supabaseClient) return;
-                    try {
-                        const { data, error } = await supabaseClient.from('wms_sync').select('*').limit(1);
-                        if (!error) {
-                            console.log('Supabase connection verified successfully.');
-                        }
-                    } catch (e) {
-                        console.warn('Supabase offline or fallback active:', e);
-                    }
+                    // Sinkronisasi opsional dengan Supabase Cloud jika tabel tersedia
                 }
             }
         }
