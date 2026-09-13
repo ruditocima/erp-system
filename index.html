@@ -545,8 +545,8 @@
                                                 <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer'))">
                                                     <input type="text" x-model="item.drumId" 
                                                         :readonly="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable'" 
-                                                        :placeholder="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis (DRM...)' : 'Drum ID (Opsional)'" 
-                                                        :class="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'bg-slate-950/50 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-indigo-300'"
+                                                        :placeholder="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Ototmatis dibagi per drum (Max 3000m)' : 'Drum ID (Opsional)'" 
+                                                        :class="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'bg-slate-950/50 text-slate-400 cursor-not-allowed font-sans text-[10px]' : 'bg-slate-900 text-indigo-300'"
                                                         class="w-full border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono">
                                                 </template>
                                             </div>
@@ -1324,7 +1324,7 @@
                 },
 
                 generateKodeProject() {
-                    if (this.isEdit) return; // Jangan ubah kode jika sedang mode edit
+                    if (this.isEdit) return;
                     const regCode = this.getRegionCode(this.modalForm.region);
                     let year = '2026';
                     if (this.modalForm.periode) {
@@ -1538,17 +1538,34 @@
                                 }
 
                                 if (isCable) {
-                                    const drumId = item.drumId || `DRM-${item.kodeBarang}-${String(this.drumLedger.length + 1).padStart(2, '0')}`;
-                                    item.drumId = drumId;
-                                    this.drumLedger.push({
-                                        drumId: drumId,
-                                        kodeBarang: item.kodeBarang,
-                                        namaBarang: item.namaBarang,
-                                        gudang: this.newTrans.gudangTujuan,
-                                        initialLength: qty,
-                                        remainingLength: qty,
-                                        status: 'Full'
-                                    });
+                                    // Deteksi kapasitas maksimum per drum dari nama barang (misal: "Max 3000m/Drum") atau default ke 3000
+                                    const match = item.namaBarang.match(/max\s*(\d+)/i);
+                                    const maxCapacity = match ? parseInt(match[1]) : 3000;
+
+                                    let remainingQtyToSplit = qty;
+                                    let generatedDrumIds = [];
+
+                                    // Lakukan pembagian otomatis ke dalam beberapa drum id jika qty melebihi kapasitas max per drum
+                                    while (remainingQtyToSplit > 0) {
+                                        let chunkQty = Math.min(remainingQtyToSplit, maxCapacity);
+                                        const drumSeq = this.drumLedger.length + 1;
+                                        const drumId = `DRM-${item.kodeBarang}-${String(drumSeq).padStart(3, '0')}`;
+                                        
+                                        this.drumLedger.push({
+                                            drumId: drumId,
+                                            kodeBarang: item.kodeBarang,
+                                            namaBarang: item.namaBarang,
+                                            gudang: this.newTrans.gudangTujuan,
+                                            initialLength: chunkQty,
+                                            remainingLength: chunkQty,
+                                            status: chunkQty === maxCapacity ? 'Full' : 'Partial'
+                                        });
+
+                                        generatedDrumIds.push(drumId);
+                                        remainingQtyToSplit -= chunkQty;
+                                    }
+
+                                    item.drumId = generatedDrumIds.join(', ');
                                 }
                             } else if (this.newTrans.tipeTransaksi === 'Keluar') {
                                 let stok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangAsal);
@@ -1720,29 +1737,17 @@
                                     "Gudang Asal": t.gudangAsal || '',
                                     "Gudang Tujuan": t.gudangTujuan || '',
                                     "Kode Project": t.kodeProject || '',
+                                    "Kategori": item.kategori || '',
+                                    "Jenis": item.jenis || '',
+                                    "Kode Barang": item.kodeBarang || '',
                                     "Nama Barang": item.namaBarang || '',
                                     "Drum ID": item.drumId || '',
-                                    "Qty": item.qty !== undefined && item.qty !== null ? item.qty : '',
-                                    "Keterangan": item.keterangan || t.keterangan || ''
+                                    "Qty": item.qty || 0,
+                                    "Keterangan": t.keterangan || ''
                                 });
-                            });
-                        } else {
-                            rows.push({
-                                "Tanggal": t.tanggal || '',
-                                "No Transaksi": t.noTransaksi || '',
-                                "No Referensi": t.noReferensi || '',
-                                "Tipe": t.tipeTransaksi || '',
-                                "Gudang Asal": t.gudangAsal || '',
-                                "Gudang Tujuan": t.gudangTujuan || '',
-                                "Kode Project": t.kodeProject || '',
-                                "Nama Barang": '',
-                                "Drum ID": '',
-                                "Qty": '',
-                                "Keterangan": t.keterangan || ''
                             });
                         }
                     });
-
                     this.exportToCSV('laporan_data_transaksi.csv', rows);
                 },
 
@@ -1752,41 +1757,65 @@
                 },
 
                 getFilteredDrumLedger() {
-                    if (!this.filterStokGudang) return this.drumLedger;
-                    return this.drumLedger.filter(d => d.gudang === this.filterStokGudang);
+                    let filtered = this.drumLedger;
+                    if (this.filterStokGudang) {
+                        filtered = filtered.filter(d => d.gudang === this.filterStokGudang);
+                    }
+                    return filtered;
                 },
 
                 getUniqueRegions() {
-                    const regions = this.masterProject.map(p => p.region).filter(Boolean);
-                    return [...new Set(regions)];
+                    const regs = this.masterProject.map(p => p.region);
+                    return [...new Set(regs)];
                 },
 
                 getFilteredMaterialUsage() {
-                    return this.materialUsage.filter(u => {
-                        const matchRegion = !this.filterRegionUsage || (this.masterProject.find(p => p.kodeProject === u.kodeProject)?.region === this.filterRegionUsage);
-                        const q = (this.searchMaterialUsageProject || '').toLowerCase();
-                        const matchQuery = !q || (u.kodeProject || '').toLowerCase().includes(q) || (u.noPO || '').toLowerCase().includes(q) || (u.projectName || '').toLowerCase().includes(q);
-                        return matchRegion && matchQuery;
-                    });
+                    let data = this.materialUsage;
+                    if (this.filterRegionUsage) {
+                        data = data.filter(u => {
+                            const prj = this.masterProject.find(p => p.kodeProject === u.kodeProject);
+                            return prj && prj.region === this.filterRegionUsage;
+                        });
+                    }
+                    if (this.searchMaterialUsageProject) {
+                        const q = this.searchMaterialUsageProject.toLowerCase();
+                        data = data.filter(u => 
+                            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
+                            (u.projectName && u.projectName.toLowerCase().includes(q)) ||
+                            (u.noPO && u.noPO.toLowerCase().includes(q))
+                        );
+                    }
+                    return data;
                 },
 
                 getFilteredTransactions() {
-                    return this.transactions.filter(t => {
-                        const qNo = (this.searchNoTransaksi || '').toLowerCase();
-                        const qRef = (this.searchNoReferensi || '').toLowerCase();
-                        const matchNo = !qNo || (t.noTransaksi || '').toLowerCase().includes(qNo);
-                        const matchRef = !qRef || (t.noReferensi || '').toLowerCase().includes(qRef);
-                        return matchNo && matchRef;
-                    });
+                    let data = this.transactions;
+                    if (this.searchNoTransaksi) {
+                        const q = this.searchNoTransaksi.toLowerCase();
+                        data = data.filter(t => t.noTransaksi && t.noTransaksi.toLowerCase().includes(q));
+                    }
+                    if (this.searchNoReferensi) {
+                        const q = this.searchNoReferensi.toLowerCase();
+                        data = data.filter(t => t.noReferensi && t.noReferensi.toLowerCase().includes(q));
+                    }
+                    return data;
                 },
 
                 async syncWithSupabaseOnStart() {
-                    if (supabaseClient) {
-                        try {
-                            console.log("Supabase client terhubung secara aktif.");
-                        } catch (err) {
-                            console.warn("Supabase fallback ke LocalStorage:", err);
+                    if (!supabaseClient) return;
+                    try {
+                        const { data, error } = await supabaseClient.from('wms_state').select('*').single();
+                        if (data && data.payload) {
+                            if (data.payload.masterBarang) this.masterBarang = data.payload.masterBarang;
+                            if (data.payload.masterGudang) this.masterGudang = data.payload.masterGudang;
+                            if (data.payload.masterProject) this.masterProject = data.payload.masterProject;
+                            if (data.payload.stokGudang) this.stokGudang = data.payload.stokGudang;
+                            if (data.payload.drumLedger) this.drumLedger = data.payload.drumLedger;
+                            if (data.payload.materialUsage) this.materialUsage = data.payload.materialUsage;
+                            if (data.payload.transactions) this.transactions = data.payload.transactions;
                         }
+                    } catch (e) {
+                        console.log('Using local persistent storage fallback.');
                     }
                 }
             };
