@@ -459,10 +459,10 @@
                                 <!-- Kode Project Terkait -->
                                 <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
-                                    <input type="text" x-model="newTrans.kodeProject" list="project-options" placeholder="Pilih atau ketik Kode Project..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <input type="text" x-model="newTrans.kodeProject" list="project-options" :disabled="newTrans.tipeTransaksi !== 'Keluar'" :placeholder="newTrans.tipeTransaksi === 'Keluar' ? 'Pilih Nama Project...' : 'Hanya aktif saat Tipe Keluar'" :class="newTrans.tipeTransaksi !== 'Keluar' ? 'bg-slate-950/50 opacity-50 cursor-not-allowed' : 'bg-slate-950'" class="w-full border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                     <datalist id="project-options">
                                         <template x-for="p in getFilteredProjects()" :key="p.kodeProject">
-                                            <option :value="p.kodeProject" x-text="p.kodeProject + ' — ' + p.projectName"></option>
+                                            <option :value="p.projectName" x-text="p.projectName"></option>
                                         </template>
                                     </datalist>
                                 </div>
@@ -1431,8 +1431,16 @@
                 },
 
                 getFilteredProjects() {
-                    return this.masterProject;
-                },
+                    if (this.newTrans.tipeTransaksi !== 'Keluar' || !this.newTrans.gudangAsal) {
+                        return [];
+                    }
+                    const selectedWh = this.masterGudang.find(g => g.namaGudang === this.newTrans.gudangAsal);
+                    if (!selectedWh || !selectedWh.kodeGudang) {
+                        return [];
+                    }
+                    const whRegionCode = selectedWh.kodeGudang.split('-')[0].toUpperCase();
+                    return this.masterProject.filter(p => p.region && p.region.toUpperCase() === whRegionCode);
+                    },
 
                 addTransactionItem() {
                     this.newTrans.items.push({ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1 });
