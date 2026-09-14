@@ -413,7 +413,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Tipe Transaksi</label>
-                                    <select x-model="newTrans.tipeTransaksi" @change="onTipeTransaksiChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                    <select x-model="newTrans.tipeTransaksi" @change="onTipeTransaksiChange();newTrans.kodeProject = ''" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                         <option value="Masuk">Masuk</option>
                                         <option value="Keluar">Keluar</option>
                                         <option value="Transfer">Transfer</option>
@@ -429,7 +429,7 @@
                                         <input type="text" x-model="newTrans.gudangAsal" @input="generateNoTransaksi()" placeholder="Vendor / Supplier (misal: YOFC)" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                     </template>
                                     <template x-if="newTrans.tipeTransaksi !== 'Masuk'">
-                                        <select x-model="newTrans.gudangAsal" @change="resetItemsOnWarehouseChange(); generateNoTransaksi()" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                        <select x-model="newTrans.gudangAsal" @change="resetItemsOnWarehouseChange(); generateNoTransaksi();newTrans.kodeProject = ''" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                             <option value="">Pilih Gudang Asal</option>
                                             <template x-for="g in masterGudang" :key="g.kodeGudang">
                                                 <option :value="g.namaGudang" x-text="g.namaGudang"></option>
@@ -459,12 +459,14 @@
                                 <!-- Kode Project Terkait -->
                                 <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
-                                    <input type="text" x-model="newTrans.kodeProject" list="project-options" :disabled="newTrans.tipeTransaksi !== 'Keluar'" :placeholder="newTrans.tipeTransaksi === 'Keluar' ? 'Pilih Nama Project...' : 'Hanya aktif saat Tipe Keluar'" :class="newTrans.tipeTransaksi !== 'Keluar' ? 'bg-slate-950/50 opacity-50 cursor-not-allowed' : 'bg-slate-950'" class="w-full border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                    <datalist id="project-options">
-                                        <template x-for="p in getFilteredProjects()" :key="p.kodeProject">
+                                    <select x-model="newTrans.kodeProject" 
+                                            :disabled="newTrans.tipeTransaksi !== 'Keluar' || getFilteredProjectsForAsal().length === 0" 
+                                            class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <option value="">Pilih Project...</option>
+                                        <template x-for="p in getFilteredProjectsForAsal()" :key="p.kodeProject">
                                             <option :value="p.projectName" x-text="p.projectName"></option>
                                         </template>
-                                    </datalist>
+                                    </select>
                                 </div>
                                 <div class="md:col-span-1">
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">
@@ -1431,17 +1433,27 @@
                 },
 
                 getFilteredProjects() {
+                    return this.masterProject;
+                },
+                
+                getFilteredProjectsForAsal() {
                     if (this.newTrans.tipeTransaksi !== 'Keluar' || !this.newTrans.gudangAsal) {
                         return [];
                     }
-                    const selectedWh = this.masterGudang.find(g => g.namaGudang === this.newTrans.gudangAsal);
-                    if (!selectedWh || !selectedWh.kodeGudang) {
+                    const foundGudang = this.masterGudang.find(g => g.namaGudang === this.newTrans.gudangAsal);
+                    if (!foundGudang || !foundGudang.kodeGudang) {
                         return [];
                     }
-                    const whRegionCode = selectedWh.kodeGudang.split('-')[0].toUpperCase();
-                    return this.masterProject.filter(p => p.region && p.region.toUpperCase() === whRegionCode);
-                    },
-
+                    // Ekstraksi kode region dari kodeGudang (misal: 'NPM-JKT-01' -> 'NPM')
+                    const kodeGudang = foundGudang.kodeGudang.trim();
+                    const regionCode = kodeGudang.includes('-') ? kodeGudang.split('-')[0].toUpperCase() : kodeGudang.substring(0, 3).toUpperCase();
+    
+                    return this.masterProject.filter(p => {
+                        if (!p.region) return false;
+                        return p.region.trim().toUpperCase() === regionCode;
+                    });
+                },
+                
                 addTransactionItem() {
                     this.newTrans.items.push({ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1 });
                 },
