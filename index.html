@@ -1467,18 +1467,38 @@
                 },
 
                 getCategories(item) {
+                    if (this.newTrans.tipeTransaksi !== 'Masuk' && this.newTrans.gudangAsal) {
+                        const validKode = this.stokGudang
+                        .filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0)
+                        .map(s => s.kodeBarang);
+                    const validBarang = this.masterBarang.filter(b => validKode.includes(b.kodeBarang));
+                    return [...new Set(validBarang.map(b => b.kategori))];
+                    }
                     const cats = this.masterBarang.map(b => b.kategori);
                     return [...new Set(cats)];
                 },
 
                 getJenis(kategori) {
                     if (!kategori) return [];
+                    if (this.newTrans.tipeTransaksi !== 'Masuk' && this.newTrans.gudangAsal) {
+                        const validKode = this.stokGudang
+                            .filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0)
+                            .map(s => s.kodeBarang);
+                        const validBarang = this.masterBarang.filter(b => validKode.includes(b.kodeBarang) && b.kategori === kategori);
+                        return [...new Set(validBarang.map(b => b.jenis))];
+                    }
                     const jns = this.masterBarang.filter(b => b.kategori === kategori).map(b => b.jenis);
                     return [...new Set(jns)];
                 },
 
                 getBarangList(kategori, jenis) {
                     if (!kategori || !jenis) return [];
+                    if (this.newTrans.tipeTransaksi !== 'Masuk' && this.newTrans.gudangAsal) {
+                         const validKode = this.stokGudang
+                            .filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0)
+                            .map(s => s.kodeBarang);
+                         return this.masterBarang.filter(b => validKode.includes(b.kodeBarang) && b.kategori === kategori && b.jenis === jenis);
+                    }
                     return this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
                 },
 
