@@ -348,7 +348,15 @@
                             </button>
                         </div>
                     </div>
-              
+
+                    <div class="flex items-center justify-between bg-indigo-950/40 border border-indigo-500/20 px-3.5 py-2 rounded-lg text-[11px] text-indigo-300 font-medium">
+                        <span class="flex items-center gap-1.5">
+                            <i data-lucide="arrow-left-right" class="w-3.5 h-3.5 text-indigo-400 animate-pulse"></i>
+                            Geser horizontal untuk melihat seluruh 15 kolom data proyek.
+                        </span>
+                        <span class="text-[10px] bg-indigo-500/20 text-indigo-200 px-2 py-0.5 rounded border border-indigo-400/30" x-text="showSecondaryCols ? 'Mode: Full (15 Kolom)' : 'Mode: Ringkas'"></span>
+                    </div>
+
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-x-auto shadow-sm">
                         <table class="w-full text-left border-collapse whitespace-nowrap">
                             <thead>
@@ -359,6 +367,14 @@
                                     <th class="p-3">Type</th>
                                     <th class="p-3">No PO</th>
                                     <th class="p-3">Project Name</th>
+                                    <th class="p-3" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''">PO Awal</th>
+                                    <th class="p-3" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''">PO Akhir</th>
+                                    <th class="p-3" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''">Status PO</th>
+                                    <th class="p-3" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''">Permit</th>
+                                    <th class="p-3" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''">SND</th>
+                                    <th class="p-3" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''">DC</th>
+                                    <th class="p-3">Status Project</th>
+                                    <th class="p-3" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''">Cash</th>
                                     <th class="p-3 text-right">Aksi</th>
                                 </tr>
                             </thead>
@@ -375,8 +391,15 @@
                                         <td class="p-3 text-slate-300" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''" x-text="item.poFinal || item.poAkhir"></td>
                                         <td class="p-3" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''">
                                             <span class="px-2 py-0.5 rounded text-[10px] font-medium" :class="item.statusPO === 'Sudah' || item.statusPO === 'Closed' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'" x-text="item.statusPO"></span>
-                                        </td>                                                                          
-                                                                                                                    
+                                        </td>
+                                        <td class="p-3 text-slate-300" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''" x-text="item.permit"></td>
+                                        <td class="p-3 text-slate-300" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''" x-text="item.snd"></td>
+                                        <td class="p-3 text-slate-300" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''" x-text="item.dc"></td>
+                                        
+                                        <td class="p-3">
+                                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20" x-text="item.statusProject"></span>
+                                        </td>
+                                        <td class="p-3 text-slate-300" :class="!showSecondaryCols ? 'hidden md:table-cell' : ''" x-text="item.cash || '-'"></td>
                                         <td class="p-3 text-right flex items-center justify-end gap-1">
                                             <button type="button" @click="openEditModal('project', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
                                             <button type="button" @click="deleteItem('project', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
@@ -908,7 +931,75 @@
                         <div>
                             <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Project Name</label>
                             <input type="text" x-model="modalForm.projectName" required placeholder="Nama Project..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>                                            
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">PO Awal (Text)</label>
+                            <input type="text" x-model="modalForm.poAwal" required placeholder="PO Awal" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">PO Akhir (Text)</label>
+                            <input type="text" x-model="modalForm.poFinal" required placeholder="PO Akhir" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Status PO</label>
+                            <select x-model="modalForm.statusPO" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                                <option value="Belum">Belum</option>
+                                <option value="Sudah">Sudah</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Permit</label>
+                            <select x-model="modalForm.permit" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                                <option value="BA Open">BA Open</option>
+                                <option value="Donasi">Donasi</option>
+                                <option value="BA Closed">BA Closed</option>
+                                <option value="Wait PO">Wait PO</option>
+                                <option value="Doc Non FP">Doc Non FP</option>
+                                <option value="Invoice">Invoice</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">SND</label>
+                            <select x-model="modalForm.snd" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                                <option value="Survey">Survey</option>
+                                <option value="SNDK">SNDK</option>
+                                <option value="Design">Design</option>
+                                <option value="Pre APD">Pre APD</option>
+                                <option value="APD">APD</option>
+                                <option value="DRM">DRM</option>
+                                <option value="Pre ABD">Pre ABD</option>
+                                <option value="ABD">ABD</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">DC</label>
+                            <select x-model="modalForm.dc" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                                <option value="On Progres">On Progres</option>
+                                <option value="Upload GDOC">Upload GDOC</option>
+                                <option value="Review YOFC">Review YOFC</option>
+                                <option value="Review User">Review User</option>
+                                <option value="Revisi">Revisi</option>
+                                <option value="PAC">PAC</option>
+                                <option value="FAC">FAC</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Status Project</label>
+                            <select x-model="modalForm.statusProject" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                                <option value="Delivery">Delivery</option>
+                                <option value="On Progres">On Progres</option>
+                                <option value="Finish CW">Finish CW</option>
+                                <option value="Kendala/Pending">Kendala/Pending</option>
+                                <option value="Pra ATP">Pra ATP</option>
+                                <option value="ATP">ATP</option>
+                                <option value="Revisi Punchlist">Revisi Punchlist</option>
+                                <option value="Closed">Closed</option>
+                                <option value="Drop">Drop</option>
+                            </select>
+                        </div>
                         <div>
                             <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Cash</label>
                             <input type="text" x-model="modalForm.cash" placeholder="Nominal Cash..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
@@ -1094,6 +1185,13 @@
                         type: 'Main Feeder', 
                         noPO: 'PO/2026/0192', 
                         projectName: 'Project Aceh FTTH 2026', 
+                        poAwal: 'PO-AWAL-001', 
+                        poFinal: 'PO-FINAL-001', 
+                        statusPO: 'Sudah', 
+                        permit: 'BA Open', 
+                        snd: 'Survey', 
+                        dc: 'On Progres', 
+                        statusProject: 'On Progres',
                         cash: 'Cash In'
                     }
                 ]),
@@ -1264,6 +1362,14 @@
                             type: 'Distribusi',
                             noPO: '',
                             projectName: '',
+                            poAwal: '',
+                            poFinal: '',
+                            statusPO: 'Belum',
+                            permit: 'BA Open',
+                            snd: 'Survey',
+                            dc: 'On Progres',
+                            statusProject: 'Delivery',
+                            cash: ''
                         };
                         this.generateKodeProject();
                     } else if (type === 'barang') {
