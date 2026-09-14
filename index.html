@@ -620,6 +620,7 @@
                                             <th class="p-3">Lokasi Gudang</th>
                                             <th class="p-3">Panjang Awal</th>
                                             <th class="p-3">Sisa Panjang</th>
+                                            <th class="p-3">Status / Aksi Admin</th> <!-- Kolom Baru -->
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
@@ -631,11 +632,25 @@
                                                 <td class="p-3 text-slate-300 font-sans" x-text="drum.gudang"></td>
                                                 <td class="p-3 text-slate-300" x-text="drum.initialLength + ' m'"></td>
                                                 <td class="p-3 font-bold text-amber-400" x-text="drum.remainingLength + ' m'"></td>
+                                                <!-- Kolom Status & Tombol Reset/Reuse -->
+                                                <td class="p-3 font-sans">
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-medium mr-2" 
+                                                        :class="drum.status === 'Available' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : (drum.status === 'Closed' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20')" 
+                                                        x-text="drum.status || (drum.remainingLength === 0 ? 'Closed' : 'Full')">
+                                                    </span>
+                                                    <template x-if="drum.status !== 'Available'">
+                                                        <button type="button" @click="releaseDrum(drum.drumId, drum.gudang)" 
+                                                                class="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded text-[10px] font-medium transition"
+                                                                title="Kosongkan drum agar ID bisa dipakai ulang">
+                                                            Reset/Reuse
+                                                        </button>
+                                                    </template>
+                                                </td>
                                             </tr>
                                         </template>
                                         <template x-if="getFilteredDrumLedger().length === 0">
                                             <tr>
-                                                <td colspan="6" class="p-6 text-center text-slate-500 text-xs">Belum ada data Drum Ledger untuk gudang ini.</td>
+                                                <td colspan="7" class="p-6 text-center text-slate-500 text-xs">Belum ada data Drum Ledger untuk gudang ini.</td>
                                             </tr>
                                         </template>
                                     </tbody>
@@ -643,8 +658,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
-
                 <!-- 7. MATERIAL USAGE -->
                 <div x-show="currentTab === 'usage'" class="space-y-4" x-cloak>
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1498,7 +1511,12 @@
                 getDrumList(item) {
                     if (!item.kodeBarang) return [];
                     const wh = this.newTrans.gudangAsal;
-                    return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === wh && d.remainingLength > 0);
+                    return this.drumLedger.filter(d => 
+                        d.kodeBarang === item.kodeBarang && 
+                        d.gudang === wh && 
+                        d.remainingLength > 0 && 
+                        d.status !== 'Closed'
+                    );
                 },
 
                 async submitTransaction() {
@@ -1694,7 +1712,7 @@
                                         drum.remainingLength -= qty;
                                         if (drum.remainingLength <= 0) {
                                             drum.remainingLength = 0;
-                                            drum.status = 'Empty';
+                                            drum.status = 'Closed'; // Otomatis tertutup dan terkunci
                                         } else {
                                             drum.status = 'Partial';
                                         }
@@ -1765,6 +1783,19 @@
                     this.newTrans = JSON.parse(JSON.stringify(tx));
                     this.switchTab('input-transaksi');
                     this.showNotification(`Mengedit transaksi ${tx.noTransaksi}. Lakukan penyesuaian lalu simpan.`, 'success');
+                },
+                
+                releaseDrum(drumId, gudangAsal) {
+                    let drum = this.drumLedger.find(d => d.drumId === drumId && d.gudang === gudangAsal);
+                    if (!drum) return;
+
+                    let konfirmasi = confirm(`Apakah Anda yakin ingin mengosongkan/mereset Drum ID ${drumId} di gudang ${gudangAsal}? Sisa panjang saat ini (${drum.remainingLength} m) akan ditutup, dan ID drum akan aktif kembali untuk digunakan.`);
+
+                    if (konfirmasi) {
+                        drum.remainingLength = 0;
+                        drum.status = 'Available'; // Siap dipakai ulang untuk transaksi masuk berikutnya
+                        this.showNotification(`Drum ${drumId} berhasil dikosongkan dan siap digunakan kembali!`, 'success');
+                    }
                 },
 
                 // FITUR PENGHAPUSAN TRANSAKSI DENGAN ROLLBACK STOK, DRUM & MATERIAL USAGE OTOMATIS
