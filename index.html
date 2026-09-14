@@ -604,40 +604,46 @@
                     </div>
 
                     <div class="space-y-4 pt-2">
-    <div class="flex items-center justify-between">
-        <div>
-            <h3 class="text-sm font-semibold text-white">Tracking Material Cable & Drum Ledger</h3>
-        </div>
-    </div>
-    <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                        <th class="p-3">Drum ID</th>
-                        <th class="p-3">Kode Barang / SKU</th>
-                        <th class="p-3">Nama Material</th>
-                        <th class="p-3">Lokasi Gudang</th>
-                        <th class="p-3">Panjang Awal</th>
-                        <th class="p-3">Sisa Panjang</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                    <template x-for="(drum, index) in getFilteredDrumLedger()" :key="drum.drumId || index">
-                        <tr class="hover:bg-slate-800/30 transition">
-                            <td class="p-3 text-indigo-400 font-semibold text-[11px]" x-text="drum.drumId"></td>
-                            <td class="p-3 text-slate-300 text-[11px]" x-text="drum.kodeBarang"></td>
-                            <td class="p-3 text-white font-medium font-sans" x-text="drum.namaBarang"></td>
-                            <td class="p-3 text-slate-300 font-sans" x-text="drum.gudang"></td>
-                            <td class="p-3 text-slate-300" x-text="drum.initialLength + ' m'"></td>
-                            <td class="p-3 font-bold text-amber-400" x-text="drum.remainingLength + ' m'"></td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-semibold text-white">Tracking Material Cable & Drum Ledger</h3>
+                            </div>
+                        </div>
+                        <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
+                                            <th class="p-3">Drum ID</th>
+                                            <th class="p-3">Kode Barang / SKU</th>
+                                            <th class="p-3">Nama Material</th>
+                                            <th class="p-3">Lokasi Gudang</th>
+                                            <th class="p-3">Panjang Awal</th>
+                                            <th class="p-3">Sisa Panjang</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
+                                        <template x-for="(drum, index) in getFilteredDrumLedger()" :key="drum.drumId || index">
+                                            <tr class="hover:bg-slate-800/30 transition">
+                                                <td class="p-3 text-indigo-400 font-semibold text-[11px]" x-text="drum.drumId"></td>
+                                                <td class="p-3 text-slate-300 text-[11px]" x-text="drum.kodeBarang"></td>
+                                                <td class="p-3 text-white font-medium font-sans" x-text="drum.namaBarang"></td>
+                                                <td class="p-3 text-slate-300 font-sans" x-text="drum.gudang"></td>
+                                                <td class="p-3 text-slate-300" x-text="drum.initialLength + ' m'"></td>
+                                                <td class="p-3 font-bold text-amber-400" x-text="drum.remainingLength + ' m'"></td>
+                                            </tr>
+                                        </template>
+                                        <template x-if="getFilteredDrumLedger().length === 0">
+                                            <tr>
+                                                <td colspan="6" class="p-6 text-center text-slate-500 text-xs">Belum ada data Drum Ledger untuk gudang ini.</td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- 7. MATERIAL USAGE -->
                 <div x-show="currentTab === 'usage'" class="space-y-4" x-cloak>
@@ -1492,12 +1498,7 @@
                 getDrumList(item) {
                     if (!item.kodeBarang) return [];
                     const wh = this.newTrans.gudangAsal;
-                    return this.drumLedger.filter(d => 
-                        d.kodeBarang === item.kodeBarang && 
-                        d.gudang === wh && 
-                        d.remainingLength > 0 && 
-                        d.status !== 'Closed'
-                     );
+                    return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === wh && d.remainingLength > 0);
                 },
 
                 async submitTransaction() {
@@ -1693,7 +1694,7 @@
                                         drum.remainingLength -= qty;
                                         if (drum.remainingLength <= 0) {
                                             drum.remainingLength = 0;
-                                            drum.status = 'Closed'; // Otomatis tertutup dan terkunci
+                                            drum.status = 'Empty';
                                         } else {
                                             drum.status = 'Partial';
                                         }
@@ -1766,18 +1767,6 @@
                     this.showNotification(`Mengedit transaksi ${tx.noTransaksi}. Lakukan penyesuaian lalu simpan.`, 'success');
                 },
 
-                releaseDrum(drumId, gudangAsal) {
-                    let drum = this.drumLedger.find(d => d.drumId === drumId && d.gudang === gudangAsal);
-                    if (!drum) return;
-
-                    let konfirmasi = confirm(`Apakah Anda yakin ingin mengosongkan/mereset Drum ID ${drumId} di gudang ${gudangAsal}? Sisa panjang saat ini (${drum.remainingLength} m) akan ditutup, dan ID drum akan aktif kembali untuk digunakan.`);
-
-                    if (konfirmasi) {
-                        drum.remainingLength = 0;
-                        drum.status = 'Available'; // Siap dipakai ulang untuk transaksi masuk berikutnya
-                        this.showNotification(`Drum ${drumId} berhasil dikosongkan dan siap digunakan kembali!`, 'success');
-                    }
-                },
                 // FITUR PENGHAPUSAN TRANSAKSI DENGAN ROLLBACK STOK, DRUM & MATERIAL USAGE OTOMATIS
                 deleteTransaction(tx) {
                     if (!confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Stok, pelacakan drum, dan material usage akan otomatis dikembalikan ke kondisi sebelumnya.`)) {
