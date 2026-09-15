@@ -562,7 +562,7 @@
                                                 </template>
                                             </div>
                                             <div class="md:col-span-1">
-                                                <input type="number" x-model="item.qty" min="1" placeholder="Qty" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-white text-center font-bold">
+                                                <input type="number" x-model="item.qty" min="1" placeholder="Qty" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white text-center font-bold">
                                             </div>
                                             <div class="md:col-span-1 text-right">
                                                 <button type="button" @click="removeTransactionItem(index)" class="text-slate-500 hover:text-rose-400 p-1"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
@@ -582,7 +582,7 @@
                     </div>
                 </div>
 
-                <!-- 6. STOK GUDANG & PELACAKAN DRUM KABEL (DENGAN TOMBOL AKSI RE-USE) -->
+                <!-- 6. STOK GUDANG & PELACAKAN DRUM KABEL -->
                 <div x-show="currentTab === 'stok'" class="space-y-6" x-cloak>
                     <div class="space-y-4">
                         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1085,9 +1085,9 @@
     <script>
         const SUPABASE_URL = 'https://mwcdgumytjwhewkbbwge.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13Y2RndW15dGp3aGV3a2Jid2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwMzAzODUsImV4cCI6MjEwNDYwNjM4NX0.DERPs4Gd_iMbn38aik9KKQG4Wc44QitUG1JaZya1gsI';
-        const supabaseClient = (window.supabase && SUPABASE_URL !== 'YOUR_SUPABASE_URL_HERE') 
+        const supabaseClient = (window.supabase && SUPABASE_URL !== 'https://mwcdgumytjwhewkbbwge.supabase.co') 
             ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
-            : null;
+            : (window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null);
 
         function safeLoadStorage(key, fallback) {
             try {
@@ -1096,6 +1096,14 @@
             } catch (e) {
                 console.warn(`Error parsing localStorage key "${key}":`, e);
                 return fallback;
+            }
+        }
+
+        function safeSaveStorage(key, value) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (e) {
+                console.error(`Error saving to localStorage key "${key}":`, e);
             }
         }
 
@@ -1151,42 +1159,25 @@
                         kodeProject: 'ACH-2026-001', 
                         type: 'Main Feeder', 
                         noPO: 'PO/2026/0192', 
-                        projectName: 'Project Aceh FTTH 2026',
+                        projectName: 'Project Aceh FTTH 2026'
                     }
                 ]),
 
                 stokGudang: safeLoadStorage('vortex_stokGudang', [
-                    { id: 'HW-RT-01_Gudang Utama Jakarta', kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', kategori: 'Hardware', gudang: 'Gudang Utama Jakarta', qty: 45, sat: 'Unit' },
-                    { id: 'CBL-ADSS-024_Gudang Utama Jakarta', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', kategori: 'Cable', gudang: 'Gudang Utama Jakarta', qty: 7000, sat: 'Meter' }
+                    { id: 'HW-RT-01_Gudang Utama Jakarta', kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', kategori: 'Hardware', gudang: 'Gudang Utama Jakarta', qty: 4, sat: 'Unit' },
+                    { id: 'CB-FO-12_Gudang Utama Jakarta', kodeBarang: 'CB-FO-12', namaBarang: 'FO Single Mode 24Core', kategori: 'Cable', gudang: 'Gudang Utama Jakarta', qty: 6000, sat: 'Meter' }
                 ]),
 
                 drumLedger: safeLoadStorage('vortex_drumLedger', [
-                    { drumId: 'CBLADSS024-NPM-01', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
-                    { drumId: 'ADSS072-PLB-01', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 0, status: 'Empty' }
+                    { drumId: 'DRUM-CB-FO-12-001', kodeBarang: 'CB-FO-12', namaBarang: 'FO Single Mode 24Core', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000 },
+                    { drumId: 'DRUM-CB-FO-12-002', kodeBarang: 'CB-FO-12', namaBarang: 'FO Single Mode 24Core', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000 }
                 ]),
 
-                materialUsage: safeLoadStorage('vortex_materialUsage', [
-                    { id: 'USG-INIT-001', transactionNo: 'ACM-NPM-IN-202609-00', kodeProject: 'ACH-2026-001', noPO: 'PO/2026/0192', projectName: 'Project Aceh FTTH 2026', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'CBLADSS024-NPM-02', qty: 2000, tanggal: '2026-06-02' }
-                ]),
-
-                transactions: safeLoadStorage('vortex_transactions', [
-                    {
-                        tanggal: '2026-09-01',
-                        noTransaksi: 'ACM-NPM-IN-202609-01',
-                        noReferensi: 'REF-001',
-                        tipeTransaksi: 'Masuk',
-                        gudangAsal: 'PT Prysmian Cable',
-                        gudangTujuan: 'Gudang Utama Jakarta',
-                        kodeProject: 'ACH-2026-001',
-                        keterangan: 'Penerimaan awal material kabel project',
-                        lampiran: '',
-                        lampiranUrl: '',
-                        items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', drumId: 'CBLADSS024-NPM-01', qty: 3000, keterangan: 'Kondisi mulus, segel aman' }]
-                    }
-                ]),
+                materialUsage: safeLoadStorage('vortex_materialUsage', []),
+                transactions: safeLoadStorage('vortex_transactions', []),
 
                 newTrans: {
-                    tanggal: '',
+                    tanggal: new Date().toISOString().split('T')[0],
                     noTransaksi: '',
                     noReferensi: '',
                     tipeTransaksi: 'Masuk',
@@ -1196,193 +1187,187 @@
                     keterangan: '',
                     lampiran: '',
                     lampiranUrl: '',
-                    items: []
+                    items: [ { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1 } ]
                 },
 
-                activeBast: {},
+                activeBast: { items: [] },
 
                 init() {
-                    this.resetInputTransaction();
-                    this.syncWithSupabaseOnStart();
-                    this.setupRealtimeSubscriptions();
-
-                    this.$watch('masterBarang', val => { localStorage.setItem('vortex_masterBarang', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('masterGudang', val => { localStorage.setItem('vortex_masterGudang', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('masterProject', val => { localStorage.setItem('vortex_masterProject', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('stokGudang', val => { localStorage.setItem('vortex_stokGudang', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('drumLedger', val => { localStorage.setItem('vortex_drumLedger', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('transactions', val => { localStorage.setItem('vortex_transactions', JSON.stringify(val)); }, { deep: true });
-                    this.$watch('materialUsage', val => { localStorage.setItem('vortex_materialUsage', JSON.stringify(val)); }, { deep: true });
-
-                    this.refreshIcons();
+                    this.generateNoTransaksi();
+                    this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+                    this.loadInitialDataFromSupabase();
+                    this.subscribeRealtime();
                 },
 
-                refreshIcons() {
-                    this.$nextTick(() => {
-                        if (typeof lucide !== 'undefined' && lucide.createIcons) {
-                            lucide.createIcons();
-                        }
-                    });
+                showNotification(message, type = 'error') {
+                    this.notification = { show: true, message, type };
+                    setTimeout(() => { this.notification.show = false; }, 4000);
                 },
 
-                async syncWithSupabaseOnStart() {
-                    if (!supabaseClient) return;
-                    try {
-                        const { data: transData, error } = await supabaseClient.from('transactions').select('*').order('created_at', { ascending: false });
-                        if (!error && transData && transData.length > 0) {
-                            this.transactions = transData;
-                        }
-                    } catch (e) {
-                        console.warn('Operating in Local Storage mode:', e);
-                    }
-                },
-
-                setupRealtimeSubscriptions() {
-                    if (!supabaseClient) return;
-                    try {
-                        supabaseClient
-                            .channel('public:wms_realtime')
-                            .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, payload => {
-                                this.handleRealtimeEvent('transactions', payload, 'noTransaksi');
-                            })
-                            .on('postgres_changes', { event: '*', schema: 'public', table: 'stok_gudang' }, payload => {
-                                this.handleRealtimeEvent('stokGudang', payload, 'id');
-                            })
-                            .on('postgres_changes', { event: '*', schema: 'public', table: 'drum_ledger' }, payload => {
-                                this.handleRealtimeEvent('drumLedger', payload, 'drumId');
-                            })
-                            .subscribe();
-                    } catch (e) {
-                        console.warn('Realtime subscription skipped:', e);
-                    }
-                },
-
-                handleRealtimeEvent(key, payload, idField) {
-                    if (payload.eventType === 'INSERT') {
-                        const exists = this[key].some(item => item[idField] === payload.new[idField]);
-                        if (!exists) this[key].unshift(payload.new);
-                    } else if (payload.eventType === 'UPDATE') {
-                        const idx = this[key].findIndex(item => item[idField] === payload.new[idField]);
-                        if (idx !== -1) this[key][idx] = { ...this[key][idx], ...payload.new };
-                    } else if (payload.eventType === 'DELETE') {
-                        this[key] = this[key].filter(item => item[idField] !== payload.old[idField]);
-                    }
-                    this.refreshIcons();
+                switchTab(tab) {
+                    this.currentTab = tab;
+                    this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
                 },
 
                 login() {
-                    this.isLoggedIn = true;
-                    this.currentUser = this.loginForm.email.split('@')[0] || 'User';
-                    this.currentRole = this.loginForm.role;
-                    localStorage.setItem('vortex_logged_in', 'true');
-                    localStorage.setItem('vortex_user', this.currentUser);
-                    localStorage.setItem('vortex_role', this.currentRole);
-                    this.showNotification('Berhasil masuk ke sistem!', 'success');
+                    if (this.loginForm.email && this.loginForm.password) {
+                        this.isLoggedIn = true;
+                        this.currentUser = this.loginForm.email.split('@')[0];
+                        this.currentRole = this.loginForm.role;
+                        localStorage.setItem('vortex_logged_in', 'true');
+                        localStorage.setItem('vortex_user', this.currentUser);
+                        localStorage.setItem('vortex_role', this.currentRole);
+                        this.showNotification('Berhasil masuk ke sistem ACM-WMS', 'success');
+                        this.switchTab('dashboard');
+                    } else {
+                        this.showNotification('Email dan password wajib diisi!', 'error');
+                    }
                 },
 
                 logout() {
                     this.isLoggedIn = false;
                     localStorage.removeItem('vortex_logged_in');
-                    this.showNotification('Anda telah keluar.', 'success');
+                    localStorage.removeItem('vortex_user');
+                    localStorage.removeItem('vortex_role');
+                    this.showNotification('Anda telah keluar dari sistem.', 'success');
                 },
 
-                switchTab(tabName) {
-                    this.currentTab = tabName;
-                    this.refreshIcons();
-                },
+                // -------------------------------------------------------------
+                // REALTIME & SUPABASE FETCH
+                // -------------------------------------------------------------
+                async loadInitialDataFromSupabase() {
+                    if (!supabaseClient) return;
+                    try {
+                        const [resBrg, resGdg, resPrj, resStk, resDrm, resUsg, resTx] = await Promise.all([
+                            supabaseClient.from('master_barang').select('*'),
+                            supabaseClient.from('master_gudang').select('*'),
+                            supabaseClient.from('master_project').select('*'),
+                            supabaseClient.from('stok_gudang').select('*'),
+                            supabaseClient.from('drum_ledger').select('*'),
+                            supabaseClient.from('material_usage').select('*'),
+                            supabaseClient.from('transactions').select('*').order('created_at', { ascending: false })
+                        ]);
 
-                showNotification(msg, type = 'success') {
-                    this.notification = { show: true, message: msg, type: type };
-                    this.refreshIcons();
-                    setTimeout(() => { this.notification.show = false; }, 4000);
-                },
+                        if (resBrg.data && resBrg.data.length > 0) this.masterBarang = resBrg.data;
+                        if (resGdg.data && resGdg.data.length > 0) this.masterGudang = resGdg.data;
+                        if (resPrj.data && resPrj.data.length > 0) this.masterProject = resPrj.data;
+                        if (resStk.data && resStk.data.length > 0) this.stokGudang = resStk.data;
+                        if (resDrm.data && resDrm.data.length > 0) this.drumLedger = resDrm.data;
+                        if (resUsg.data && resUsg.data.length > 0) this.materialUsage = resUsg.data;
+                        if (resTx.data && resTx.data.length > 0) this.transactions = resTx.data;
 
-                // Helper Pagination & Filtering
-                paginate(items, page, pageSize) {
-                    const start = (page - 1) * pageSize;
-                    return items.slice(start, start + pageSize);
-                },
-
-                totalPages(items, pageSize) {
-                    return Math.max(1, Math.ceil(items.length / pageSize));
-                },
-
-                getPaginatedBarang() { return this.paginate(this.masterBarang, this.pageBarang, this.pageSizeBarang); },
-                getPaginatedGudang() { return this.paginate(this.masterGudang, this.pageGudang, this.pageSizeGudang); },
-                getPaginatedProject() { return this.paginate(this.masterProject, this.pageProject, this.pageSizeProject); },
-                getPaginatedStokGudang() { return this.paginate(this.getFilteredStokGudang(), this.pageStok, this.pageSizeStok); },
-                getPaginatedDrumLedger() { return this.paginate(this.getFilteredDrumLedger(), this.pageDrum, this.pageSizeDrum); },
-                getPaginatedMaterialUsage() { return this.paginate(this.getFilteredMaterialUsage(), this.pageUsage, this.pageSizeUsage); },
-                getPaginatedTransactions() { return this.paginate(this.getFilteredTransactions(), this.pageTx, this.pageSizeTx); },
-
-                // FITUR AKSI RE-USE DRUM ID PADA DRUM LEDGER
-                reuseDrum(drum) {
-                    if (confirm(`Apakah Anda yakin ingin melakukan Re-use / Scrap pada Drum ID "${drum.drumId}"?\nDrum ini akan dihapus dari Drum Ledger aktif, sehingga nomor Drum ID tersebut dapat dibersihkan dan digunakan kembali.`)) {
-                        const idx = this.drumLedger.findIndex(d => d.drumId === drum.drumId);
-                        if (idx !== -1) {
-                            this.drumLedger.splice(idx, 1);
-                            this.showNotification(`Drum ID "${drum.drumId}" berhasil dikosongkan dari ledger!`, 'success');
-                        }
+                        this.syncLocalStorage();
+                    } catch (err) {
+                        console.warn('Gagal sinkronisasi data awal dari Supabase, menggunakan data lokal:', err);
                     }
                 },
 
-                async handleFileUpload(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
+                subscribeRealtime() {
+                    if (!supabaseClient) return;
+                    supabaseClient.channel('wms_realtime_changes')
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, payload => this.handleRealtimeEvent('transactions', payload))
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'stok_gudang' }, payload => this.handleRealtimeEvent('stok_gudang', payload))
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'drum_ledger' }, payload => this.handleRealtimeEvent('drum_ledger', payload))
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'material_usage' }, payload => this.handleRealtimeEvent('material_usage', payload))
+                        .subscribe();
+                },
 
-                    this.selectedFile = file;
-                    this.newTrans.lampiran = file.name;
-
-                    const reader = new FileReader();
-                    reader.onload = (e) => { this.newTrans.lampiranUrl = e.target.result; };
-                    reader.readAsDataURL(file);
-
-                    if (supabaseClient) {
-                        try {
-                            this.isLoading = true;
-                            const fileExt = file.name.split('.').pop();
-                            const fileName = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-                            const filePath = `transaksi/${fileName}`;
-
-                            const { data, error } = await supabaseClient.storage
-                                .from('attachments')
-                                .upload(filePath, file, { cacheControl: '3600', upsert: true });
-
-                            if (error) {
-                                this.showNotification('Berkas disimpan secara lokal (Storage Supabase offline/bucket terbatas)', 'error');
-                            } else {
-                                const { data: publicUrlData } = supabaseClient.storage
-                                    .from('attachments')
-                                    .getPublicUrl(filePath);
-
-                                if (publicUrlData && publicUrlData.publicUrl) {
-                                    this.newTrans.lampiranUrl = publicUrlData.publicUrl;
-                                    this.showNotification('Berkas berhasil diunggah ke Supabase Storage Bucket!', 'success');
-                                }
+                handleRealtimeEvent(table, payload) {
+                    const { eventType, new: newRow, old: oldRow } = payload;
+                    
+                    if (table === 'transactions') {
+                        if (eventType === 'INSERT') {
+                            if (!this.transactions.some(t => t.noTransaksi === newRow.no_transaksi)) {
+                                this.transactions.unshift({
+                                    noTransaksi: newRow.no_transaksi,
+                                    noReferensi: newRow.no_referensi,
+                                    tanggal: newRow.tanggal,
+                                    tipeTransaksi: newRow.tipe_transaksi,
+                                    gudangAsal: newRow.gudang_asal,
+                                    gudangTujuan: newRow.gudang_tujuan,
+                                    kodeProject: newRow.kode_project,
+                                    keterangan: newRow.keterangan,
+                                    lampiran: newRow.lampiran,
+                                    lampiranUrl: newRow.lampiran_url,
+                                    items: typeof newRow.items === 'string' ? JSON.parse(newRow.items) : newRow.items
+                                });
                             }
-                        } catch (err) {
-                            console.error('Upload exception:', err);
-                        } finally {
-                            this.isLoading = false;
+                        } else if (eventType === 'UPDATE') {
+                            const idx = this.transactions.findIndex(t => t.noTransaksi === newRow.no_transaksi);
+                            if (idx !== -1) {
+                                this.transactions[idx] = {
+                                    noTransaksi: newRow.no_transaksi,
+                                    noReferensi: newRow.no_referensi,
+                                    tanggal: newRow.tanggal,
+                                    tipeTransaksi: newRow.tipe_transaksi,
+                                    gudangAsal: newRow.gudang_asal,
+                                    gudangTujuan: newRow.gudang_tujuan,
+                                    kodeProject: newRow.kode_project,
+                                    keterangan: newRow.keterangan,
+                                    lampiran: newRow.lampiran,
+                                    lampiranUrl: newRow.lampiran_url,
+                                    items: typeof newRow.items === 'string' ? JSON.parse(newRow.items) : newRow.items
+                                };
+                            }
+                        } else if (eventType === 'DELETE') {
+                            this.transactions = this.transactions.filter(t => t.noTransaksi !== oldRow.no_transaksi);
+                        }
+                    } else if (table === 'stok_gudang') {
+                        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+                            const idx = this.stokGudang.findIndex(s => s.id === newRow.id);
+                            const mapped = { id: newRow.id, kodeBarang: newRow.kode_barang, namaBarang: newRow.nama_barang, kategori: newRow.kategori, gudang: newRow.gudang, qty: parseFloat(newRow.qty), sat: newRow.sat };
+                            if (idx !== -1) this.stokGudang[idx] = mapped;
+                            else this.stokGudang.push(mapped);
+                        } else if (eventType === 'DELETE') {
+                            this.stokGudang = this.stokGudang.filter(s => s.id !== oldRow.id);
+                        }
+                    } else if (table === 'drum_ledger') {
+                        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+                            const idx = this.drumLedger.findIndex(d => d.drumId === newRow.drum_id);
+                            const mapped = { drumId: newRow.drum_id, kodeBarang: newRow.kode_barang, namaBarang: newRow.nama_barang, gudang: newRow.gudang, initialLength: parseFloat(newRow.initial_length), remainingLength: parseFloat(newRow.remaining_length) };
+                            if (idx !== -1) this.drumLedger[idx] = mapped;
+                            else this.drumLedger.push(mapped);
+                        } else if (eventType === 'DELETE') {
+                            this.drumLedger = this.drumLedger.filter(d => d.drumId !== oldRow.drum_id);
+                        }
+                    } else if (table === 'material_usage') {
+                        if (eventType === 'INSERT') {
+                            this.materialUsage.unshift({
+                                id: newRow.id,
+                                kodeProject: newRow.kode_project,
+                                projectName: newRow.project_name,
+                                kodeBarang: newRow.kode_barang,
+                                namaBarang: newRow.nama_barang,
+                                drumId: newRow.drum_id,
+                                qty: parseFloat(newRow.qty),
+                                tanggal: newRow.tanggal
+                            });
                         }
                     }
+                    this.syncLocalStorage();
                 },
 
+                syncLocalStorage() {
+                    safeSaveStorage('vortex_masterBarang', this.masterBarang);
+                    safeSaveStorage('vortex_masterGudang', this.masterGudang);
+                    safeSaveStorage('vortex_masterProject', this.masterProject);
+                    safeSaveStorage('vortex_stokGudang', this.stokGudang);
+                    safeSaveStorage('vortex_drumLedger', this.drumLedger);
+                    safeSaveStorage('vortex_materialUsage', this.materialUsage);
+                    safeSaveStorage('vortex_transactions', this.transactions);
+                },
+
+                // -------------------------------------------------------------
+                // MASTER DATA MODAL & ACTIONS (BARANG, GUDANG, PROJECT)
+                // -------------------------------------------------------------
                 openModal(type) {
                     this.modalType = type;
                     this.isEdit = false;
                     this.editTargetItem = null;
-                    if (type === 'project') {
-                        const today = new Date().toISOString().split('T')[0];
-                        this.modalForm = { periode: today, region: '', kodeProject: '', type: 'Main Feeder', noPO: '', projectName: '' };
-                        this.generateKodeProject();
-                    } else if (type === 'barang') {
-                        this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Pcs' };
-                    } else if (type === 'gudang') {
-                        this.modalForm = { kodeGudang: '', namaGudang: '', tipeKepemilikan: 'Milik Sendiri', lokasi: '' };
-                    }
+                    this.modalForm = type === 'barang' ? { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Unit' }
+                                  : type === 'gudang' ? { kodeGudang: '', namaGudang: '', tipeKepemilikan: 'Milik Sendiri', lokasi: '' }
+                                  : { periode: new Date().toISOString().split('T')[0], region: '', kodeProject: '', type: 'Main Feeder', noPO: '', projectName: '' };
                     this.showModal = true;
-                    this.refreshIcons();
                 },
 
                 openEditModal(type, item) {
@@ -1391,85 +1376,71 @@
                     this.editTargetItem = item;
                     this.modalForm = JSON.parse(JSON.stringify(item));
                     this.showModal = true;
-                    this.refreshIcons();
                 },
 
-                getRegionCode(reg) {
-                    if (!reg) return 'ACH';
-                    let r = reg.trim().toUpperCase();
-                    if (r === 'ACEH') return 'ACH';
-                    if (r === 'PADANG') return 'PDG';
-                    if (r === 'PALEMBANG') return 'PLM';
-                    return r.length <= 3 ? r : r.substring(0, 3);
-                },
-
-                generateKodeProject() {
-                    if (this.isEdit) return;
-                    const regCode = this.getRegionCode(this.modalForm.region);
-                    let year = '2026';
-                    if (this.modalForm.periode) {
-                        const d = new Date(this.modalForm.periode);
-                        if (!isNaN(d.getFullYear())) year = d.getFullYear().toString();
-                    }
-
-                    const prefix = `${regCode}-${year}-`;
-                    let maxSeq = 0;
-
-                    this.masterProject.forEach(p => {
-                        if (p.kodeProject && p.kodeProject.startsWith(prefix)) {
-                            const num = parseInt(p.kodeProject.replace(prefix, ''), 10);
-                            if (!isNaN(num) && num > maxSeq) maxSeq = num;
-                        }
-                    });
-
-                    this.modalForm.kodeProject = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
-                },
-
-                saveModalData() {
-                    if (this.modalType === 'project') {
-                        if (this.isEdit && this.editTargetItem) {
-                            const idx = this.masterProject.findIndex(p => p.kodeProject === this.editTargetItem.kodeProject);
-                            if (idx !== -1) this.masterProject[idx] = { ...this.modalForm };
+                async saveModalData() {
+                    if (this.modalType === 'barang') {
+                        if (this.isEdit) {
+                            Object.assign(this.editTargetItem, this.modalForm);
                         } else {
-                            this.masterProject.push({ ...this.modalForm });
-                        }
-                    } else if (this.modalType === 'barang') {
-                        if (this.isEdit && this.editTargetItem) {
-                            const idx = this.masterBarang.findIndex(b => b.kodeBarang === this.editTargetItem.kodeBarang);
-                            if (idx !== -1) this.masterBarang[idx] = { ...this.modalForm };
-                        } else {
+                            if (this.masterBarang.some(b => b.kodeBarang === this.modalForm.kodeBarang)) {
+                                this.showNotification('Kode Barang sudah terdaftar!', 'error'); return;
+                            }
                             this.masterBarang.push({ ...this.modalForm });
                         }
                     } else if (this.modalType === 'gudang') {
-                        if (this.isEdit && this.editTargetItem) {
-                            const idx = this.masterGudang.findIndex(g => g.kodeGudang === this.editTargetItem.kodeGudang);
-                            if (idx !== -1) this.masterGudang[idx] = { ...this.modalForm };
+                        if (this.isEdit) {
+                            Object.assign(this.editTargetItem, this.modalForm);
                         } else {
+                            if (this.masterGudang.some(g => g.kodeGudang === this.modalForm.kodeGudang)) {
+                                this.showNotification('Kode Gudang sudah terdaftar!', 'error'); return;
+                            }
                             this.masterGudang.push({ ...this.modalForm });
                         }
+                    } else if (this.modalType === 'project') {
+                        if (this.isEdit) {
+                            Object.assign(this.editTargetItem, this.modalForm);
+                        } else {
+                            if (this.masterProject.some(p => p.kodeProject === this.modalForm.kodeProject)) {
+                                this.showNotification('Kode Project sudah ada!', 'error'); return;
+                            }
+                            this.masterProject.push({ ...this.modalForm });
+                        }
                     }
+                    this.syncLocalStorage();
                     this.showModal = false;
-                    this.showNotification('Data master berhasil disimpan!', 'success');
-                    this.refreshIcons();
+                    this.showNotification(`Data Master ${this.modalType} berhasil disimpan!`, 'success');
                 },
 
-                deleteItem(type, item) {
-                    if (confirm('Apakah Anda yakin ingin menghapus data ini?')) {
-                        if (type === 'barang') this.masterBarang = this.masterBarang.filter(b => b.kodeBarang !== item.kodeBarang);
-                        if (type === 'gudang') this.masterGudang = this.masterGudang.filter(g => g.kodeGudang !== item.kodeGudang);
-                        if (type === 'project') this.masterProject = this.masterProject.filter(p => p.kodeProject !== item.kodeProject);
-                        this.showNotification('Data berhasil dihapus!', 'success');
-                    }
+                async deleteItem(type, item) {
+                    if (!confirm(`Apakah Anda yakin ingin menghapus data ${type} ini?`)) return;
+                    if (type === 'barang') this.masterBarang = this.masterBarang.filter(b => b.kodeBarang !== item.kodeBarang);
+                    else if (type === 'gudang') this.masterGudang = this.masterGudang.filter(g => g.kodeGudang !== item.kodeGudang);
+                    else if (type === 'project') this.masterProject = this.masterProject.filter(p => p.kodeProject !== item.kodeProject);
+                    
+                    this.syncLocalStorage();
+                    this.showNotification(`Data ${type} berhasil dihapus.`, 'success');
                 },
 
+                generateKodeProject() {
+                    if (this.modalType !== 'project') return;
+                    const reg = (this.modalForm.region || 'PRJ').toUpperCase().trim().substring(0, 3);
+                    const year = this.modalForm.periode ? new Date(this.modalForm.periode).getFullYear() : new Date().getFullYear();
+                    const count = String(this.masterProject.length + 1).padStart(3, '0');
+                    this.modalForm.kodeProject = `${reg}-${year}-${count}`;
+                },
+
+                // -------------------------------------------------------------
+                // INPUT TRANSAKSI LOGIC & FILE UPLOAD
+                // -------------------------------------------------------------
                 openInputTransaction() {
+                    this.resetInputTransaction();
                     this.switchTab('input-transaksi');
                 },
 
                 resetInputTransaction() {
-                    const today = new Date().toISOString().split('T')[0];
                     this.newTrans = {
-                        tanggal: today,
+                        tanggal: new Date().toISOString().split('T')[0],
                         noTransaksi: '',
                         noReferensi: '',
                         tipeTransaksi: 'Masuk',
@@ -1479,45 +1450,30 @@
                         keterangan: '',
                         lampiran: '',
                         lampiranUrl: '',
-                        items: [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '' }]
+                        items: [ { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1 } ]
                     };
+                    this.selectedFile = null;
                     this.generateNoTransaksi();
                 },
 
                 generateNoTransaksi() {
-                    const d = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0, 7).replace(/-/g, '');
-                    const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-                    
-                    let whName = this.newTrans.tipeTransaksi === 'Masuk' ? this.newTrans.gudangTujuan : this.newTrans.gudangAsal;
-                    let whCode3 = 'NPM';
-                    if (whName) {
-                        const foundGudang = this.masterGudang.find(g => g.namaGudang === whName);
-                        if (foundGudang && foundGudang.kodeGudang) {
-                            whCode3 = foundGudang.kodeGudang.substring(0, 3).toUpperCase();
-                        }
-                    }
-
-                    const prefix = `ACM-${whCode3}-${typeCode}-${d}-`;
-                    let maxSeq = 0;
-                    this.transactions.forEach(t => {
-                        if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
-                            const num = parseInt(t.noTransaksi.replace(prefix, ''), 10);
-                            if (!isNaN(num) && num > maxSeq) maxSeq = num;
-                        }
-                    });
-
-                    this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
+                    const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
+                    const prefix = this.newTrans.tipeTransaksi === 'Masuk' ? 'TRX-IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'TRX-OUT' : 'TRX-TRF');
+                    const rand = String(Math.floor(1000 + Math.random() * 9000));
+                    this.newTrans.noTransaksi = `${prefix}-${dateStr}-${rand}`;
                 },
 
                 onTipeTransaksiChange() {
                     this.newTrans.gudangAsal = '';
                     this.newTrans.gudangTujuan = '';
-                    this.newTrans.items.forEach(i => { i.drumId = ''; });
+                    this.newTrans.items = [ { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1 } ];
                     this.generateNoTransaksi();
                 },
 
                 resetItemsOnWarehouseChange() {
-                    this.newTrans.items.forEach(i => { i.drumId = ''; });
+                    this.newTrans.items.forEach(it => {
+                        it.drumId = '';
+                    });
                 },
 
                 getGudangTujuanList() {
@@ -1531,20 +1487,29 @@
                     return this.masterProject;
                 },
 
+                handleFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.selectedFile = file;
+                        this.newTrans.lampiran = file.name;
+                    }
+                },
+
                 addTransactionItem() {
-                    this.newTrans.items.push({ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '' });
+                    this.newTrans.items.push({ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1 });
                 },
 
                 removeTransactionItem(index) {
                     if (this.newTrans.items.length > 1) {
                         this.newTrans.items.splice(index, 1);
                     } else {
-                        this.showNotification('Transaksi minimal harus memiliki 1 item barang!', 'error');
+                        this.showNotification('Transaksi minimal memiliki 1 baris material item!', 'error');
                     }
                 },
 
-                getCategories(item) {
-                    return [...new Set(this.masterBarang.map(b => b.kategori))];
+                getCategories() {
+                    const cats = [...new Set(this.masterBarang.map(b => b.kategori))];
+                    return cats.length > 0 ? cats : ['Hardware', 'Cable', 'Power'];
                 },
 
                 getJenis(kategori) {
@@ -1561,355 +1526,392 @@
                     const found = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
                     if (found) {
                         item.namaBarang = found.namaBarang;
+                        item.kategori = found.kategori;
+                        item.sat = found.sat || 'Pcs';
                     }
                 },
 
-                getCategoryByKode(kodeBarang) {
-                    const found = this.masterBarang.find(b => b.kodeBarang === kodeBarang);
+                getCategoryByKode(kode) {
+                    const found = this.masterBarang.find(b => b.kodeBarang === kode);
                     return found ? found.kategori : '';
                 },
 
                 getDrumList(item) {
-                    if (!item.kodeBarang || !this.newTrans.gudangAsal) return [];
-                    return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === this.newTrans.gudangAsal && d.remainingLength > 0);
+                    if (!item.kodeBarang) return [];
+                    const warehouse = this.newTrans.gudangAsal;
+                    return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === warehouse && d.remainingLength > 0);
                 },
 
-                // LOGIKA PROSES TRANSAKSI ATOMIC (ACID) & VALIDASI STOK MINUS STRICT
+                // -------------------------------------------------------------
+                // SUBMIT TRANSACTION (WITH SUPABASE RPC RACE CONDITION FIX)
+                // -------------------------------------------------------------
                 async submitTransaction() {
                     if (!this.newTrans.noReferensi || !this.newTrans.keterangan) {
-                        this.showNotification('Mohon lengkapi No Referensi dan Keterangan transaksi!', 'error');
-                        return;
+                        this.showNotification('No Referensi dan Keterangan wajib diisi!', 'error'); return;
                     }
-
-                    if (this.newTrans.items.length === 0) {
-                        this.showNotification('Pilih minimal 1 item barang untuk transaksi!', 'error');
-                        return;
+                    if (this.newTrans.tipeTransaksi === 'Keluar' && !this.newTrans.gudangAsal) {
+                        this.showNotification('Pilih Gudang Asal transaksi!', 'error'); return;
                     }
-
-                    // 1. VALIDASI STOK MINUS & DRUM LEDGER KETAT SISI CLIENT/SERVER
-                    for (let i = 0; i < this.newTrans.items.length; i++) {
-                        const item = this.newTrans.items[i];
-                        const requestedQty = Number(item.qty) || 0;
-
-                        if (!item.kodeBarang || requestedQty <= 0) {
-                            this.showNotification(`Item baris ke-${i+1}: Kode barang dan Qty wajib diisi dengan benar!`, 'error');
-                            return;
-                        }
-
-                        if (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') {
-                            // Validasi Ketersediaan Stok Gudang Asal
-                            const stokRecord = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangAsal);
-                            const availableQty = stokRecord ? Number(stokRecord.qty) : 0;
-
-                            if (requestedQty > availableQty) {
-                                this.showNotification(`[Stok Tidak Mencukupi] Barang "${item.namaBarang}" di gudang "${this.newTrans.gudangAsal}". Stok sisa: ${availableQty}, Diminta: ${requestedQty}`, 'error');
-                                return;
-                            }
-
-                            // Validasi Sisa Panjang Drum Ledger jika Kabel
-                            if (this.getCategoryByKode(item.kodeBarang) === 'Cable') {
-                                if (!item.drumId) {
-                                    this.showNotification(`[Drum ID Wajib] Barang kabel "${item.namaBarang}" harus memilih Drum ID asal!`, 'error');
-                                    return;
-                                }
-
-                                const drumRecord = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
-                                if (!drumRecord) {
-                                    this.showNotification(`[Drum Tidak Ditemukan] Drum ID "${item.drumId}" tidak ada di gudang "${this.newTrans.gudangAsal}"!`, 'error');
-                                    return;
-                                }
-
-                                const drumRemaining = Number(drumRecord.remainingLength) || 0;
-                                if (requestedQty > drumRemaining) {
-                                    this.showNotification(`[Sisa Panjang Drum Kurang] Drum "${item.drumId}" sisa: ${drumRemaining}m, diminta: ${requestedQty}m`, 'error');
-                                    return;
-                                }
-                            }
-                        }
+                    if (this.newTrans.items.some(i => !i.kodeBarang || !i.qty || i.qty <= 0)) {
+                        this.showNotification('Lengkapi seluruh item detail barang dan kuantitas!', 'error'); return;
                     }
 
                     this.isLoading = true;
 
                     try {
-                        // Create deep snapshot for local state modification (ACID local consistency)
-                        const txClone = JSON.parse(JSON.stringify(this.newTrans));
+                        // 1. Upload Lampiran ke Supabase Storage jika ada
+                        if (this.selectedFile && supabaseClient) {
+                            const fileExt = this.selectedFile.name.split('.').pop();
+                            const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+                            const { data: uploadData, error: uploadErr } = await supabaseClient
+                                .storage
+                                .from('documents')
+                                .upload(fileName, this.selectedFile);
 
-                        // 2. PEMROSESAN ATOMIC PERUBAHAN STOK & DRUM LEDGER
-                        txClone.items.forEach(item => {
-                            const qtyNum = Number(item.qty);
-                            const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
-
-                            // CASE A: BARANG MASUK
-                            if (txClone.tipeTransaksi === 'Masuk') {
-                                // Update atau Tambah Stok di Gudang Tujuan
-                                const stokKey = `${item.kodeBarang}_${txClone.gudangTujuan}`;
-                                let stokRec = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === txClone.gudangTujuan);
-                                if (stokRec) {
-                                    stokRec.qty = Number(stokRec.qty) + qtyNum;
-                                } else {
-                                    const masterB = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                                    this.stokGudang.push({
-                                        id: stokKey,
-                                        kodeBarang: item.kodeBarang,
-                                        namaBarang: item.namaBarang,
-                                        kategori: masterB ? masterB.kategori : item.kategori,
-                                        gudang: txClone.gudangTujuan,
-                                        qty: qtyNum,
-                                        sat: masterB ? masterB.sat : 'Meter'
-                                    });
-                                }
-
-                                // Jika Kabel, otomatis daftarkan ke Drum Ledger (Bagi per max 3000m)
-                                if (isCable) {
-                                    let remainingToAllocate = qtyNum;
-                                    let drumSeq = 1;
-                                    const cleanCode = item.kodeBarang.replace(/[^a-zA-Z0-9]/g, '');
-
-                                    while (remainingToAllocate > 0) {
-                                        const allocLength = Math.min(remainingToAllocate, 3000);
-                                        const newDrumId = `${cleanCode}-DRM-${Date.now().toString().slice(-4)}-${drumSeq}`;
-                                        this.drumLedger.push({
-                                            drumId: newDrumId,
-                                            kodeBarang: item.kodeBarang,
-                                            namaBarang: item.namaBarang,
-                                            gudang: txClone.gudangTujuan,
-                                            initialLength: allocLength,
-                                            remainingLength: allocLength,
-                                            status: 'Full'
-                                        });
-                                        remainingToAllocate -= allocLength;
-                                        drumSeq++;
-                                    }
-                                }
+                            if (!uploadErr && uploadData) {
+                                const { data: publicUrlData } = supabaseClient.storage.from('documents').getPublicUrl(fileName);
+                                this.newTrans.lampiranUrl = publicUrlData.publicUrl;
                             }
+                        }
 
-                            // CASE B: BARANG KELUAR
-                            else if (txClone.tipeTransaksi === 'Keluar') {
-                                // Kurangi Stok Gudang Asal
-                                let stokRec = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === txClone.gudangAsal);
-                                if (stokRec) {
-                                    stokRec.qty = Math.max(0, Number(stokRec.qty) - qtyNum);
-                                }
-
-                                // Potong Drum Ledger jika Kabel
-                                if (isCable && item.drumId) {
-                                    let drumRec = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === txClone.gudangAsal);
-                                    if (drumRec) {
-                                        drumRec.remainingLength = Math.max(0, Number(drumRec.remainingLength) - qtyNum);
-                                        drumRec.status = drumRec.remainingLength === 0 ? 'Empty' : 'Partial';
-                                    }
-                                }
-
-                                // Otomatis Catat ke Material Usage
-                                const projRec = this.masterProject.find(p => p.projectName === txClone.kodeProject || p.kodeProject === txClone.kodeProject);
-                                this.materialUsage.unshift({
-                                    id: `USG-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-                                    transactionNo: txClone.noTransaksi,
-                                    kodeProject: projRec ? projRec.kodeProject : (txClone.kodeProject || '-'),
-                                    noPO: projRec ? projRec.noPO : '-',
-                                    projectName: projRec ? projRec.projectName : (txClone.kodeProject || '-'),
-                                    kodeBarang: item.kodeBarang,
-                                    namaBarang: item.namaBarang,
-                                    drumId: item.drumId || '-',
-                                    qty: qtyNum,
-                                    tanggal: txClone.tanggal
-                                });
-                            }
-
-                            // CASE C: TRANSFER GUDANG
-                            else if (txClone.tipeTransaksi === 'Transfer') {
-                                // Kurangi Stok Gudang Asal
-                                let stokAsal = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === txClone.gudangAsal);
-                                if (stokAsal) stokAsal.qty = Math.max(0, Number(stokAsal.qty) - qtyNum);
-
-                                // Tambah Stok Gudang Tujuan
-                                let stokTujuan = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === txClone.gudangTujuan);
-                                if (stokTujuan) {
-                                    stokTujuan.qty = Number(stokTujuan.qty) + qtyNum;
-                                } else {
-                                    const masterB = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                                    this.stokGudang.push({
-                                        id: `${item.kodeBarang}_${txClone.gudangTujuan}`,
-                                        kodeBarang: item.kodeBarang,
-                                        namaBarang: item.namaBarang,
-                                        kategori: masterB ? masterB.kategori : item.kategori,
-                                        gudang: txClone.gudangTujuan,
-                                        qty: qtyNum,
-                                        sat: masterB ? masterB.sat : 'Meter'
-                                    });
-                                }
-
-                                // Update Drum Ledger (Pindahkan Lokasi Gudang Drum jika Kabel)
-                                if (isCable && item.drumId) {
-                                    let drumRec = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === txClone.gudangAsal);
-                                    if (drumRec) {
-                                        drumRec.remainingLength = Math.max(0, Number(drumRec.remainingLength) - qtyNum);
-                                        drumRec.status = drumRec.remainingLength === 0 ? 'Empty' : 'Partial';
-                                        
-                                        // Tambahkan drum baru di gudang tujuan
-                                        this.drumLedger.push({
-                                            drumId: `${item.drumId}-TRF`,
-                                            kodeBarang: item.kodeBarang,
-                                            namaBarang: item.namaBarang,
-                                            gudang: txClone.gudangTujuan,
-                                            initialLength: qtyNum,
-                                            remainingLength: qtyNum,
-                                            status: 'Full'
-                                        });
-                                    }
+                        // Generasi Otomatis Drum ID jika Masuk Kabel
+                        this.newTrans.items.forEach(it => {
+                            if (this.newTrans.tipeTransaksi === 'Masuk' && this.getCategoryByKode(it.kodeBarang) === 'Cable') {
+                                if (!it.drumId) {
+                                    it.drumId = `DRUM-${it.kodeBarang}-${Math.floor(1000 + Math.random() * 9000)}`;
                                 }
                             }
                         });
 
-                        // 3. SIMPAN KE RECORD TRANSAKSI & SUPABASE RPC / FALLBACK LOCAL STORAGE
-                        this.transactions.unshift(txClone);
-
+                        // 2. Jika Supabase Terhubung, Panggil RPC untuk Transaksi Atomik (Bebas Race Condition)
                         if (supabaseClient) {
-                            try {
-                                await supabaseClient.from('transactions').insert([
-                                    {
-                                        no_transaksi: txClone.noTransaksi,
-                                        tanggal: txClone.tanggal,
-                                        no_referensi: txClone.noReferensi,
-                                        tipe_transaksi: txClone.tipeTransaksi,
-                                        gudang_asal: txClone.gudangAsal,
-                                        gudang_tujuan: txClone.gudangTujuan,
-                                        kode_project: txClone.kodeProject,
-                                        keterangan: txClone.keterangan,
-                                        lampiran_url: txClone.lampiranUrl,
-                                        items: txClone.items
-                                    }
-                                ]);
-                            } catch (sbErr) {
-                                console.warn('Supabase Insert Fallback ke Local Storage:', sbErr);
+                            const { data: rpcRes, error: rpcErr } = await supabaseClient.rpc('process_transaction_rpc', {
+                                p_no_transaksi: this.newTrans.noTransaksi,
+                                p_no_referensi: this.newTrans.noReferensi,
+                                p_tanggal: this.newTrans.tanggal,
+                                p_tipe: this.newTrans.tipeTransaksi,
+                                p_gudang_asal: this.newTrans.gudangAsal || '',
+                                p_gudang_tujuan: this.newTrans.gudangTujuan || '',
+                                p_kode_project: this.newTrans.kodeProject || '',
+                                p_keterangan: this.newTrans.keterangan || '',
+                                p_lampiran: this.newTrans.lampiran || '',
+                                p_lampiran_url: this.newTrans.lampiranUrl || '',
+                                p_items: JSON.stringify(this.newTrans.items)
+                            });
+
+                            if (rpcErr) {
+                                console.warn('Panggilan RPC Supabase gagal/belum dikonfigurasi, menjalankan fallback kaji lokal:', rpcErr.message);
+                                this.processTransactionLocally();
+                            } else {
+                                this.showNotification('Transaksi berhasil diproses secara real-time via Supabase Database Procedure!', 'success');
+                                await this.loadInitialDataFromSupabase();
                             }
+                        } else {
+                            // Offline Fallback lokal
+                            this.processTransactionLocally();
+                            this.showNotification('Transaksi berhasil disimpan secara lokal (Offline).', 'success');
                         }
 
-                        this.showNotification(`Transaksi ${txClone.noTransaksi} berhasil diproses dan tersimpan!`, 'success');
                         this.resetInputTransaction();
                         this.switchTab('data-transaksi');
 
                     } catch (err) {
-                        console.error('Submit transaction error:', err);
-                        this.showNotification('Gagal memproses transaksi: ' + err.message, 'error');
+                        this.showNotification(`Gagal memproses transaksi: ${err.message}`, 'error');
                     } finally {
                         this.isLoading = false;
                     }
                 },
 
-                // Filters & CSV Export
+                processTransactionLocally() {
+                    const tx = JSON.parse(JSON.stringify(this.newTrans));
+                    this.transactions.unshift(tx);
+
+                    tx.items.forEach(item => {
+                        const sat = item.sat || 'Pcs';
+                        const qty = parseFloat(item.qty);
+
+                        if (tx.tipeTransaksi === 'Masuk') {
+                            // Tambah Stok Gudang Tujuan
+                            const stokKey = `${item.kodeBarang}_${tx.gudangTujuan}`;
+                            let stokObj = this.stokGudang.find(s => s.id === stokKey || (s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangTujuan));
+                            if (stokObj) {
+                                stokObj.qty = parseFloat(stokObj.qty) + qty;
+                            } else {
+                                this.stokGudang.push({
+                                    id: stokKey,
+                                    kodeBarang: item.kodeBarang,
+                                    namaBarang: item.namaBarang,
+                                    kategori: item.kategori,
+                                    gudang: tx.gudangTujuan,
+                                    qty: qty,
+                                    sat: sat
+                                });
+                            }
+
+                            // Update Drum Ledger jika Cable
+                            if (item.kategori === 'Cable' && item.drumId) {
+                                this.drumLedger.push({
+                                    drumId: item.drumId,
+                                    kodeBarang: item.kodeBarang,
+                                    namaBarang: item.namaBarang,
+                                    gudang: tx.gudangTujuan,
+                                    initialLength: qty,
+                                    remainingLength: qty
+                                });
+                            }
+                        } else if (tx.tipeTransaksi === 'Keluar') {
+                            // Kurangi Stok Gudang Asal
+                            let stokObj = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangAsal);
+                            if (stokObj) stokObj.qty = Math.max(0, parseFloat(stokObj.qty) - qty);
+
+                            // Kurangi Drum Ledger
+                            if (item.drumId) {
+                                let drumObj = this.drumLedger.find(d => d.drumId === item.drumId);
+                                if (drumObj) drumObj.remainingLength = Math.max(0, parseFloat(drumObj.remainingLength) - qty);
+                            }
+
+                            // Catat Material Usage
+                            this.materialUsage.unshift({
+                                id: Date.now(),
+                                kodeProject: tx.kodeProject || tx.gudangTujuan,
+                                projectName: tx.kodeProject || tx.gudangTujuan,
+                                kodeBarang: item.kodeBarang,
+                                namaBarang: item.namaBarang,
+                                drumId: item.drumId,
+                                qty: qty,
+                                tanggal: tx.tanggal
+                            });
+                        } else if (tx.tipeTransaksi === 'Transfer') {
+                            // Kurangi Asal & Tambah Tujuan
+                            let stokAsal = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangAsal);
+                            if (stokAsal) stokAsal.qty = Math.max(0, parseFloat(stokAsal.qty) - qty);
+
+                            let stokTujuan = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === tx.gudangTujuan);
+                            if (stokTujuan) {
+                                stokTujuan.qty = parseFloat(stokTujuan.qty) + qty;
+                            } else {
+                                this.stokGudang.push({
+                                    id: `${item.kodeBarang}_${tx.gudangTujuan}`,
+                                    kodeBarang: item.kodeBarang,
+                                    namaBarang: item.namaBarang,
+                                    kategori: item.kategori,
+                                    gudang: tx.gudangTujuan,
+                                    qty: qty,
+                                    sat: sat
+                                });
+                            }
+
+                            if (item.drumId) {
+                                let drumObj = this.drumLedger.find(d => d.drumId === item.drumId);
+                                if (drumObj) drumObj.gudang = tx.gudangTujuan;
+                            }
+                        }
+                    });
+
+                    this.syncLocalStorage();
+                },
+
+                // -------------------------------------------------------------
+                // STOK, DRUM LEDGER & RE-USE ACTIONS
+                // -------------------------------------------------------------
                 getFilteredStokGudang() {
                     if (!this.filterStokGudang) return this.stokGudang;
                     return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
                 },
 
-                getFilteredDrumLedger() {
-                    if (!this.filterStokGudang) return this.drumLedger;
-                    return this.drumLedger.filter(d => d.gudang === this.filterStokGudang);
+                getPaginatedStokGudang() {
+                    const filtered = this.getFilteredStokGudang();
+                    const start = (this.pageStok - 1) * this.pageSizeStok;
+                    return filtered.slice(start, start + this.pageSizeStok);
                 },
 
+                getFilteredDrumLedger() {
+                    let res = this.drumLedger;
+                    if (this.filterStokGudang) {
+                        res = res.filter(d => d.gudang === this.filterStokGudang);
+                    }
+                    return res;
+                },
+
+                getPaginatedDrumLedger() {
+                    const filtered = this.getFilteredDrumLedger();
+                    const start = (this.pageDrum - 1) * this.pageSizeDrum;
+                    return filtered.slice(start, start + this.pageSizeDrum);
+                },
+
+                async reuseDrum(drum) {
+                    if (!confirm(`Aksi Re-use/Scrap akan menghapus sisa kabel ${drum.remainingLength}m pada ${drum.drumId} dari ledger aktif. Lanjutkan?`)) return;
+
+                    if (supabaseClient) {
+                        await supabaseClient.from('drum_ledger').delete().eq('drum_id', drum.drumId);
+                    }
+                    this.drumLedger = this.drumLedger.filter(d => d.drumId !== drum.drumId);
+                    this.syncLocalStorage();
+                    this.showNotification(`Drum ${drum.drumId} berhasil di-reuse/scrap!`, 'success');
+                },
+
+                // -------------------------------------------------------------
+                // MATERIAL USAGE LOGIC
+                // -------------------------------------------------------------
                 getUniqueRegions() {
-                    return [...new Set(this.masterProject.map(p => p.region).filter(Boolean))];
+                    const regs = [...new Set(this.masterProject.map(p => p.region))].filter(Boolean);
+                    return regs.length > 0 ? regs : ['ACH', 'PDG', 'PLB'];
                 },
 
                 getFilteredMaterialUsage() {
                     return this.materialUsage.filter(u => {
-                        let matchReg = true;
-                        if (this.filterRegionUsage) {
-                            const proj = this.masterProject.find(p => p.kodeProject === u.kodeProject);
-                            matchReg = proj && proj.region === this.filterRegionUsage;
-                        }
-                        let matchQuery = true;
-                        if (this.searchMaterialUsageProject) {
-                            const q = this.searchMaterialUsageProject.toLowerCase();
-                            matchQuery = (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
-                                         (u.noPO && u.noPO.toLowerCase().includes(q)) ||
-                                         (u.projectName && u.projectName.toLowerCase().includes(q)) ||
-                                         (u.namaBarang && u.namaBarang.toLowerCase().includes(q));
-                        }
-                        return matchReg && matchQuery;
+                        const matchesRegion = !this.filterRegionUsage || (u.kodeProject && u.kodeProject.startsWith(this.filterRegionUsage));
+                        const matchesSearch = !this.searchMaterialUsageProject || 
+                            (u.kodeProject && u.kodeProject.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase())) ||
+                            (u.projectName && u.projectName.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase())) ||
+                            (u.namaBarang && u.namaBarang.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase()));
+                        return matchesRegion && matchesSearch;
                     });
                 },
 
+                getPaginatedMaterialUsage() {
+                    const filtered = this.getFilteredMaterialUsage();
+                    const start = (this.pageUsage - 1) * this.pageSizeUsage;
+                    return filtered.slice(start, start + this.pageSizeUsage);
+                },
+
+                // -------------------------------------------------------------
+                // TRANSACTIONS TABLE, EDIT, DELETE & BAST PRINT
+                // -------------------------------------------------------------
                 getFilteredTransactions() {
-                    return this.transactions.filter(t => {
-                        let matchNo = true;
-                        if (this.searchNoTransaksi) {
-                            matchNo = t.noTransaksi && t.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
-                        }
-                        let matchRef = true;
-                        if (this.searchNoReferensi) {
-                            matchRef = t.noReferensi && t.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase());
-                        }
-                        return matchNo && matchRef;
+                    return this.transactions.filter(tx => {
+                        const matchesNoTx = !this.searchNoTransaksi || tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
+                        const matchesRef = !this.searchNoReferensi || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
+                        return matchesNoTx && matchesRef;
                     });
                 },
 
-                downloadCSV(filename, headers, rows) {
-                    const csvContent = "data:text/csv;charset=utf-8," 
-                        + [headers.join(","), ...rows.map(e => e.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(","))].join("\n");
-                    const encodedUri = encodeURI(csvContent);
-                    const link = document.createElement("a");
-                    link.setAttribute("href", encodedUri);
-                    link.setAttribute("download", filename);
+                getPaginatedTransactions() {
+                    const filtered = this.getFilteredTransactions();
+                    const start = (this.pageTx - 1) * this.pageSizeTx;
+                    return filtered.slice(start, start + this.pageSizeTx);
+                },
+
+                editTransaction(tx) {
+                    this.newTrans = JSON.parse(JSON.stringify(tx));
+                    this.switchTab('input-transaksi');
+                    this.showNotification(`Mengedit transaksi ${tx.noTransaksi}. Lakukan penyesuaian lalu simpan.`, 'success');
+                },
+
+                async deleteTransaction(tx) {
+                    if (!confirm(`Hapus transaksi ${tx.noTransaksi}?`)) return;
+                    
+                    if (supabaseClient) {
+                        await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
+                    }
+                    this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+                    this.syncLocalStorage();
+                    this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus.`, 'success');
+                },
+
+                printBAST(tx) {
+                    this.activeBast = JSON.parse(JSON.stringify(tx));
+                    this.$nextTick(() => {
+                        const element = document.getElementById('printable-bast');
+                        if (window.html2pdf && element) {
+                            element.classList.remove('hidden');
+                            const opt = {
+                                margin: 0.3,
+                                filename: `BAST_${tx.noTransaksi}.pdf`,
+                                image: { type: 'jpeg', quality: 0.98 },
+                                html2canvas: { scale: 2, logging: false },
+                                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+                            };
+                            html2pdf().set(opt).from(element).save().then(() => {
+                                element.classList.add('hidden');
+                            });
+                        } else {
+                            window.print();
+                        }
+                    });
+                },
+
+                getExpandedBastItems() {
+                    if (!this.activeBast || !this.activeBast.items) return [];
+                    return this.activeBast.items;
+                },
+
+                shouldShowSummary() {
+                    return this.getExpandedBastItems().length > 0;
+                },
+
+                getBastSummaryTotals() {
+                    const items = this.getExpandedBastItems();
+                    const summaryMap = {};
+                    items.forEach(it => {
+                        if (!summaryMap[it.namaBarang]) {
+                            summaryMap[it.namaBarang] = { namaBarang: it.namaBarang, totalQty: 0 };
+                        }
+                        summaryMap[it.namaBarang].totalQty += parseFloat(it.qty || 0);
+                    });
+                    return Object.values(summaryMap);
+                },
+
+                // -------------------------------------------------------------
+                // PAGINATION & EXPORT CSV HELPERS
+                // -------------------------------------------------------------
+                getPaginatedBarang() {
+                    const start = (this.pageBarang - 1) * this.pageSizeBarang;
+                    return this.masterBarang.slice(start, start + this.pageSizeBarang);
+                },
+
+                getPaginatedGudang() {
+                    const start = (this.pageGudang - 1) * this.pageSizeGudang;
+                    return this.masterGudang.slice(start, start + this.pageSizeGudang);
+                },
+
+                getPaginatedProject() {
+                    const start = (this.pageProject - 1) * this.pageSizeProject;
+                    return this.masterProject.slice(start, start + this.pageSizeProject);
+                },
+
+                totalPages(list, size) {
+                    if (!list || list.length === 0) return 1;
+                    return Math.ceil(list.length / size);
+                },
+
+                downloadCSV(csvContent, filename) {
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', filename);
+                    link.style.visibility = 'hidden';
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
                 },
 
                 exportStokCSV() {
-                    const headers = ["Kode Barang", "Nama Barang", "Kategori", "Gudang", "Total Stok", "Satuan"];
-                    const rows = this.getFilteredStokGudang().map(s => [s.kodeBarang, s.namaBarang, s.kategori, s.gudang, s.qty, s.sat]);
-                    this.downloadCSV(`stok_gudang_${Date.now()}.csv`, headers, rows);
+                    const data = this.getFilteredStokGudang();
+                    let csv = 'Kode Barang,Nama Barang,Kategori,Gudang,Total Stok,Satuan\n';
+                    data.forEach(d => {
+                        csv += `"${d.kodeBarang}","${d.namaBarang}","${d.kategori}","${d.gudang}",${d.qty},"${d.sat || 'Pcs'}"\n`;
+                    });
+                    this.downloadCSV(csv, `Stok_Gudang_${new Date().toISOString().split('T')[0]}.csv`);
                 },
 
                 exportUsageCSV() {
-                    const headers = ["Kode Project", "No PO", "Project Name", "Kode Barang", "Nama Barang", "Drum ID", "Qty", "Tanggal"];
-                    const rows = this.getFilteredMaterialUsage().map(u => [u.kodeProject, u.noPO, u.projectName, u.kodeBarang, u.namaBarang, u.drumId, u.qty, u.tanggal]);
-                    this.downloadCSV(`material_usage_${Date.now()}.csv`, headers, rows);
+                    const data = this.getFilteredMaterialUsage();
+                    let csv = 'Kode Project,Project Name,Kode Barang,Nama Barang,Drum ID,Qty Dipakai,Tanggal\n';
+                    data.forEach(d => {
+                        csv += `"${d.kodeProject}","${d.projectName}","${d.kodeBarang}","${d.namaBarang}","${d.drumId || ''}",${d.qty},"${d.tanggal}"\n`;
+                    });
+                    this.downloadCSV(csv, `Material_Usage_${new Date().toISOString().split('T')[0]}.csv`);
                 },
 
                 exportTransactionCSV() {
-                    const headers = ["Tanggal", "No Transaksi", "No Referensi", "Tipe", "Gudang Asal", "Gudang Tujuan", "Project", "Keterangan"];
-                    const rows = this.getFilteredTransactions().map(t => [t.tanggal, t.noTransaksi, t.noReferensi, t.tipeTransaksi, t.gudangAsal, t.gudangTujuan, t.kodeProject, t.keterangan]);
-                    this.downloadCSV(`data_transaksi_${Date.now()}.csv`, headers, rows);
-                },
-
-                // Transaksi Edit, Delete, & Cetak BAST
-                editTransaction(tx) {
-                    this.newTrans = JSON.parse(JSON.stringify(tx));
-                    this.switchTab('input-transaksi');
-                    this.showNotification(`Mengedit transaksi ${tx.noTransaksi}`, 'success');
-                },
-
-                deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"?`)) {
-                        this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-                        this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus!`, 'success');
-                    }
-                },
-
-                printBAST(tx) {
-                    this.activeBast = tx;
-                    this.$nextTick(() => { window.print(); });
-                },
-
-                getExpandedBastItems() {
-                    return (this.activeBast && this.activeBast.items) ? this.activeBast.items : [];
-                },
-
-                shouldShowSummary() {
-                    return this.activeBast && this.activeBast.items && this.activeBast.items.length > 0;
-                },
-
-                getBastSummaryTotals() {
-                    if (!this.activeBast || !this.activeBast.items) return [];
-                    const totals = {};
-                    this.activeBast.items.forEach(item => {
-                        const name = item.namaBarang || item.kodeBarang;
-                        totals[name] = (totals[name] || 0) + (Number(item.qty) || 0);
+                    const data = this.getFilteredTransactions();
+                    let csv = 'Tanggal,No Transaksi,No Referensi,Tipe Transaksi,Gudang Asal,Gudang Tujuan,Kode Project,Keterangan\n';
+                    data.forEach(d => {
+                        csv += `"${d.tanggal}","${d.noTransaksi}","${d.noReferensi}","${d.tipeTransaksi}","${d.gudangAsal}","${d.gudangTujuan}","${d.kodeProject}","${d.keterangan}"\n`;
                     });
-                    return Object.keys(totals).map(k => ({ namaBarang: k, totalQty: totals[k] }));
+                    this.downloadCSV(csv, `Data_Transaksi_${new Date().toISOString().split('T')[0]}.csv`);
                 }
             };
         }
