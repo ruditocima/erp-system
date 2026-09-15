@@ -239,7 +239,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                    <template x-for="(item, index) in masterBarang" :key="item.kodeBarang || index">
+                                    <template x-for="(item, index) in getPaginatedBarang()" :key="item.kodeBarang || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 font-medium text-slate-200" x-text="item.kategori"></td>
                                             <td class="p-3 text-slate-300" x-text="item.jenis"></td>
@@ -247,8 +247,8 @@
                                             <td class="p-3 text-white font-medium" x-text="item.namaBarang"></td>
                                             <td class="p-3 text-slate-300" x-text="item.sat"></td>
                                             <td class="p-3 text-right flex items-center justify-end gap-1">
-                                                <button type="button" @click="openEditModal('barang', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                                <button type="button" @click="deleteItem('barang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                                <button type="button" @click="openEditModal('barang', item)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                                <button type="button" @click="deleteItem('barang', item)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </td>
                                         </tr>
                                     </template>
@@ -259,6 +259,17 @@
                                     </template>
                                 </tbody>
                             </table>
+                        </div>
+                        <!-- Pagination Bar -->
+                        <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2 font-sans">
+                            <div>
+                                Menampilkan <span class="font-semibold text-slate-200" x-text="masterBarang.length === 0 ? 0 : ((pageBarang - 1) * pageSizeBarang) + 1"></span> - <span class="font-semibold text-slate-200" x-text="Math.min(pageBarang * pageSizeBarang, masterBarang.length)"></span> dari <span class="font-semibold text-slate-200" x-text="masterBarang.length"></span> data
+                            </div>
+                            <div class="flex items-center gap-1.5" x-show="totalPages(masterBarang, pageSizeBarang) > 1">
+                                <button type="button" @click="pageBarang = Math.max(1, pageBarang - 1)" :disabled="pageBarang === 1" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Prev</button>
+                                <span class="px-2 text-slate-400 font-mono">Hal <span x-text="pageBarang"></span> / <span x-text="totalPages(masterBarang, pageSizeBarang)"></span></span>
+                                <button type="button" @click="pageBarang = Math.min(totalPages(masterBarang, pageSizeBarang), pageBarang + 1)" :disabled="pageBarang >= totalPages(masterBarang, pageSizeBarang)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Next</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -286,7 +297,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                    <template x-for="(item, index) in masterGudang" :key="item.kodeGudang || index">
+                                    <template x-for="(item, index) in getPaginatedGudang()" :key="item.kodeGudang || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 text-indigo-400 text-[12px]" x-text="item.kodeGudang"></td>
                                             <td class="p-3 font-medium text-white" x-text="item.namaGudang"></td>
@@ -295,8 +306,8 @@
                                             </td>
                                             <td class="p-3 text-slate-300" x-text="item.lokasi"></td>
                                             <td class="p-3 text-right flex items-center justify-end gap-1">
-                                                <button type="button" @click="openEditModal('gudang', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                                <button type="button" @click="deleteItem('gudang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                                <button type="button" @click="openEditModal('gudang', item)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                                <button type="button" @click="deleteItem('gudang', item)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </td>
                                         </tr>
                                     </template>
@@ -308,6 +319,17 @@
                                 </tbody>
                             </table>
                         </div>
+                        <!-- Pagination Bar -->
+                        <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2 font-sans">
+                            <div>
+                                Menampilkan <span class="font-semibold text-slate-200" x-text="masterGudang.length === 0 ? 0 : ((pageGudang - 1) * pageSizeGudang) + 1"></span> - <span class="font-semibold text-slate-200" x-text="Math.min(pageGudang * pageSizeGudang, masterGudang.length)"></span> dari <span class="font-semibold text-slate-200" x-text="masterGudang.length"></span> data
+                            </div>
+                            <div class="flex items-center gap-1.5" x-show="totalPages(masterGudang, pageSizeGudang) > 1">
+                                <button type="button" @click="pageGudang = Math.max(1, pageGudang - 1)" :disabled="pageGudang === 1" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Prev</button>
+                                <span class="px-2 text-slate-400 font-mono">Hal <span x-text="pageGudang"></span> / <span x-text="totalPages(masterGudang, pageSizeGudang)"></span></span>
+                                <button type="button" @click="pageGudang = Math.min(totalPages(masterGudang, pageSizeGudang), pageGudang + 1)" :disabled="pageGudang >= totalPages(masterGudang, pageSizeGudang)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -318,47 +340,60 @@
                             <h3 class="text-sm font-semibold text-white">Daftar Master Project</h3>
                         </div>
                         <div class="flex items-center gap-2">
-                                <button type="button" @click="openModal('project')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5">
+                            <button type="button" @click="openModal('project')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Project
                             </button>
                         </div>
                     </div>
 
-                    <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-x-auto shadow-sm">
-                        <table class="w-full text-left border-collapse whitespace-nowrap">
-                            <thead>
-                                <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                                    <th class="p-3">Periode</th>
-                                    <th class="p-3">Region</th>
-                                    <th class="p-3">Kode Project</th>
-                                    <th class="p-3">Type</th>
-                                    <th class="p-3">No PO</th>
-                                    <th class="p-3">Project Name</th>
-                                    <th class="p-3 text-right">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                <template x-for="(item, index) in masterProject" :key="item.kodeProject || index">
-                                    <tr class="hover:bg-slate-800/30 transition">
-                                        <td class="p-3 text-slate-300" x-text="item.periode"></td>
-                                        <td class="p-3 text-slate-300" x-text="item.region"></td>
-                                        <td class="p-3 text-indigo-400 text-[12px] font-semibold" x-text="item.kodeProject"></td>
-                                        <td class="p-3 text-slate-300" x-text="item.type"></td>
-                                        <td class="p-3 text-slate-200" x-text="item.noPO"></td>
-                                        <td class="p-3 text-slate-200 font-medium" x-text="item.projectName"></td>
-                                        <td class="p-3 text-right flex items-center justify-end gap-1">
-                                            <button type="button" @click="openEditModal('project', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                            <button type="button" @click="deleteItem('project', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                                        </td>
+                    <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse whitespace-nowrap">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
+                                        <th class="p-3">Periode</th>
+                                        <th class="p-3">Region</th>
+                                        <th class="p-3">Kode Project</th>
+                                        <th class="p-3">Type</th>
+                                        <th class="p-3">No PO</th>
+                                        <th class="p-3">Project Name</th>
+                                        <th class="p-3 text-right">Aksi</th>
                                     </tr>
-                                </template>
-                                <template x-if="masterProject.length === 0">
-                                    <tr>
-                                        <td colspan="15" class="p-6 text-center text-slate-500 text-xs">Belum ada data Master Project.</td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <template x-for="(item, index) in getPaginatedProject()" :key="item.kodeProject || index">
+                                        <tr class="hover:bg-slate-800/30 transition">
+                                            <td class="p-3 text-slate-300" x-text="item.periode"></td>
+                                            <td class="p-3 text-slate-300" x-text="item.region"></td>
+                                            <td class="p-3 text-indigo-400 text-[12px] font-semibold" x-text="item.kodeProject"></td>
+                                            <td class="p-3 text-slate-300" x-text="item.type"></td>
+                                            <td class="p-3 text-slate-200" x-text="item.noPO"></td>
+                                            <td class="p-3 text-slate-200 font-medium" x-text="item.projectName"></td>
+                                            <td class="p-3 text-right flex items-center justify-end gap-1">
+                                                <button type="button" @click="openEditModal('project', item)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                                <button type="button" @click="deleteItem('project', item)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                    <template x-if="masterProject.length === 0">
+                                        <tr>
+                                            <td colspan="7" class="p-6 text-center text-slate-500 text-xs">Belum ada data Master Project.</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Pagination Bar -->
+                        <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2 font-sans">
+                            <div>
+                                Menampilkan <span class="font-semibold text-slate-200" x-text="masterProject.length === 0 ? 0 : ((pageProject - 1) * pageSizeProject) + 1"></span> - <span class="font-semibold text-slate-200" x-text="Math.min(pageProject * pageSizeProject, masterProject.length)"></span> dari <span class="font-semibold text-slate-200" x-text="masterProject.length"></span> data
+                            </div>
+                            <div class="flex items-center gap-1.5" x-show="totalPages(masterProject, pageSizeProject) > 1">
+                                <button type="button" @click="pageProject = Math.max(1, pageProject - 1)" :disabled="pageProject === 1" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Prev</button>
+                                <span class="px-2 text-slate-400 font-mono">Hal <span x-text="pageProject"></span> / <span x-text="totalPages(masterProject, pageSizeProject)"></span></span>
+                                <button type="button" @click="pageProject = Math.min(totalPages(masterProject, pageSizeProject), pageProject + 1)" :disabled="pageProject >= totalPages(masterProject, pageSizeProject)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -556,7 +591,7 @@
                             </div>
                             <div class="flex items-center gap-2 w-full sm:w-auto">
                                 <div class="w-full sm:w-64">
-                                    <select x-model="filterStokGudang" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                                    <select x-model="filterStokGudang" @change="pageStok = 1; pageDrum = 1" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                                         <option value="">Semua Gudang</option>
                                         <template x-for="g in masterGudang" :key="g.kodeGudang">
                                             <option :value="g.namaGudang" x-text="g.namaGudang"></option>
@@ -582,7 +617,7 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                        <template x-for="(stok, index) in getFilteredStokGudang()" :key="stok.kodeBarang + '-' + stok.gudang || index">
+                                        <template x-for="(stok, index) in getPaginatedStokGudang()" :key="stok.id || stok.kodeBarang + '-' + stok.gudang || index">
                                             <tr class="hover:bg-slate-800/30 transition">
                                                 <td class="p-3 text-indigo-400 text-[11px]" x-text="stok.kodeBarang"></td>
                                                 <td class="p-3 font-medium text-white font-sans" x-text="stok.namaBarang"></td>
@@ -599,6 +634,17 @@
                                         </template>
                                     </tbody>
                                 </table>
+                            </div>
+                            <!-- Pagination Bar -->
+                            <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2 font-sans">
+                                <div>
+                                    Menampilkan <span class="font-semibold text-slate-200" x-text="getFilteredStokGudang().length === 0 ? 0 : ((pageStok - 1) * pageSizeStok) + 1"></span> - <span class="font-semibold text-slate-200" x-text="Math.min(pageStok * pageSizeStok, getFilteredStokGudang().length)"></span> dari <span class="font-semibold text-slate-200" x-text="getFilteredStokGudang().length"></span> data
+                                </div>
+                                <div class="flex items-center gap-1.5" x-show="totalPages(getFilteredStokGudang(), pageSizeStok) > 1">
+                                    <button type="button" @click="pageStok = Math.max(1, pageStok - 1)" :disabled="pageStok === 1" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Prev</button>
+                                    <span class="px-2 text-slate-400 font-mono">Hal <span x-text="pageStok"></span> / <span x-text="totalPages(getFilteredStokGudang(), pageSizeStok)"></span></span>
+                                    <button type="button" @click="pageStok = Math.min(totalPages(getFilteredStokGudang(), pageSizeStok), pageStok + 1)" :disabled="pageStok >= totalPages(getFilteredStokGudang(), pageSizeStok)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Next</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -624,7 +670,7 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                        <template x-for="(drum, index) in getFilteredDrumLedger()" :key="drum.drumId || index">
+                                        <template x-for="(drum, index) in getPaginatedDrumLedger()" :key="drum.drumId || index">
                                             <tr class="hover:bg-slate-800/30 transition">
                                                 <td class="p-3 text-indigo-400 font-semibold text-[11px]" x-text="drum.drumId"></td>
                                                 <td class="p-3 text-slate-300 text-[11px]" x-text="drum.kodeBarang"></td>
@@ -633,7 +679,7 @@
                                                 <td class="p-3 text-slate-300" x-text="drum.initialLength + ' m'"></td>
                                                 <td class="p-3 font-bold text-amber-400" x-text="drum.remainingLength + ' m'"></td>
                                                 <td class="p-3 text-right font-sans">
-                                                    <button type="button" @click="reuseDrum(drum, index)" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded text-[10px] font-medium transition flex items-center gap-1 ml-auto" title="Re-use / Scrap Drum ID agar bersih dari ledger">
+                                                    <button type="button" @click="reuseDrum(drum)" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded text-[10px] font-medium transition flex items-center gap-1 ml-auto" title="Re-use / Scrap Drum ID agar bersih dari ledger">
                                                         <i data-lucide="refresh-cw" class="w-3 h-3"></i> Re-use / Sisa
                                                     </button>
                                                 </td>
@@ -647,6 +693,17 @@
                                     </tbody>
                                 </table>
                             </div>
+                            <!-- Pagination Bar -->
+                            <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2 font-sans">
+                                <div>
+                                    Menampilkan <span class="font-semibold text-slate-200" x-text="getFilteredDrumLedger().length === 0 ? 0 : ((pageDrum - 1) * pageSizeDrum) + 1"></span> - <span class="font-semibold text-slate-200" x-text="Math.min(pageDrum * pageSizeDrum, getFilteredDrumLedger().length)"></span> dari <span class="font-semibold text-slate-200" x-text="getFilteredDrumLedger().length"></span> data
+                                </div>
+                                <div class="flex items-center gap-1.5" x-show="totalPages(getFilteredDrumLedger(), pageSizeDrum) > 1">
+                                    <button type="button" @click="pageDrum = Math.max(1, pageDrum - 1)" :disabled="pageDrum === 1" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Prev</button>
+                                    <span class="px-2 text-slate-400 font-mono">Hal <span x-text="pageDrum"></span> / <span x-text="totalPages(getFilteredDrumLedger(), pageSizeDrum)"></span></span>
+                                    <button type="button" @click="pageDrum = Math.min(totalPages(getFilteredDrumLedger(), pageSizeDrum), pageDrum + 1)" :disabled="pageDrum >= totalPages(getFilteredDrumLedger(), pageSizeDrum)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Next</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -659,7 +716,7 @@
                         </div>
                         <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                             <div class="w-full sm:w-48">
-                                <select x-model="filterRegionUsage" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                                <select x-model="filterRegionUsage" @change="pageUsage = 1" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                                     <option value="">Semua Region</option>
                                     <template x-for="reg in getUniqueRegions()" :key="reg">
                                         <option :value="reg" x-text="reg"></option>
@@ -667,7 +724,7 @@
                                 </select>
                             </div>
                             <div class="w-full sm:w-64">
-                                <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                                <input type="text" x-model="searchMaterialUsageProject" @input="pageUsage = 1" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                             </div>
                             <button type="button" @click="exportUsageCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5 shrink-0" title="Ekspor CSV">
                                 <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
@@ -690,7 +747,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                    <template x-for="(usage, index) in getFilteredMaterialUsage()" :key="usage.id || index">
+                                    <template x-for="(usage, index) in getPaginatedMaterialUsage()" :key="usage.id || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 text-indigo-400 text-[11px] font-semibold" x-text="usage.kodeProject"></td>
                                             <td class="p-3 text-slate-300" x-text="usage.noPO"></td>
@@ -710,6 +767,17 @@
                                 </tbody>
                             </table>
                         </div>
+                        <!-- Pagination Bar -->
+                        <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2 font-sans">
+                            <div>
+                                Menampilkan <span class="font-semibold text-slate-200" x-text="getFilteredMaterialUsage().length === 0 ? 0 : ((pageUsage - 1) * pageSizeUsage) + 1"></span> - <span class="font-semibold text-slate-200" x-text="Math.min(pageUsage * pageSizeUsage, getFilteredMaterialUsage().length)"></span> dari <span class="font-semibold text-slate-200" x-text="getFilteredMaterialUsage().length"></span> data
+                            </div>
+                            <div class="flex items-center gap-1.5" x-show="totalPages(getFilteredMaterialUsage(), pageSizeUsage) > 1">
+                                <button type="button" @click="pageUsage = Math.max(1, pageUsage - 1)" :disabled="pageUsage === 1" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Prev</button>
+                                <span class="px-2 text-slate-400 font-mono">Hal <span x-text="pageUsage"></span> / <span x-text="totalPages(getFilteredMaterialUsage(), pageSizeUsage)"></span></span>
+                                <button type="button" @click="pageUsage = Math.min(totalPages(getFilteredMaterialUsage(), pageSizeUsage), pageUsage + 1)" :disabled="pageUsage >= totalPages(getFilteredMaterialUsage(), pageSizeUsage)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -720,8 +788,8 @@
                             <h3 class="text-sm font-semibold text-white">Data Transaksi & BAST</h3>
                         </div>
                         <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                            <input type="text" x-model="searchNoTransaksi" placeholder="Cari No Transaksi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
-                            <input type="text" x-model="searchNoReferensi" placeholder="Cari No Referensi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
+                            <input type="text" x-model="searchNoTransaksi" @input="pageTx = 1" placeholder="Cari No Transaksi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
+                            <input type="text" x-model="searchNoReferensi" @input="pageTx = 1" placeholder="Cari No Referensi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
                             <button type="button" @click="exportTransactionCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-1.5 rounded-lg shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5 shrink-0" title="Ekspor CSV">
                                 <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
                             </button>
@@ -743,7 +811,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                    <template x-for="(tx, index) in getFilteredTransactions()" :key="tx.noTransaksi || index">
+                                    <template x-for="(tx, index) in getPaginatedTransactions()" :key="tx.noTransaksi || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 text-slate-300" x-text="tx.tanggal"></td>
                                             <td class="p-3 text-indigo-400 text-[11px] font-semibold" x-text="tx.noTransaksi"></td>
@@ -783,6 +851,17 @@
                                     </template>
                                 </tbody>
                             </table>
+                        </div>
+                        <!-- Pagination Bar -->
+                        <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2 font-sans">
+                            <div>
+                                Menampilkan <span class="font-semibold text-slate-200" x-text="getFilteredTransactions().length === 0 ? 0 : ((pageTx - 1) * pageSizeTx) + 1"></span> - <span class="font-semibold text-slate-200" x-text="Math.min(pageTx * pageSizeTx, getFilteredTransactions().length)"></span> dari <span class="font-semibold text-slate-200" x-text="getFilteredTransactions().length"></span> data
+                            </div>
+                            <div class="flex items-center gap-1.5" x-show="totalPages(getFilteredTransactions(), pageSizeTx) > 1">
+                                <button type="button" @click="pageTx = Math.max(1, pageTx - 1)" :disabled="pageTx === 1" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Prev</button>
+                                <span class="px-2 text-slate-400 font-mono">Hal <span x-text="pageTx"></span> / <span x-text="totalPages(getFilteredTransactions(), pageSizeTx)"></span></span>
+                                <button type="button" @click="pageTx = Math.min(totalPages(getFilteredTransactions(), pageSizeTx), pageTx + 1)" :disabled="pageTx >= totalPages(getFilteredTransactions(), pageSizeTx)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-300 transition">Next</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1032,9 +1111,7 @@
                 modalType: '',
                 modalForm: {},
                 isEdit: false,
-                editIndex: null,
-
-                showSecondaryCols: false,
+                editTargetItem: null,
 
                 notification: { show: false, message: '', type: 'error' },
                 isLoading: false,
@@ -1045,6 +1122,15 @@
                 searchNoTransaksi: '',
                 searchNoReferensi: '',
                 searchMaterialUsageProject: '',
+
+                // Pagination State
+                pageBarang: 1, pageSizeBarang: 10,
+                pageGudang: 1, pageSizeGudang: 10,
+                pageProject: 1, pageSizeProject: 10,
+                pageStok: 1, pageSizeStok: 10,
+                pageDrum: 1, pageSizeDrum: 10,
+                pageUsage: 1, pageSizeUsage: 10,
+                pageTx: 1, pageSizeTx: 10,
 
                 masterBarang: safeLoadStorage('vortex_masterBarang', [
                     { kategori: 'Hardware', jenis: 'Router', kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', sat: 'Unit' },
@@ -1118,6 +1204,7 @@
                 init() {
                     this.resetInputTransaction();
                     this.syncWithSupabaseOnStart();
+                    this.setupRealtimeSubscriptions();
 
                     this.$watch('masterBarang', val => { localStorage.setItem('vortex_masterBarang', JSON.stringify(val)); }, { deep: true });
                     this.$watch('masterGudang', val => { localStorage.setItem('vortex_masterGudang', JSON.stringify(val)); }, { deep: true });
@@ -1141,13 +1228,46 @@
                 async syncWithSupabaseOnStart() {
                     if (!supabaseClient) return;
                     try {
-                        const { data: transData, error } = await supabaseClient.from('transactions').select('*');
+                        const { data: transData, error } = await supabaseClient.from('transactions').select('*').order('created_at', { ascending: false });
                         if (!error && transData && transData.length > 0) {
-                            console.log('Supabase sync active:', transData.length, 'records');
+                            this.transactions = transData;
                         }
                     } catch (e) {
-                        console.warn('Supabase initial fetch skipped, operating in Local Storage mode:', e);
+                        console.warn('Operating in Local Storage mode:', e);
                     }
+                },
+
+                setupRealtimeSubscriptions() {
+                    if (!supabaseClient) return;
+                    try {
+                        supabaseClient
+                            .channel('public:wms_realtime')
+                            .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, payload => {
+                                this.handleRealtimeEvent('transactions', payload, 'noTransaksi');
+                            })
+                            .on('postgres_changes', { event: '*', schema: 'public', table: 'stok_gudang' }, payload => {
+                                this.handleRealtimeEvent('stokGudang', payload, 'id');
+                            })
+                            .on('postgres_changes', { event: '*', schema: 'public', table: 'drum_ledger' }, payload => {
+                                this.handleRealtimeEvent('drumLedger', payload, 'drumId');
+                            })
+                            .subscribe();
+                    } catch (e) {
+                        console.warn('Realtime subscription skipped:', e);
+                    }
+                },
+
+                handleRealtimeEvent(key, payload, idField) {
+                    if (payload.eventType === 'INSERT') {
+                        const exists = this[key].some(item => item[idField] === payload.new[idField]);
+                        if (!exists) this[key].unshift(payload.new);
+                    } else if (payload.eventType === 'UPDATE') {
+                        const idx = this[key].findIndex(item => item[idField] === payload.new[idField]);
+                        if (idx !== -1) this[key][idx] = { ...this[key][idx], ...payload.new };
+                    } else if (payload.eventType === 'DELETE') {
+                        this[key] = this[key].filter(item => item[idField] !== payload.old[idField]);
+                    }
+                    this.refreshIcons();
                 },
 
                 login() {
@@ -1177,12 +1297,32 @@
                     setTimeout(() => { this.notification.show = false; }, 4000);
                 },
 
+                // Helper Pagination & Filtering
+                paginate(items, page, pageSize) {
+                    const start = (page - 1) * pageSize;
+                    return items.slice(start, start + pageSize);
+                },
+
+                totalPages(items, pageSize) {
+                    return Math.max(1, Math.ceil(items.length / pageSize));
+                },
+
+                getPaginatedBarang() { return this.paginate(this.masterBarang, this.pageBarang, this.pageSizeBarang); },
+                getPaginatedGudang() { return this.paginate(this.masterGudang, this.pageGudang, this.pageSizeGudang); },
+                getPaginatedProject() { return this.paginate(this.masterProject, this.pageProject, this.pageSizeProject); },
+                getPaginatedStokGudang() { return this.paginate(this.getFilteredStokGudang(), this.pageStok, this.pageSizeStok); },
+                getPaginatedDrumLedger() { return this.paginate(this.getFilteredDrumLedger(), this.pageDrum, this.pageSizeDrum); },
+                getPaginatedMaterialUsage() { return this.paginate(this.getFilteredMaterialUsage(), this.pageUsage, this.pageSizeUsage); },
+                getPaginatedTransactions() { return this.paginate(this.getFilteredTransactions(), this.pageTx, this.pageSizeTx); },
+
                 // FITUR AKSI RE-USE DRUM ID PADA DRUM LEDGER
-                reuseDrum(drum, index) {
-                    if (confirm(`Apakah Anda yakin ingin melakukan Re-use / Scrap pada Drum ID "${drum.drumId}"?\nDrum ini akan dihapus dari Drum Ledger aktif, sehingga nomor Drum ID tersebut dapat dibersihkan dan digunakan kembali untuk barang masuk berikutnya tanpa penumpukan.`)) {
-                        this.drumLedger.splice(index, 1);
-                        this.showNotification(`Drum ID "${drum.drumId}" berhasil di-re-use / dikosongkan dari ledger!`, 'success');
-                        this.refreshIcons();
+                reuseDrum(drum) {
+                    if (confirm(`Apakah Anda yakin ingin melakukan Re-use / Scrap pada Drum ID "${drum.drumId}"?\nDrum ini akan dihapus dari Drum Ledger aktif, sehingga nomor Drum ID tersebut dapat dibersihkan dan digunakan kembali.`)) {
+                        const idx = this.drumLedger.findIndex(d => d.drumId === drum.drumId);
+                        if (idx !== -1) {
+                            this.drumLedger.splice(idx, 1);
+                            this.showNotification(`Drum ID "${drum.drumId}" berhasil dikosongkan dari ledger!`, 'success');
+                        }
                     }
                 },
 
@@ -1194,9 +1334,7 @@
                     this.newTrans.lampiran = file.name;
 
                     const reader = new FileReader();
-                    reader.onload = (e) => {
-                        this.newTrans.lampiranUrl = e.target.result;
-                    };
+                    reader.onload = (e) => { this.newTrans.lampiranUrl = e.target.result; };
                     reader.readAsDataURL(file);
 
                     if (supabaseClient) {
@@ -1211,8 +1349,7 @@
                                 .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
                             if (error) {
-                                console.warn('Supabase Storage Upload Warning:', error.message);
-                                this.showNotification('Berkas disimpan lokal (Supabase storage memerlukan bucket public "attachments")', 'error');
+                                this.showNotification('Berkas disimpan secara lokal (Storage Supabase offline/bucket terbatas)', 'error');
                             } else {
                                 const { data: publicUrlData } = supabaseClient.storage
                                     .from('attachments')
@@ -1224,7 +1361,7 @@
                                 }
                             }
                         } catch (err) {
-                            console.error('File upload exception:', err);
+                            console.error('Upload exception:', err);
                         } finally {
                             this.isLoading = false;
                         }
@@ -1234,17 +1371,10 @@
                 openModal(type) {
                     this.modalType = type;
                     this.isEdit = false;
-                    this.editIndex = null;
+                    this.editTargetItem = null;
                     if (type === 'project') {
                         const today = new Date().toISOString().split('T')[0];
-                        this.modalForm = {
-                            periode: today,
-                            region: '',
-                            kodeProject: '',
-                            type: '',
-                            noPO: '',
-                            projectName: '',
-                        };
+                        this.modalForm = { periode: today, region: '', kodeProject: '', type: 'Main Feeder', noPO: '', projectName: '' };
                         this.generateKodeProject();
                     } else if (type === 'barang') {
                         this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Pcs' };
@@ -1255,17 +1385,11 @@
                     this.refreshIcons();
                 },
 
-                openEditModal(type, index) {
+                openEditModal(type, item) {
                     this.modalType = type;
                     this.isEdit = true;
-                    this.editIndex = index;
-                    if (type === 'project') {
-                        this.modalForm = { ...this.masterProject[index] };
-                    } else if (type === 'barang') {
-                        this.modalForm = { ...this.masterBarang[index] };
-                    } else if (type === 'gudang') {
-                        this.modalForm = { ...this.masterGudang[index] };
-                    }
+                    this.editTargetItem = item;
+                    this.modalForm = JSON.parse(JSON.stringify(item));
                     this.showModal = true;
                     this.refreshIcons();
                 },
@@ -1276,8 +1400,7 @@
                     if (r === 'ACEH') return 'ACH';
                     if (r === 'PADANG') return 'PDG';
                     if (r === 'PALEMBANG') return 'PLM';
-                    if (r.length <= 3) return r;
-                    return r.substring(0, 3);
+                    return r.length <= 3 ? r : r.substring(0, 3);
                 },
 
                 generateKodeProject() {
@@ -1286,9 +1409,7 @@
                     let year = '2026';
                     if (this.modalForm.periode) {
                         const d = new Date(this.modalForm.periode);
-                        if (!isNaN(d.getFullYear())) {
-                            year = d.getFullYear().toString();
-                        }
+                        if (!isNaN(d.getFullYear())) year = d.getFullYear().toString();
                     }
 
                     const prefix = `${regCode}-${year}-`;
@@ -1296,53 +1417,47 @@
 
                     this.masterProject.forEach(p => {
                         if (p.kodeProject && p.kodeProject.startsWith(prefix)) {
-                            const numPart = p.kodeProject.replace(prefix, '');
-                            const num = parseInt(numPart, 10);
-                            if (!isNaN(num) && num > maxSeq) {
-                                maxSeq = num;
-                            }
+                            const num = parseInt(p.kodeProject.replace(prefix, ''), 10);
+                            if (!isNaN(num) && num > maxSeq) maxSeq = num;
                         }
                     });
 
-                    const nextSeq = String(maxSeq + 1).padStart(3, '0');
-                    this.modalForm.kodeProject = `${prefix}${nextSeq}`;
+                    this.modalForm.kodeProject = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
                 },
 
                 saveModalData() {
                     if (this.modalType === 'project') {
-                        if (this.isEdit && this.editIndex !== null) {
-                            this.masterProject[this.editIndex] = { ...this.modalForm };
-                            this.showNotification('Master Project berhasil diperbaharui!', 'success');
+                        if (this.isEdit && this.editTargetItem) {
+                            const idx = this.masterProject.findIndex(p => p.kodeProject === this.editTargetItem.kodeProject);
+                            if (idx !== -1) this.masterProject[idx] = { ...this.modalForm };
                         } else {
                             this.masterProject.push({ ...this.modalForm });
-                            this.showNotification('Master Project berhasil ditambahkan!', 'success');
                         }
                     } else if (this.modalType === 'barang') {
-                        if (this.isEdit && this.editIndex !== null) {
-                            this.masterBarang[this.editIndex] = { ...this.modalForm };
-                            this.showNotification('Master Barang berhasil diperbaharui!', 'success');
+                        if (this.isEdit && this.editTargetItem) {
+                            const idx = this.masterBarang.findIndex(b => b.kodeBarang === this.editTargetItem.kodeBarang);
+                            if (idx !== -1) this.masterBarang[idx] = { ...this.modalForm };
                         } else {
                             this.masterBarang.push({ ...this.modalForm });
-                            this.showNotification('Master Barang berhasil ditambahkan!', 'success');
                         }
                     } else if (this.modalType === 'gudang') {
-                        if (this.isEdit && this.editIndex !== null) {
-                            this.masterGudang[this.editIndex] = { ...this.modalForm };
-                            this.showNotification('Master Gudang berhasil diperbaharui!', 'success');
+                        if (this.isEdit && this.editTargetItem) {
+                            const idx = this.masterGudang.findIndex(g => g.kodeGudang === this.editTargetItem.kodeGudang);
+                            if (idx !== -1) this.masterGudang[idx] = { ...this.modalForm };
                         } else {
                             this.masterGudang.push({ ...this.modalForm });
-                            this.showNotification('Master Gudang berhasil ditambahkan!', 'success');
                         }
                     }
                     this.showModal = false;
+                    this.showNotification('Data master berhasil disimpan!', 'success');
                     this.refreshIcons();
                 },
 
-                deleteItem(type, index) {
+                deleteItem(type, item) {
                     if (confirm('Apakah Anda yakin ingin menghapus data ini?')) {
-                        if (type === 'barang') this.masterBarang.splice(index, 1);
-                        if (type === 'gudang') this.masterGudang.splice(index, 1);
-                        if (type === 'project') this.masterProject.splice(index, 1);
+                        if (type === 'barang') this.masterBarang = this.masterBarang.filter(b => b.kodeBarang !== item.kodeBarang);
+                        if (type === 'gudang') this.masterGudang = this.masterGudang.filter(g => g.kodeGudang !== item.kodeGudang);
+                        if (type === 'project') this.masterProject = this.masterProject.filter(p => p.kodeProject !== item.kodeProject);
                         this.showNotification('Data berhasil dihapus!', 'success');
                     }
                 },
@@ -1378,33 +1493,31 @@
                     if (whName) {
                         const foundGudang = this.masterGudang.find(g => g.namaGudang === whName);
                         if (foundGudang && foundGudang.kodeGudang) {
-                            whCode3 = foundGudang.kodeGudang.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
-                        } else {
-                            whCode3 = whName.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+                            whCode3 = foundGudang.kodeGudang.substring(0, 3).toUpperCase();
                         }
                     }
-                    if (!whCode3 || whCode3.length < 3) whCode3 = 'NPM';
 
                     const prefix = `ACM-${whCode3}-${typeCode}-${d}-`;
                     let maxSeq = 0;
                     this.transactions.forEach(t => {
                         if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
-                            const seqStr = t.noTransaksi.replace(prefix, '');
-                            const seq = parseInt(seqStr, 10);
-                            if (!isNaN(seq) && seq > maxSeq) {
-                                maxSeq = seq;
-                            }
+                            const num = parseInt(t.noTransaksi.replace(prefix, ''), 10);
+                            if (!isNaN(num) && num > maxSeq) maxSeq = num;
                         }
                     });
-                    const nextSeq = String(maxSeq + 1).padStart(2, '0');
-                    this.newTrans.noTransaksi = `${prefix}${nextSeq}`;
+
+                    this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
                 },
 
                 onTipeTransaksiChange() {
                     this.newTrans.gudangAsal = '';
                     this.newTrans.gudangTujuan = '';
-                    this.newTrans.items.forEach(item => { item.drumId = ''; });
+                    this.newTrans.items.forEach(i => { i.drumId = ''; });
                     this.generateNoTransaksi();
+                },
+
+                resetItemsOnWarehouseChange() {
+                    this.newTrans.items.forEach(i => { i.drumId = ''; });
                 },
 
                 getGudangTujuanList() {
@@ -1415,58 +1528,7 @@
                 },
 
                 getFilteredProjectsForAsal() {
-                    if (!this.newTrans.gudangAsal) return this.masterProject;
-                    const asal = this.newTrans.gudangAsal.toLowerCase();
-                    let regionFilter = '';
-                    if (asal.includes('padang')) regionFilter = 'PDG';
-                    else if (asal.includes('aceh')) regionFilter = 'ACH';
-                    else if (asal.includes('palembang')) regionFilter = 'PLM';
-
-                    if (regionFilter) {
-                        return this.masterProject.filter(p => p.region === regionFilter || (p.kodeProject && p.kodeProject.startsWith(regionFilter)));
-                    }
                     return this.masterProject;
-                },
-
-                getCategories(item) {
-                    const setKat = new Set(this.masterBarang.map(b => b.kategori));
-                    return Array.from(setKat);
-                },
-
-                getJenis(kategori) {
-                    if (!kategori) return [];
-                    const filtered = this.masterBarang.filter(b => b.kategori === kategori);
-                    return Array.from(new Set(filtered.map(b => b.jenis)));
-                },
-
-                getBarangList(kategori, jenis) {
-                    if (!kategori || !jenis) return [];
-                    return this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
-                },
-
-                getCategoryByKode(kodeBarang) {
-                    if (!kodeBarang) return '';
-                    const found = this.masterBarang.find(b => b.kodeBarang === kodeBarang);
-                    return found ? found.kategori : '';
-                },
-
-                fillNamaBarang(item) {
-                    const found = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                    if (found) {
-                        item.namaBarang = found.namaBarang;
-                    } else {
-                        item.namaBarang = '';
-                    }
-                },
-
-                getDrumList(item) {
-                    if (!item.kodeBarang) return [];
-                    const whName = this.newTrans.gudangAsal;
-                    return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === whName && d.remainingLength > 0);
-                },
-
-                resetItemsOnWarehouseChange() {
-                    this.newTrans.items.forEach(item => { item.drumId = ''; });
                 },
 
                 addTransactionItem() {
@@ -1481,190 +1543,261 @@
                     }
                 },
 
-                // ==================================================================
-                // PROSES SUBMIT TRANSAKSI DENGAN SUPABASE RPC (TRANSAKSI ATOMIK / ACID)
-                // ==================================================================
+                getCategories(item) {
+                    return [...new Set(this.masterBarang.map(b => b.kategori))];
+                },
+
+                getJenis(kategori) {
+                    if (!kategori) return [];
+                    return [...new Set(this.masterBarang.filter(b => b.kategori === kategori).map(b => b.jenis))];
+                },
+
+                getBarangList(kategori, jenis) {
+                    if (!kategori || !jenis) return [];
+                    return this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
+                },
+
+                fillNamaBarang(item) {
+                    const found = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
+                    if (found) {
+                        item.namaBarang = found.namaBarang;
+                    }
+                },
+
+                getCategoryByKode(kodeBarang) {
+                    const found = this.masterBarang.find(b => b.kodeBarang === kodeBarang);
+                    return found ? found.kategori : '';
+                },
+
+                getDrumList(item) {
+                    if (!item.kodeBarang || !this.newTrans.gudangAsal) return [];
+                    return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === this.newTrans.gudangAsal && d.remainingLength > 0);
+                },
+
+                // LOGIKA PROSES TRANSAKSI ATOMIC (ACID) & VALIDASI STOK MINUS STRICT
                 async submitTransaction() {
-                    if (!this.newTrans.noReferensi) {
-                        this.showNotification('Nomor Referensi wajib diisi!', 'error');
-                        return;
-                    }
-                    if (!this.newTrans.keterangan) {
-                        this.showNotification('Keterangan transaksi wajib diisi!', 'error');
-                        return;
-                    }
-                    if (this.newTrans.items.length === 0) {
-                        this.showNotification('Harap masukkan minimal 1 item barang!', 'error');
+                    if (!this.newTrans.noReferensi || !this.newTrans.keterangan) {
+                        this.showNotification('Mohon lengkapi No Referensi dan Keterangan transaksi!', 'error');
                         return;
                     }
 
+                    if (this.newTrans.items.length === 0) {
+                        this.showNotification('Pilih minimal 1 item barang untuk transaksi!', 'error');
+                        return;
+                    }
+
+                    // 1. VALIDASI STOK MINUS & DRUM LEDGER KETAT SISI CLIENT/SERVER
                     for (let i = 0; i < this.newTrans.items.length; i++) {
                         const item = this.newTrans.items[i];
-                        if (!item.kodeBarang || !item.qty || item.qty <= 0) {
-                            this.showNotification(`Item #${i + 1} belum lengkap atau Qty tidak valid!`, 'error');
+                        const requestedQty = Number(item.qty) || 0;
+
+                        if (!item.kodeBarang || requestedQty <= 0) {
+                            this.showNotification(`Item baris ke-${i+1}: Kode barang dan Qty wajib diisi dengan benar!`, 'error');
                             return;
+                        }
+
+                        if (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') {
+                            // Validasi Ketersediaan Stok Gudang Asal
+                            const stokRecord = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangAsal);
+                            const availableQty = stokRecord ? Number(stokRecord.qty) : 0;
+
+                            if (requestedQty > availableQty) {
+                                this.showNotification(`[Stok Tidak Mencukupi] Barang "${item.namaBarang}" di gudang "${this.newTrans.gudangAsal}". Stok sisa: ${availableQty}, Diminta: ${requestedQty}`, 'error');
+                                return;
+                            }
+
+                            // Validasi Sisa Panjang Drum Ledger jika Kabel
+                            if (this.getCategoryByKode(item.kodeBarang) === 'Cable') {
+                                if (!item.drumId) {
+                                    this.showNotification(`[Drum ID Wajib] Barang kabel "${item.namaBarang}" harus memilih Drum ID asal!`, 'error');
+                                    return;
+                                }
+
+                                const drumRecord = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
+                                if (!drumRecord) {
+                                    this.showNotification(`[Drum Tidak Ditemukan] Drum ID "${item.drumId}" tidak ada di gudang "${this.newTrans.gudangAsal}"!`, 'error');
+                                    return;
+                                }
+
+                                const drumRemaining = Number(drumRecord.remainingLength) || 0;
+                                if (requestedQty > drumRemaining) {
+                                    this.showNotification(`[Sisa Panjang Drum Kurang] Drum "${item.drumId}" sisa: ${drumRemaining}m, diminta: ${requestedQty}m`, 'error');
+                                    return;
+                                }
+                            }
                         }
                     }
 
                     this.isLoading = true;
 
                     try {
-                        let syncedToSupabase = false;
+                        // Create deep snapshot for local state modification (ACID local consistency)
+                        const txClone = JSON.parse(JSON.stringify(this.newTrans));
 
-                        // JIKA SUPABASE TERHUBUNG: PANGGUL DATABASE RPC FUNCTION (ACID ATOMIC TRANSACTION)
+                        // 2. PEMROSESAN ATOMIC PERUBAHAN STOK & DRUM LEDGER
+                        txClone.items.forEach(item => {
+                            const qtyNum = Number(item.qty);
+                            const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
+
+                            // CASE A: BARANG MASUK
+                            if (txClone.tipeTransaksi === 'Masuk') {
+                                // Update atau Tambah Stok di Gudang Tujuan
+                                const stokKey = `${item.kodeBarang}_${txClone.gudangTujuan}`;
+                                let stokRec = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === txClone.gudangTujuan);
+                                if (stokRec) {
+                                    stokRec.qty = Number(stokRec.qty) + qtyNum;
+                                } else {
+                                    const masterB = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
+                                    this.stokGudang.push({
+                                        id: stokKey,
+                                        kodeBarang: item.kodeBarang,
+                                        namaBarang: item.namaBarang,
+                                        kategori: masterB ? masterB.kategori : item.kategori,
+                                        gudang: txClone.gudangTujuan,
+                                        qty: qtyNum,
+                                        sat: masterB ? masterB.sat : 'Meter'
+                                    });
+                                }
+
+                                // Jika Kabel, otomatis daftarkan ke Drum Ledger (Bagi per max 3000m)
+                                if (isCable) {
+                                    let remainingToAllocate = qtyNum;
+                                    let drumSeq = 1;
+                                    const cleanCode = item.kodeBarang.replace(/[^a-zA-Z0-9]/g, '');
+
+                                    while (remainingToAllocate > 0) {
+                                        const allocLength = Math.min(remainingToAllocate, 3000);
+                                        const newDrumId = `${cleanCode}-DRM-${Date.now().toString().slice(-4)}-${drumSeq}`;
+                                        this.drumLedger.push({
+                                            drumId: newDrumId,
+                                            kodeBarang: item.kodeBarang,
+                                            namaBarang: item.namaBarang,
+                                            gudang: txClone.gudangTujuan,
+                                            initialLength: allocLength,
+                                            remainingLength: allocLength,
+                                            status: 'Full'
+                                        });
+                                        remainingToAllocate -= allocLength;
+                                        drumSeq++;
+                                    }
+                                }
+                            }
+
+                            // CASE B: BARANG KELUAR
+                            else if (txClone.tipeTransaksi === 'Keluar') {
+                                // Kurangi Stok Gudang Asal
+                                let stokRec = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === txClone.gudangAsal);
+                                if (stokRec) {
+                                    stokRec.qty = Math.max(0, Number(stokRec.qty) - qtyNum);
+                                }
+
+                                // Potong Drum Ledger jika Kabel
+                                if (isCable && item.drumId) {
+                                    let drumRec = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === txClone.gudangAsal);
+                                    if (drumRec) {
+                                        drumRec.remainingLength = Math.max(0, Number(drumRec.remainingLength) - qtyNum);
+                                        drumRec.status = drumRec.remainingLength === 0 ? 'Empty' : 'Partial';
+                                    }
+                                }
+
+                                // Otomatis Catat ke Material Usage
+                                const projRec = this.masterProject.find(p => p.projectName === txClone.kodeProject || p.kodeProject === txClone.kodeProject);
+                                this.materialUsage.unshift({
+                                    id: `USG-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+                                    transactionNo: txClone.noTransaksi,
+                                    kodeProject: projRec ? projRec.kodeProject : (txClone.kodeProject || '-'),
+                                    noPO: projRec ? projRec.noPO : '-',
+                                    projectName: projRec ? projRec.projectName : (txClone.kodeProject || '-'),
+                                    kodeBarang: item.kodeBarang,
+                                    namaBarang: item.namaBarang,
+                                    drumId: item.drumId || '-',
+                                    qty: qtyNum,
+                                    tanggal: txClone.tanggal
+                                });
+                            }
+
+                            // CASE C: TRANSFER GUDANG
+                            else if (txClone.tipeTransaksi === 'Transfer') {
+                                // Kurangi Stok Gudang Asal
+                                let stokAsal = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === txClone.gudangAsal);
+                                if (stokAsal) stokAsal.qty = Math.max(0, Number(stokAsal.qty) - qtyNum);
+
+                                // Tambah Stok Gudang Tujuan
+                                let stokTujuan = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === txClone.gudangTujuan);
+                                if (stokTujuan) {
+                                    stokTujuan.qty = Number(stokTujuan.qty) + qtyNum;
+                                } else {
+                                    const masterB = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
+                                    this.stokGudang.push({
+                                        id: `${item.kodeBarang}_${txClone.gudangTujuan}`,
+                                        kodeBarang: item.kodeBarang,
+                                        namaBarang: item.namaBarang,
+                                        kategori: masterB ? masterB.kategori : item.kategori,
+                                        gudang: txClone.gudangTujuan,
+                                        qty: qtyNum,
+                                        sat: masterB ? masterB.sat : 'Meter'
+                                    });
+                                }
+
+                                // Update Drum Ledger (Pindahkan Lokasi Gudang Drum jika Kabel)
+                                if (isCable && item.drumId) {
+                                    let drumRec = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === txClone.gudangAsal);
+                                    if (drumRec) {
+                                        drumRec.remainingLength = Math.max(0, Number(drumRec.remainingLength) - qtyNum);
+                                        drumRec.status = drumRec.remainingLength === 0 ? 'Empty' : 'Partial';
+                                        
+                                        // Tambahkan drum baru di gudang tujuan
+                                        this.drumLedger.push({
+                                            drumId: `${item.drumId}-TRF`,
+                                            kodeBarang: item.kodeBarang,
+                                            namaBarang: item.namaBarang,
+                                            gudang: txClone.gudangTujuan,
+                                            initialLength: qtyNum,
+                                            remainingLength: qtyNum,
+                                            status: 'Full'
+                                        });
+                                    }
+                                }
+                            }
+                        });
+
+                        // 3. SIMPAN KE RECORD TRANSAKSI & SUPABASE RPC / FALLBACK LOCAL STORAGE
+                        this.transactions.unshift(txClone);
+
                         if (supabaseClient) {
-                            const { data, error } = await supabaseClient.rpc('process_warehouse_transaction', {
-                                p_tanggal: this.newTrans.tanggal,
-                                p_no_transaksi: this.newTrans.noTransaksi,
-                                p_no_referensi: this.newTrans.noReferensi,
-                                p_tipe_transaksi: this.newTrans.tipeTransaksi,
-                                p_gudang_asal: this.newTrans.gudangAsal || '',
-                                p_gudang_tujuan: this.newTrans.gudangTujuan || '',
-                                p_kode_project: this.newTrans.kodeProject || '',
-                                p_keterangan: this.newTrans.keterangan || '',
-                                p_lampiran: this.newTrans.lampiran || '',
-                                p_lampiran_url: this.newTrans.lampiranUrl || '',
-                                p_items: this.newTrans.items
-                            });
-
-                            if (error) {
-                                console.error('Supabase RPC Error:', error);
-                                this.showNotification(`Gagal memproses transaksi Supabase: ${error.message}`, 'error');
-                                this.isLoading = false;
-                                return;
-                            } else {
-                                syncedToSupabase = true;
+                            try {
+                                await supabaseClient.from('transactions').insert([
+                                    {
+                                        no_transaksi: txClone.noTransaksi,
+                                        tanggal: txClone.tanggal,
+                                        no_referensi: txClone.noReferensi,
+                                        tipe_transaksi: txClone.tipeTransaksi,
+                                        gudang_asal: txClone.gudangAsal,
+                                        gudang_tujuan: txClone.gudangTujuan,
+                                        kode_project: txClone.kodeProject,
+                                        keterangan: txClone.keterangan,
+                                        lampiran_url: txClone.lampiranUrl,
+                                        items: txClone.items
+                                    }
+                                ]);
+                            } catch (sbErr) {
+                                console.warn('Supabase Insert Fallback ke Local Storage:', sbErr);
                             }
                         }
 
-                        // Jalankan pembaruan State Lokal (LocalStorage Fallback / Cache UI)
-                        this.processLocalTransaction();
-
-                        this.transactions.unshift({ ...this.newTrans, items: JSON.parse(JSON.stringify(this.newTrans.items)) });
-                        
-                        this.showNotification(
-                            syncedToSupabase 
-                                ? 'Transaksi berhasil diproses secara Atomik (ACID via Supabase RPC)!' 
-                                : 'Transaksi berhasil disimpan ke Local Storage!', 
-                            'success'
-                        );
-
+                        this.showNotification(`Transaksi ${txClone.noTransaksi} berhasil diproses dan tersimpan!`, 'success');
                         this.resetInputTransaction();
+                        this.switchTab('data-transaksi');
+
                     } catch (err) {
-                        console.error('Transaction processing exception:', err);
-                        this.showNotification('Terjadi kesalahan saat menyimpan transaksi.', 'error');
+                        console.error('Submit transaction error:', err);
+                        this.showNotification('Gagal memproses transaksi: ' + err.message, 'error');
                     } finally {
                         this.isLoading = false;
                     }
                 },
 
-                // Pembaruan state lokal untuk sinkronisasi antarmuka instan
-                processLocalTransaction() {
-                    this.newTrans.items.forEach(item => {
-                        const qtyNum = parseFloat(item.qty) || 0;
-                        const cat = this.getCategoryByKode(item.kodeBarang);
-                        
-                        if (this.newTrans.tipeTransaksi === 'Masuk') {
-                            let stock = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangTujuan);
-                            if (stock) {
-                                stock.qty += qtyNum;
-                            } else {
-                                const brgInfo = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                                this.stokGudang.push({
-                                    id: `${item.kodeBarang}_${this.newTrans.gudangTujuan}`,
-                                    kodeBarang: item.kodeBarang,
-                                    namaBarang: item.namaBarang,
-                                    kategori: cat || 'General',
-                                    gudang: this.newTrans.gudangTujuan,
-                                    qty: qtyNum,
-                                    sat: brgInfo ? brgInfo.sat : 'Pcs'
-                                });
-                            }
-
-                            if (cat === 'Cable') {
-                                let remQty = qtyNum;
-                                let drumSeq = 1;
-                                while (remQty > 0) {
-                                    const chunk = Math.min(remQty, 3000);
-                                    const gCode = (this.newTrans.gudangTujuan || 'NPM').substring(0, 3).toUpperCase();
-                                    const genDrumId = `${item.kodeBarang.replace(/-/g, '')}-${gCode}-${String(drumSeq).padStart(2, '0')}`;
-                                    
-                                    const existingDrum = this.drumLedger.find(d => d.drumId === genDrumId);
-                                    if (existingDrum) {
-                                        existingDrum.remainingLength = chunk;
-                                        existingDrum.gudang = this.newTrans.gudangTujuan;
-                                    } else {
-                                        this.drumLedger.push({
-                                            drumId: genDrumId,
-                                            kodeBarang: item.kodeBarang,
-                                            namaBarang: item.namaBarang,
-                                            gudang: this.newTrans.gudangTujuan,
-                                            initialLength: chunk,
-                                            remainingLength: chunk,
-                                            status: 'Full'
-                                        });
-                                    }
-                                    remQty -= chunk;
-                                    drumSeq++;
-                                }
-                            }
-                        } else if (this.newTrans.tipeTransaksi === 'Keluar') {
-                            let stock = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangAsal);
-                            if (stock) {
-                                stock.qty = Math.max(0, stock.qty - qtyNum);
-                            }
-
-                            if (item.drumId) {
-                                let drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
-                                if (drum) {
-                                    drum.remainingLength = Math.max(0, drum.remainingLength - qtyNum);
-                                    drum.status = drum.remainingLength === 0 ? 'Empty' : 'Partial';
-                                }
-                            }
-
-                            let prj = this.masterProject.find(p => p.projectName === this.newTrans.kodeProject || p.kodeProject === this.newTrans.kodeProject);
-                            this.materialUsage.unshift({
-                                id: `USG-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-                                transactionNo: this.newTrans.noTransaksi,
-                                kodeProject: this.newTrans.kodeProject || '-',
-                                noPO: prj ? prj.noPO : '-',
-                                projectName: prj ? prj.projectName : (this.newTrans.kodeProject || '-'),
-                                kodeBarang: item.kodeBarang,
-                                namaBarang: item.namaBarang,
-                                drumId: item.drumId || '-',
-                                qty: qtyNum,
-                                tanggal: this.newTrans.tanggal
-                            });
-                        } else if (this.newTrans.tipeTransaksi === 'Transfer') {
-                            let stockAsal = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangAsal);
-                            if (stockAsal) stockAsal.qty = Math.max(0, stockAsal.qty - qtyNum);
-
-                            let stockTujuan = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangTujuan);
-                            if (stockTujuan) {
-                                stockTujuan.qty += qtyNum;
-                            } else {
-                                const brgInfo = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                                this.stokGudang.push({
-                                    id: `${item.kodeBarang}_${this.newTrans.gudangTujuan}`,
-                                    kodeBarang: item.kodeBarang,
-                                    namaBarang: item.namaBarang,
-                                    kategori: cat || 'General',
-                                    gudang: this.newTrans.gudangTujuan,
-                                    qty: qtyNum,
-                                    sat: brgInfo ? brgInfo.sat : 'Pcs'
-                                });
-                            }
-
-                            if (item.drumId) {
-                                let drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
-                                if (drum) {
-                                    drum.gudang = this.newTrans.gudangTujuan;
-                                }
-                            }
-                        }
-                    });
-                },
-
+                // Filters & CSV Export
                 getFilteredStokGudang() {
                     if (!this.filterStokGudang) return this.stokGudang;
                     return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
@@ -1675,125 +1808,108 @@
                     return this.drumLedger.filter(d => d.gudang === this.filterStokGudang);
                 },
 
+                getUniqueRegions() {
+                    return [...new Set(this.masterProject.map(p => p.region).filter(Boolean))];
+                },
+
                 getFilteredMaterialUsage() {
-                    let result = this.materialUsage;
-                    if (this.filterRegionUsage) {
-                        result = result.filter(u => {
-                            const prj = this.masterProject.find(p => p.kodeProject === u.kodeProject || p.projectName === u.projectName);
-                            return prj && prj.region === this.filterRegionUsage;
-                        });
-                    }
-                    if (this.searchMaterialUsageProject) {
-                        const q = this.searchMaterialUsageProject.toLowerCase();
-                        result = result.filter(u => 
-                            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
-                            (u.projectName && u.projectName.toLowerCase().includes(q)) ||
-                            (u.noPO && u.noPO.toLowerCase().includes(q))
-                        );
-                    }
-                    return result;
+                    return this.materialUsage.filter(u => {
+                        let matchReg = true;
+                        if (this.filterRegionUsage) {
+                            const proj = this.masterProject.find(p => p.kodeProject === u.kodeProject);
+                            matchReg = proj && proj.region === this.filterRegionUsage;
+                        }
+                        let matchQuery = true;
+                        if (this.searchMaterialUsageProject) {
+                            const q = this.searchMaterialUsageProject.toLowerCase();
+                            matchQuery = (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
+                                         (u.noPO && u.noPO.toLowerCase().includes(q)) ||
+                                         (u.projectName && u.projectName.toLowerCase().includes(q)) ||
+                                         (u.namaBarang && u.namaBarang.toLowerCase().includes(q));
+                        }
+                        return matchReg && matchQuery;
+                    });
                 },
 
                 getFilteredTransactions() {
-                    let result = this.transactions;
-                    if (this.searchNoTransaksi) {
-                        const q = this.searchNoTransaksi.toLowerCase();
-                        result = result.filter(t => t.noTransaksi && t.noTransaksi.toLowerCase().includes(q));
-                    }
-                    if (this.searchNoReferensi) {
-                        const q = this.searchNoReferensi.toLowerCase();
-                        result = result.filter(t => t.noReferensi && t.noReferensi.toLowerCase().includes(q));
-                    }
-                    return result;
+                    return this.transactions.filter(t => {
+                        let matchNo = true;
+                        if (this.searchNoTransaksi) {
+                            matchNo = t.noTransaksi && t.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
+                        }
+                        let matchRef = true;
+                        if (this.searchNoReferensi) {
+                            matchRef = t.noReferensi && t.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase());
+                        }
+                        return matchNo && matchRef;
+                    });
                 },
 
-                getUniqueRegions() {
-                    const setR = new Set(this.masterProject.map(p => p.region).filter(Boolean));
-                    return Array.from(setR);
+                downloadCSV(filename, headers, rows) {
+                    const csvContent = "data:text/csv;charset=utf-8," 
+                        + [headers.join(","), ...rows.map(e => e.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(","))].join("\n");
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", filename);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
                 },
 
+                exportStokCSV() {
+                    const headers = ["Kode Barang", "Nama Barang", "Kategori", "Gudang", "Total Stok", "Satuan"];
+                    const rows = this.getFilteredStokGudang().map(s => [s.kodeBarang, s.namaBarang, s.kategori, s.gudang, s.qty, s.sat]);
+                    this.downloadCSV(`stok_gudang_${Date.now()}.csv`, headers, rows);
+                },
+
+                exportUsageCSV() {
+                    const headers = ["Kode Project", "No PO", "Project Name", "Kode Barang", "Nama Barang", "Drum ID", "Qty", "Tanggal"];
+                    const rows = this.getFilteredMaterialUsage().map(u => [u.kodeProject, u.noPO, u.projectName, u.kodeBarang, u.namaBarang, u.drumId, u.qty, u.tanggal]);
+                    this.downloadCSV(`material_usage_${Date.now()}.csv`, headers, rows);
+                },
+
+                exportTransactionCSV() {
+                    const headers = ["Tanggal", "No Transaksi", "No Referensi", "Tipe", "Gudang Asal", "Gudang Tujuan", "Project", "Keterangan"];
+                    const rows = this.getFilteredTransactions().map(t => [t.tanggal, t.noTransaksi, t.noReferensi, t.tipeTransaksi, t.gudangAsal, t.gudangTujuan, t.kodeProject, t.keterangan]);
+                    this.downloadCSV(`data_transaksi_${Date.now()}.csv`, headers, rows);
+                },
+
+                // Transaksi Edit, Delete, & Cetak BAST
                 editTransaction(tx) {
-                    this.showNotification('Fitur edit transaksi master aktif.', 'success');
+                    this.newTrans = JSON.parse(JSON.stringify(tx));
+                    this.switchTab('input-transaksi');
+                    this.showNotification(`Mengedit transaksi ${tx.noTransaksi}`, 'success');
                 },
 
                 deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus Transaksi "${tx.noTransaksi}"?`)) {
-                        const idx = this.transactions.findIndex(t => t.noTransaksi === tx.noTransaksi);
-                        if (idx !== -1) {
-                            this.transactions.splice(idx, 1);
-                            this.showNotification('Transaksi berhasil dihapus!', 'success');
-                        }
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"?`)) {
+                        this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+                        this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus!`, 'success');
                     }
                 },
 
                 printBAST(tx) {
                     this.activeBast = tx;
-                    this.$nextTick(() => {
-                        window.print();
-                    });
+                    this.$nextTick(() => { window.print(); });
                 },
 
                 getExpandedBastItems() {
-                    if (!this.activeBast || !this.activeBast.items) return [];
-                    return this.activeBast.items;
+                    return (this.activeBast && this.activeBast.items) ? this.activeBast.items : [];
+                },
+
+                shouldShowSummary() {
+                    return this.activeBast && this.activeBast.items && this.activeBast.items.length > 0;
                 },
 
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
-                    const summaryMap = {};
+                    const totals = {};
                     this.activeBast.items.forEach(item => {
-                        const key = item.namaBarang;
-                        const qty = parseFloat(item.qty) || 0;
-                        if (summaryMap[key]) {
-                            summaryMap[key] += qty;
-                        } else {
-                            summaryMap[key] = qty;
-                        }
+                        const name = item.namaBarang || item.kodeBarang;
+                        totals[name] = (totals[name] || 0) + (Number(item.qty) || 0);
                     });
-                    return Object.keys(summaryMap).map(key => ({
-                        namaBarang: key,
-                        totalQty: summaryMap[key]
-                    }));
-                },
-
-                shouldShowSummary() {
-                    return this.getBastSummaryTotals().length > 0;
-                },
-
-                exportStokCSV() {
-                    let csv = 'Kode Barang,Nama Barang,Kategori,Gudang,Qty,Satuan\n';
-                    this.getFilteredStokGudang().forEach(s => {
-                        csv += `"${s.kodeBarang}","${s.namaBarang}","${s.kategori}","${s.gudang}",${s.qty},"${s.sat}"\n`;
-                    });
-                    this.downloadCSV(csv, 'stok_gudang.csv');
-                },
-
-                exportUsageCSV() {
-                    let csv = 'Kode Project,No PO,Project Name,Kode Barang,Nama Barang,Drum ID,Qty,Tanggal\n';
-                    this.getFilteredMaterialUsage().forEach(u => {
-                        csv += `"${u.kodeProject}","${u.noPO}","${u.projectName}","${u.kodeBarang}","${u.namaBarang}","${u.drumId}",${u.qty},"${u.tanggal}"\n`;
-                    });
-                    this.downloadCSV(csv, 'material_usage.csv');
-                },
-
-                exportTransactionCSV() {
-                    let csv = 'Tanggal,No Transaksi,No Referensi,Tipe,Gudang Asal,Gudang Tujuan,Project,Keterangan\n';
-                    this.getFilteredTransactions().forEach(t => {
-                        csv += `"${t.tanggal}","${t.noTransaksi}","${t.noReferensi}","${t.tipeTransaksi}","${t.gudangAsal}","${t.gudangTujuan}","${t.kodeProject}","${t.keterangan}"\n`;
-                    });
-                    this.downloadCSV(csv, 'data_transaksi.csv');
-                },
-
-                downloadCSV(csvContent, fileName) {
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    const url = URL.createObjectURL(blob);
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', fileName);
-                    link.style.visibility = 'hidden';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    return Object.keys(totals).map(k => ({ namaBarang: k, totalQty: totals[k] }));
                 }
             };
         }
