@@ -1499,6 +1499,31 @@
                     return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === this.newTrans.gudangAsal && d.remainingLength > 0);
                 },
 
+                // HELPER FUNGSIONAL UNTUK SINKRONISASI DRUM LEDGER KE SUPABASE
+                async saveDrumToSupabase(drum) {
+                    if (!supabaseClient || !drum || !drum.drumId) return;
+                    try {
+                        const { error } = await supabaseClient
+                            .from('drum_ledger')
+                            .upsert({
+                                drum_id: drum.drumId,
+                                kode_barang: drum.kodeBarang,
+                                nama_barang: drum.namaBarang,
+                                gudang: drum.gudang,
+                                initial_length: Number(drum.initialLength),
+                                remaining_length: Number(drum.remainingLength),
+                                status: drum.status,
+                                transaction_no: drum.transactionNo || ''
+                            }, { onConflict: 'drum_id' });
+
+                        if (error) {
+                            console.error('Gagal menyimpan ke drum_ledger Supabase:', error);
+                        }
+                    } catch (err) {
+                        console.error('Error saveDrumToSupabase:', err);
+                    }
+                },
+
                 async submitTransaction() {
                     if (!this.newTrans.tanggal || !this.newTrans.noReferensi || !this.newTrans.keterangan) {
                         this.showNotification('Harap lengkapi semua field wajib (*)', 'error');
@@ -1588,7 +1613,7 @@
 
                                         const generatedDrumId = `${prefix}${String(seq).padStart(2, '0')}`;
                                         
-                                        this.drumLedger.push({
+                                        const newDrum = {
                                             drumId: generatedDrumId,
                                             kodeBarang: item.kodeBarang,
                                             namaBarang: item.namaBarang,
@@ -1597,7 +1622,10 @@
                                             remainingLength: drumLength,
                                             status: 'Full',
                                             transactionNo: this.newTrans.noTransaksi
-                                        });
+                                        };
+
+                                        this.drumLedger.push(newDrum);
+                                        await this.saveDrumToSupabase(newDrum);
 
                                         processedItems.push({
                                             kategori: category,
@@ -1633,6 +1661,7 @@
                                     if (drum) {
                                         drum.remainingLength = Math.max(0, drum.remainingLength - qtyNum);
                                         drum.status = drum.remainingLength === 0 ? 'Empty' : 'Partial';
+                                        await this.saveDrumToSupabase(drum);
                                     }
                                 }
 
@@ -1685,6 +1714,7 @@
                                     let drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
                                     if (drum) {
                                         drum.gudang = this.newTrans.gudangTujuan;
+                                        await this.saveDrumToSupabase(drum);
                                     }
                                 }
 
@@ -1858,6 +1888,7 @@
                                         if (drum) {
                                             drum.remainingLength = Math.min(drum.initialLength, drum.remainingLength + qtyNum);
                                             drum.status = drum.remainingLength >= drum.initialLength ? 'Full' : 'Partial';
+                                            await this.saveDrumToSupabase(drum);
                                         }
                                     }
 
@@ -1889,6 +1920,7 @@
                                         let drum = this.drumLedger.find(d => d.drumId === item.drumId);
                                         if (drum) {
                                             drum.gudang = tx.gudangAsal;
+                                            await this.saveDrumToSupabase(drum);
                                         }
                                     }
                                 }
