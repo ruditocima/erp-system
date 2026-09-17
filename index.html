@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ACM-WMS</title>
+    <title>ACM-WMS - Warehouse Management System</title>
     <!-- Tailwind CSS (CDN Stable) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Alpine.js -->
@@ -520,1541 +520,7 @@
                                                 </template>
                                                 <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer'))">
                                                     <input type="text" x-model="item.drumId" 
-                                                        :placeholder="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis [PDG01-036-D01]' : 'Drum ID (Opsional)'" 
-                                                        class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
-                                                </template>
-                                            </div>
-                                            <div class="md:col-span-1">
-                                                <input type="number" x-model="item.qty" min="1" placeholder="Qty" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-white text-center font-bold">
-                                            </div>
-                                            <div class="md:col-span-1 text-right">
-                                                <button type="button" @click="removeTransactionItem(index)" class="text-slate-500 hover:text-rose-400 p-1"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-
-                            <div class="pt-3 flex justify-end">
-                                <button type="submit" :disabled="isLoading" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 text-xs transition flex items-center gap-2">
-                                    <span x-show="isLoading" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
-                                    <span x-text="isLoading ? 'Memproses Transaksi...' : (editingOriginalNo ? 'Update Transaksi' : 'Simpan Transaksi')"></span>
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- 6. STOK GUDANG & PELACAKAN DRUM KABEL -->
-                <div x-show="currentTab === 'stok'" class="space-y-6" x-cloak>
-                    <div class="space-y-4">
-                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                            <div>
-                                <h3 class="text-sm font-semibold text-white">Stok Gudang</h3>
-                            </div>
-                            <div class="flex items-center gap-2 w-full sm:w-auto">
-                                <div class="w-full sm:w-64">
-                                    <select x-model="filterStokGudang" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                                        <option value="">Semua Gudang</option>
-                                        <template x-for="g in masterGudang" :key="g.kodeGudang">
-                                            <option :value="g.namaGudang" x-text="g.namaGudang"></option>
-                                        </template>
-                                    </select>
-                                </div>
-                                <button type="button" @click="exportStokCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5 shrink-0" title="Ekspor CSV">
-                                    <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
-                                </button>
-                            </div>
-                        </div>
-                        <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                                            <th class="p-3">Kode Barang</th>
-                                            <th class="p-3">Nama Barang</th>
-                                            <th class="p-3">Kategori</th>
-                                            <th class="p-3">Gudang Penyimpanan</th>
-                                            <th class="p-3">Total Stok</th>
-                                            <th class="p-3">Satuan</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                        <template x-for="(stok, index) in getFilteredStokGudang()" :key="stok.kodeBarang + '-' + stok.gudang || index">
-                                            <tr class="hover:bg-slate-800/30 transition">
-                                                <td class="p-3 text-indigo-400 text-[11px]" x-text="stok.kodeBarang"></td>
-                                                <td class="p-3 font-medium text-white font-sans" x-text="stok.namaBarang"></td>
-                                                <td class="p-3 text-slate-300 font-sans" x-text="stok.kategori"></td>
-                                                <td class="p-3 text-slate-300 font-sans" x-text="stok.gudang"></td>
-                                                <td class="p-3 font-bold text-emerald-400" x-text="stok.qty"></td>
-                                                <td class="p-3 text-slate-400 font-sans" x-text="stok.sat"></td>
-                                            </tr>
-                                        </template>
-                                        <template x-if="getFilteredStokGudang().length === 0">
-                                            <tr>
-                                                <td colspan="6" class="p-6 text-center text-slate-500 text-xs">Belum ada data Stok Gudang.</td>
-                                            </tr>
-                                        </template>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-4 pt-2">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="text-sm font-semibold text-white">Tracking Material Cable & Drum Ledger</h3>
-                            </div>
-                        </div>
-                        <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                                            <th class="p-3">Drum ID</th>
-                                            <th class="p-3">Kode Barang / SKU</th>
-                                            <th class="p-3">Nama Material</th>
-                                            <th class="p-3">Lokasi Gudang</th>
-                                            <th class="p-3">Panjang Awal</th>
-                                            <th class="p-3">Sisa Panjang</th>
-                                            <th class="p-3 text-right">Aksi (Re-use / Scrap)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                        <template x-for="(drum, index) in getFilteredDrumLedger()" :key="drum.drumId || index">
-                                            <tr class="hover:bg-slate-800/30 transition">
-                                                <td class="p-3 text-indigo-400 font-semibold text-[11px]" x-text="drum.drumId"></td>
-                                                <td class="p-3 text-slate-300 text-[11px]" x-text="drum.kodeBarang"></td>
-                                                <td class="p-3 text-white font-medium font-sans" x-text="drum.namaBarang"></td>
-                                                <td class="p-3 text-slate-300 font-sans" x-text="drum.gudang"></td>
-                                                <td class="p-3 text-slate-300" x-text="drum.initialLength + ' m'"></td>
-                                                <td class="p-3 font-bold text-amber-400" x-text="drum.remainingLength + ' m'"></td>
-                                                <td class="p-3 text-right font-sans">
-                                                    <button type="button" @click="reuseDrum(drum, index)" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded text-[10px] font-medium transition flex items-center gap-1 ml-auto" title="Re-use / Scrap Drum ID agar bersih dari ledger">
-                                                        <i data-lucide="refresh-cw" class="w-3 h-3"></i> Re-use / Sisa
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        </template>
-                                        <template x-if="getFilteredDrumLedger().length === 0">
-                                            <tr>
-                                                <td colspan="7" class="p-6 text-center text-slate-500 text-xs">Belum ada data Drum Ledger untuk gudang ini.</td>
-                                            </tr>
-                                        </template>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 7. MATERIAL USAGE -->
-                <div x-show="currentTab === 'usage'" class="space-y-4" x-cloak>
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                        <div>
-                            <h3 class="text-sm font-semibold text-white">Material Usage</h3>
-                        </div>
-                        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                            <div class="w-full sm:w-48">
-                                <select x-model="filterRegionUsage" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                                    <option value="">Semua Region</option>
-                                    <template x-for="reg in getUniqueRegions()" :key="reg">
-                                        <option :value="reg" x-text="reg"></option>
-                                    </template>
-                                </select>
-                            </div>
-                            <div class="w-full sm:w-64">
-                                <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project (Kode/Nama/PO)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                            </div>
-                            <button type="button" @click="exportUsageCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5 shrink-0" title="Ekspor CSV">
-                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
-                            </button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                                        <th class="p-3">Kode Project</th>
-                                        <th class="p-3">No PO</th>
-                                        <th class="p-3">Project Name</th>
-                                        <th class="p-3">Kode Barang</th>
-                                        <th class="p-3">Nama Barang</th>
-                                        <th class="p-3">Drum ID</th>
-                                        <th class="p-3">Qty / Meter Dipakai</th>
-                                        <th class="p-3">Tanggal Pakai</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                    <template x-for="(usage, index) in getFilteredMaterialUsage()" :key="usage.id || index">
-                                        <tr class="hover:bg-slate-800/30 transition">
-                                            <td class="p-3 text-indigo-400 text-[11px] font-semibold" x-text="usage.kodeProject"></td>
-                                            <td class="p-3 text-slate-300" x-text="usage.noPO"></td>
-                                            <td class="p-3 text-slate-200 font-medium font-sans" x-text="usage.projectName || '-'"></td>
-                                            <td class="p-3 text-[11px] text-slate-300" x-text="usage.kodeBarang"></td>
-                                            <td class="p-3 text-white font-medium font-sans" x-text="usage.namaBarang"></td>
-                                            <td class="p-3 text-indigo-300 text-[11px]" x-text="usage.drumId || '-'"></td>
-                                            <td class="p-3 font-bold text-amber-400" x-text="usage.qty"></td>
-                                            <td class="p-3 text-slate-300" x-text="usage.tanggal"></td>
-                                        </tr>
-                                    </template>
-                                    <template x-if="getFilteredMaterialUsage().length === 0">
-                                        <tr>
-                                            <td colspan="8" class="p-6 text-center text-slate-500 text-xs">Belum ada data Material Usage.</td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 8. DATA TRANSAKSI & PRINT BAST -->
-                <div x-show="currentTab === 'data-transaksi'" class="space-y-4" x-cloak>
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                        <div>
-                            <h3 class="text-sm font-semibold text-white">Data Transaksi & BAST</h3>
-                        </div>
-                        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                            <input type="text" x-model="searchNoTransaksi" placeholder="Cari No Transaksi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
-                            <input type="text" x-model="searchNoReferensi" placeholder="Cari No Referensi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-48">
-                            <button type="button" @click="exportTransactionCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-1.5 rounded-lg shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5 shrink-0" title="Ekspor CSV">
-                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
-                            </button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                                        <th class="p-3">Tanggal</th>
-                                        <th class="p-3">No Transaksi</th>
-                                        <th class="p-3">No Referensi</th>
-                                        <th class="p-3">Tipe</th>
-                                        <th class="p-3">Gudang Asal → Tujuan</th>
-                                        <th class="p-3">Project</th>
-                                        <th class="p-3">Keterangan / Lampiran</th>
-                                        <th class="p-3 text-right">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                    <template x-for="(tx, index) in getFilteredTransactions()" :key="tx.noTransaksi || index">
-                                        <tr class="hover:bg-slate-800/30 transition">
-                                            <td class="p-3 text-slate-300" x-text="tx.tanggal"></td>
-                                            <td class="p-3 text-indigo-400 text-[11px] font-semibold" x-text="tx.noTransaksi"></td>
-                                            <td class="p-3 text-slate-300 text-[11px]" x-text="tx.noReferensi || '-'"></td>
-                                            <td class="p-3 font-sans">
-                                                <span class="px-2 py-0.5 rounded text-[10px] font-medium" :class="tx.tipeTransaksi === 'Masuk' ? 'bg-emerald-500/10 text-emerald-400' : (tx.tipeTransaksi === 'Keluar' ? 'bg-rose-500/10 text-rose-400' : 'bg-blue-500/10 text-blue-400')" x-text="tx.tipeTransaksi"></span>
-                                            </td>
-                                            <td class="p-3 text-slate-300 font-sans" x-text="(tx.gudangAsal || 'Eksternal') + ' → ' + (tx.gudangTujuan || 'Eksternal')"></td>
-                                            <td class="p-3 text-slate-200 font-sans" x-text="tx.kodeProject || '-'"></td>
-                                            <td class="p-3 text-slate-300 font-sans">
-                                                <span x-text="tx.keterangan || '-'"></span>
-                                                <template x-if="tx.lampiranUrl">
-                                                    <a :href="tx.lampiranUrl" target="_blank" class="block text-[10px] text-indigo-400 hover:text-indigo-300 underline mt-0.5 flex items-center gap-1">
-                                                        <i data-lucide="paperclip" class="w-3 h-3 inline"></i> <span x-text="tx.lampiran || 'Lihat Lampiran'"></span>
-                                                    </a>
-                                                </template>
-                                            </td>
-                                            <td class="p-3 text-right">
-                                                <div class="flex items-center justify-end gap-1.5 font-sans">
-                                                    <button type="button" @click="editTransaction(tx)" class="text-slate-400 hover:text-indigo-400 p-1.5 rounded-lg hover:bg-slate-800 transition" title="Edit Transaksi">
-                                                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
-                                                    </button>
-                                                    <button type="button" @click="deleteTransaction(tx)" class="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition" title="Hapus Transaksi">
-                                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                                                    </button>
-                                                    <button type="button" @click="printBAST(tx)" class="bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition flex items-center gap-1.5" title="Print BAST PDF">
-                                                        <i data-lucide="printer" class="w-3.5 h-3.5"></i>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                    <template x-if="getFilteredTransactions().length === 0">
-                                        <tr>
-                                            <td colspan="8" class="p-6 text-center text-slate-500 text-xs">Belum ada data Transaksi.</td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        </main>
-    </div>
-
-    <!-- MODAL TAMBAH/EDIT DATA (GENERAL) -->
-    <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md px-4 print:hidden" x-cloak>
-        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-2xl relative">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-                <h3 class="text-xs font-semibold text-white capitalize" x-text="(isEdit ? 'Edit Master ' : 'Tambah Master ') + modalType"></h3>
-                <button type="button" @click="showModal = false" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
-            </div>
-
-            <form @submit.prevent="saveModalData" class="space-y-3">
-                <template x-if="modalType === 'barang'">
-                    <div class="space-y-3">
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Kategori</label>
-                            <input type="text" x-model="modalForm.kategori" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Jenis</label>
-                            <input type="text" x-model="modalForm.jenis" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Kode Barang</label>
-                            <input type="text" x-model="modalForm.kodeBarang" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Nama Barang</label>
-                            <input type="text" x-model="modalForm.namaBarang" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Satuan (Sat)</label>
-                            <input type="text" x-model="modalForm.sat" required placeholder="Pcs / Meter / Box" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                    </div>
-                </template>
-
-                <template x-if="modalType === 'gudang'">
-                    <div class="space-y-3">
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Kode Gudang</label>
-                            <input type="text" x-model="modalForm.kodeGudang" required placeholder="misal: PDG-01" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Nama Gudang</label>
-                            <input type="text" x-model="modalForm.namaGudang" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Tipe Kepemilikan</label>
-                            <select x-model="modalForm.tipeKepemilikan" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                                <option value="Milik Sendiri">Milik Sendiri</option>
-                                <option value="Sewa / Vendor">Sewa / Vendor</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Lokasi</label>
-                            <input type="text" x-model="modalForm.lokasi" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                    </div>
-                </template>
-
-                <template x-if="modalType === 'project'">
-                    <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Periode (Tanggal Kalender)</label>
-                            <input type="date" x-model="modalForm.periode" @change="generateKodeProject()" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Region</label>
-                            <input type="text" x-model="modalForm.region" @input="generateKodeProject()" required placeholder="misal: ACH atau Aceh" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Kode Project (Otomatis)</label>
-                            <input type="text" x-model="modalForm.kodeProject" readonly placeholder="Otomatis: [ACH-2026-001]" class="w-full bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-indigo-400 font-mono cursor-not-allowed">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Type</label>
-                            <select x-model="modalForm.type" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                                <option value="Distribusi">Distribusi</option>
-                                <option value="Sub Feeder">Sub Feeder</option>
-                                <option value="Hub Feeder">Hub Feeder</option>
-                                <option value="Main Feeder">Main Feeder</option>
-                                <option value="Uplink">Uplink</option>
-                                <option value="MTI">MTI</option>
-                                <option value="Permit">Permit</option>
-                                <option value="SND">SND</option>
-                                <option value="Rectifikasi">Rectifikasi</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">No PO</label>
-                            <input type="text" x-model="modalForm.noPO" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Project Name</label>
-                            <input type="text" x-model="modalForm.projectName" required placeholder="Nama Project..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
-                        </div>
-                    </div>
-                </template>
-
-                <div class="pt-3 flex justify-end gap-2 border-t border-slate-800 mt-3">
-                    <button type="button" @click="showModal = false" class="px-3.5 py-1.5 bg-slate-800 text-slate-300 text-[11px] font-medium rounded-lg hover:bg-slate-700">Batal</button>
-                    <button type="submit" class="px-3.5 py-1.5 bg-indigo-600 text-white text-[11px] font-medium rounded-lg hover:bg-indigo-500">Simpan Data</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- TOAST NOTIFICATION CONTAINER -->
-    <div x-show="notification.show" 
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 translate-y-2"
-         x-transition:enter-end="opacity-100 translate-y-0"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 translate-y-0"
-         x-transition:leave-end="opacity-0 translate-y-2"
-         class="fixed bottom-5 right-5 z-50 max-w-md p-4 rounded-xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl print:hidden"
-         :class="notification.type === 'error' ? 'bg-rose-950/90 border-rose-500/40 text-rose-200' : 'bg-emerald-950/90 border-emerald-500/40 text-emerald-200'"
-         x-cloak>
-        <div class="p-2 rounded-lg shrink-0" :class="notification.type === 'error' ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'">
-            <i :data-lucide="notification.type === 'error' ? 'alert-triangle' : 'check-circle-2'" class="w-5 h-5"></i>
-        </div>
-        <div class="flex-1 text-xs font-medium" x-text="notification.message"></div>
-        <button type="button" @click="notification.show = false" class="text-slate-400 hover:text-white p-1">
-            <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
-    </div>
-
-    <!-- HIDDEN PRINTABLE BAST CONTAINER -->
-    <div id="printable-bast" class="hidden print:block p-8 bg-white text-slate-900">
-        <div class="text-center border-b-2 border-slate-900 pb-3 mb-4">
-            <h1 class="text-lg font-bold uppercase tracking-wider">BERITA ACARA SERAH TERIMA (BAST)</h1>
-            <p class="text-xs text-slate-600">PT. ACERO CETHA METALINDO</p>
-        </div>
-        <div class="grid grid-cols-2 gap-3 mb-4 text-xs">
-            <div>
-                <p><strong>No Transaksi:</strong> <span x-text="activeBast.noTransaksi"></span></p>
-                <p><strong>Tanggal:</strong> <span x-text="activeBast.tanggal"></span></p>
-                <p><strong>No Referensi:</strong> <span x-text="activeBast.noReferensi || '-'"></span></p>
-                <p><strong>Project:</strong> <span x-text="activeBast.projectName || getProjectName(activeBast.kodeProject) || '-'"></span></p>
-            </div>
-            <div>
-                <p><strong>Tipe Transaksi:</strong> <span x-text="activeBast.tipeTransaksi"></span></p>
-                <p><strong>Gudang Asal:</strong> <span x-text="activeBast.gudangAsal || '-'"></span></p>
-                <p><strong>Gudang Tujuan:</strong> <span x-text="activeBast.gudangTujuan || '-'"></span></p>
-                <p><strong>Keterangan:</strong> <span x-text="activeBast.keterangan || '-'"></span></p>
-                <p x-show="activeBast.lampiran"><strong>Lampiran:</strong> 
-                    <template x-if="activeBast.lampiranUrl">
-                        <a :href="activeBast.lampiranUrl" target="_blank" class="text-indigo-600 underline" x-text="activeBast.lampiran"></a>
-                    </template>
-                    <template x-if="!activeBast.lampiranUrl">
-                        <span x-text="activeBast.lampiran"></span>
-                    </template>
-                </p>
-            </div>
-        </div>
-        <table class="w-full border-collapse border border-slate-400 mb-4 text-[11px]">
-            <thead>
-                <tr class="bg-slate-100">
-                    <th class="border border-slate-400 p-1.5 w-10 text-center">No</th>
-                    <th class="border border-slate-400 p-1.5">Kode Barang</th>
-                    <th class="border border-slate-400 p-1.5">Nama Barang</th>
-                    <th class="border border-slate-400 p-1.5">Drum ID</th>
-                    <th class="border border-slate-400 p-1.5 w-16 text-center">Qty</th>
-                </tr>
-            </thead>
-            <tbody>
-                <template x-for="(item, idx) in getExpandedBastItems()" :key="idx">
-                    <tr>
-                        <td class="border border-slate-400 p-1.5 text-center" x-text="idx + 1"></td>
-                        <td class="border border-slate-400 p-1.5 font-mono" x-text="item.kodeBarang"></td>
-                        <td class="border border-slate-400 p-1.5" x-text="item.namaBarang"></td>
-                        <td class="border border-slate-400 p-1.5 font-mono" x-text="item.drumId || '-'"></td>
-                        <td class="border border-slate-400 p-1.5 text-center font-bold" x-text="item.qty"></td>
-                    </tr>
-                </template>
-            </tbody>
-        </table>
-
-        <!-- Rekapitulasi Summary -->
-        <div class="mb-6 text-[11px] bg-slate-50 p-2.5 border border-slate-300 rounded" x-show="shouldShowSummary()">
-            <p class="font-bold mb-1 uppercase tracking-wider text-[10px] text-slate-700">Summary:</p>
-            <div class="space-y-1">
-                <template x-for="summary in getBastSummaryTotals()" :key="summary.namaBarang">
-                    <div>
-                        <span class="font-medium" x-text="summary.namaBarang"></span> : <span class="font-bold" x-text="summary.totalQty"></span>
-                    </div>
-                </template>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-6 text-center pt-8 text-[11px]">
-            <div>
-                <p>Yang Menyerahkan,</p>
-                <div class="h-16"></div>
-                <p class="font-bold border-t border-slate-400 pt-1">( Staff Gudang )</p>
-            </div>
-            <div>
-                <p>Mengetahui,</p>
-                <div class="h-16"></div>
-                <p class="font-bold border-t border-slate-400 pt-1">( Project Manager )</p>
-            </div>
-            <div>
-                <p>Penerima,</p>
-                <div class="h-16"></div>
-                <p class="font-bold border-t border-slate-400 pt-1">( Vendor / Lapangan )</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- ALPINE.JS APP LOGIC & SUPABASE INTEGRATION -->
-    <script>
-        const SUPABASE_URL = 'https://mwcdgumytjwhewkbbwge.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13Y2RndW15dGp3aGV3a2Jid2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwMzAzODUsImV4cCI6MjEwNDYwNjM4NX0.DERPs4Gd_iMbn38aik9KKQG4Wc44QitUG1JaZya1gsI';
-    
-    const supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function' && SUPABASE_URL !== 'YOUR_SUPABASE_URL_HERE') 
-        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
-        : null;
-
-    function safeLoadStorage(key, fallback) {
-        try {
-            const item = localStorage.getItem(key);
-            return item ? JSON.parse(item) : fallback;
-        } catch (e) {
-            console.warn(`Error parsing localStorage key "${key}":`, e);
-            return fallback;
-        }
-    }
-
-    function warehouseApp() {
-        return {
-            isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
-            currentUser: localStorage.getItem('vortex_user') || 'Admin Pusat',
-            currentRole: localStorage.getItem('vortex_role') || 'Admin',
-            currentTab: 'dashboard',
-            loginForm: { email: 'admin@acero.com', password: '••••••', role: 'Admin' },
-
-            showModal: false,
-            modalType: '',
-            modalForm: {},
-            isEdit: false,
-            editIndex: null,
-
-            showSecondaryCols: false,
-
-            notification: { show: false, message: '', type: 'error' },
-            isLoading: false,
-            selectedFile: null,
-
-            filterStokGudang: '',
-            filterRegionUsage: '',
-            searchNoTransaksi: '',
-            searchNoReferensi: '',
-            searchMaterialUsageProject: '',
-
-            editingOriginalNo: null,
-
-            masterBarang: safeLoadStorage('vortex_masterBarang', [
-                { kategori: 'Hardware', jenis: 'Router', kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', sat: 'Unit' },
-                { kategori: 'Cable', jenis: 'Fiber Optic', kodeBarang: 'CB-FO-012', namaBarang: 'FO Single Mode 24Core', sat: 'Meter' },
-                { kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', sat: 'Meter' },
-                { kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', sat: 'Meter' },
-                { kategori: 'Power', jenis: 'Rectifier', kodeBarang: 'PW-REC-04', namaBarang: 'Eltek Rectifier 48V', sat: 'Set' }
-            ]),
-
-            masterGudang: safeLoadStorage('vortex_masterGudang', [
-                { kodeGudang: 'NPM-JKT-01', namaGudang: 'Gudang Utama Jakarta', tipeKepemilikan: 'Milik Sendiri', lokasi: 'Cakung, Jakarta Timur' },
-                { kodeGudang: 'PDG-01', namaGudang: 'Gudang Regional Padang', tipeKepemilikan: 'Sewa / Vendor', lokasi: 'Padang' }
-            ]),
-
-            masterProject: safeLoadStorage('vortex_masterProject', [
-                { 
-                    periode: '2026-01-10', 
-                    region: 'ACH', 
-                    kodeProject: 'ACH-2026-001', 
-                    type: 'Main Feeder', 
-                    noPO: 'PO/2026/0192', 
-                    projectName: 'Project Aceh FTTH 2026',
-                }
-            ]),
-
-            stokGudang: safeLoadStorage('vortex_stokGudang', [
-                { id: 'HW-RT-01_Gudang Utama Jakarta', kodeBarang: 'HW-RT-01', namaBarang: 'Cisco Router ISR 4331', kategori: 'Hardware', gudang: 'Gudang Utama Jakarta', qty: 45, sat: 'Unit' },
-                { id: 'CBL-ADSS-024_Gudang Utama Jakarta', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', kategori: 'Cable', gudang: 'Gudang Utama Jakarta', qty: 6000, sat: 'Meter' },
-                { id: 'CBL-ADSS-036_Gudang Regional Padang', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', kategori: 'Cable', gudang: 'Gudang Regional Padang', qty: 3000, sat: 'Meter' }
-            ]),
-
-            drumLedger: safeLoadStorage('vortex_drumLedger', [
-                { drumId: 'NPMJKT01-024-D01', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
-                { drumId: 'NPMJKT01-024-D02', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
-                { drumId: 'PDG01-036-D01', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', gudang: 'Gudang Regional Padang', initialLength: 3000, remainingLength: 3000, status: 'Full' }
-            ]),
-
-            materialUsage: safeLoadStorage('vortex_materialUsage', [
-                { id: 'USG-INIT-001', transactionNo: 'ACM-PDG-OUT-202609-01', kodeProject: 'ACH-2026-001', noPO: 'PO/2026/0192', projectName: 'Project Aceh FTTH 2026', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', drumId: 'PDG01-036-D01', qty: 1000, tanggal: '2026-09-02' }
-            ]),
-
-            transactions: safeLoadStorage('vortex_transactions', [
-                {
-                    tanggal: '2026-09-01',
-                    noTransaksi: 'ACM-PDG-IN-202609-01',
-                    noReferensi: 'REF-PDG-001',
-                    tipeTransaksi: 'Masuk',
-                    gudangAsal: 'PT Prysmian Cable',
-                    gudangTujuan: 'Gudang Regional Padang',
-                    kodeProject: '',
-                    projectName: '',
-                    keterangan: 'Penerimaan material kabel ADSS-036 Padang',
-                    lampiran: '',
-                    lampiranUrl: '',
-                    items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', drumId: 'PDG01-036-D01', qty: 3000, keterangan: 'Segel utuh' }]
-                }
-            ]),
-
-            newTrans: {
-                tanggal: '',
-                noTransaksi: '',
-                noReferensi: '',
-                tipeTransaksi: 'Masuk',
-                gudangAsal: '',
-                gudangTujuan: '',
-                kodeProject: '',
-                keterangan: '',
-                lampiran: '',
-                lampiranUrl: '',
-                items: []
-            },
-
-            activeBast: {},
-
-            init() {
-                this.resetInputTransaction();
-                this.syncWithSupabaseOnStart();
-
-                this.$watch('masterBarang', val => { localStorage.setItem('vortex_masterBarang', JSON.stringify(val)); }, { deep: true });
-                this.$watch('masterGudang', val => { localStorage.setItem('vortex_masterGudang', JSON.stringify(val)); }, { deep: true });
-                this.$watch('masterProject', val => { localStorage.setItem('vortex_masterProject', JSON.stringify(val)); }, { deep: true });
-                this.$watch('stokGudang', val => { localStorage.setItem('vortex_stokGudang', JSON.stringify(val)); }, { deep: true });
-                this.$watch('drumLedger', val => { localStorage.setItem('vortex_drumLedger', JSON.stringify(val)); }, { deep: true });
-                this.$watch('transactions', val => { localStorage.setItem('vortex_transactions', JSON.stringify(val)); }, { deep: true });
-                this.$watch('materialUsage', val => { localStorage.setItem('vortex_materialUsage', JSON.stringify(val)); }, { deep: true });
-
-                this.refreshIcons();
-            },
-
-            refreshIcons() {
-                this.$nextTick(() => {
-                    if (typeof lucide !== 'undefined' && lucide && typeof lucide.createIcons === 'function') {
-                        lucide.createIcons();
-                    }
-                });
-            },
-
-            async syncWithSupabaseOnStart() {
-                if (!supabaseClient) return;
-                try {
-                    const { data: transData, error } = await supabaseClient.from('transactions').select('*');
-                    if (!error && transData && transData.length > 0) {
-                        console.log('Supabase sync active:', transData.length, 'records');
-                    }
-                } catch (e) {
-                    console.warn('Supabase initial fetch skipped, operating in Local Storage mode:', e);
-                }
-            },
-
-            login() {
-                this.isLoggedIn = true;
-                this.currentUser = this.loginForm.email.split('@')[0] || 'User';
-                this.currentRole = this.loginForm.role;
-                localStorage.setItem('vortex_logged_in', 'true');
-                localStorage.setItem('vortex_user', this.currentUser);
-                localStorage.setItem('vortex_role', this.currentRole);
-                this.showNotification('Berhasil masuk ke sistem!', 'success');
-            },
-
-            logout() {
-                this.isLoggedIn = false;
-                localStorage.removeItem('vortex_logged_in');
-                this.showNotification('Anda telah keluar.', 'success');
-            },
-
-            switchTab(tabName) {
-                this.currentTab = tabName;
-                this.refreshIcons();
-            },
-
-            showNotification(msg, type = 'success') {
-                this.notification = { show: true, message: msg, type: type };
-                this.refreshIcons();
-                setTimeout(() => { this.notification.show = false; }, 4000);
-            },
-
-            reuseDrum(drum, index) {
-                if (confirm(`Apakah Anda yakin ingin melakukan Re-use / Scrap pada Drum ID "${drum.drumId}"?\nDrum ini akan dihapus dari Drum Ledger aktif.`)) {
-                    this.drumLedger.splice(index, 1);
-                    this.showNotification(`Drum ID "${drum.drumId}" berhasil di-re-use / dikosongkan dari ledger!`, 'success');
-                    this.refreshIcons();
-                }
-            },
-
-            async handleFileUpload(event) {
-                const file = event.target.files[0];
-                if (!file) return;
-
-                this.selectedFile = file;
-                this.newTrans.lampiran = file.name;
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    this.newTrans.lampiranUrl = e.target.result;
-                };
-                reader.readAsDataURL(file);
-
-                if (supabaseClient) {
-                    try {
-                        this.isLoading = true;
-                        const fileExt = file.name.split('.').pop();
-                        const fileName = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-                        const filePath = `transaksi/${fileName}`;
-
-                        const { data, error } = await supabaseClient.storage
-                            .from('attachments')
-                            .upload(filePath, file, { cacheControl: '3600', upsert: true });
-
-                        if (error) {
-                            console.warn('Supabase Storage Upload Warning:', error.message);
-                            this.showNotification('Berkas disimpan lokal (Supabase storage error)', 'error');
-                        } else {
-                            const { data: publicUrlData } = supabaseClient.storage
-                                .from('attachments')
-                                .getPublicUrl(filePath);
-
-                            if (publicUrlData && publicUrlData.publicUrl) {
-                                this.newTrans.lampiranUrl = publicUrlData.publicUrl;
-                                this.showNotification('Berkas berhasil diunggah!', 'success');
-                            }
-                        }
-                    } catch (err) {
-                        console.error('File upload exception:', err);
-                    } finally {
-                        this.isLoading = false;
-                    }
-                }
-            },
-
-            openModal(type) {
-                this.modalType = type;
-                this.isEdit = false;
-                this.editIndex = null;
-                if (type === 'project') {
-                    const today = new Date().toISOString().split('T')[0];
-                    this.modalForm = {
-                        periode: today,
-                        region: '',
-                        kodeProject: '',
-                        type: 'Main Feeder',
-                        noPO: '',
-                        projectName: '',
-                    };
-                    this.generateKodeProject();
-                } else if (type === 'barang') {
-                    this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Pcs' };
-                } else if (type === 'gudang') {
-                    this.modalForm = { kodeGudang: '', namaGudang: '', tipeKepemilikan: 'Milik Sendiri', lokasi: '' };
-                }
-                this.showModal = true;
-                this.refreshIcons();
-            },
-
-            openEditModal(type, index) {
-                this.modalType = type;
-                this.isEdit = true;
-                this.editIndex = index;
-                if (type === 'project') {
-                    this.modalForm = { ...this.masterProject[index] };
-                } else if (type === 'barang') {
-                    this.modalForm = { ...this.masterBarang[index] };
-                } else if (type === 'gudang') {
-                    this.modalForm = { ...this.masterGudang[index] };
-                }
-                this.showModal = true;
-                this.refreshIcons();
-            },
-
-            getRegionCode(reg) {
-                if (!reg) return 'ACH';
-                let r = reg.trim().toUpperCase();
-                if (r === 'ACEH' || r === 'ACH') return 'ACH';
-                if (r === 'PADANG' || r === 'PDG') return 'PDG';
-                if (r === 'PALEMBANG' || r === 'PLM') return 'PLM';
-                if (r.length <= 3) return r;
-                return r.substring(0, 3);
-            },
-
-            generateKodeProject() {
-                if (this.isEdit) return;
-                const regCode = this.getRegionCode(this.modalForm.region);
-                let year = '2026';
-                if (this.modalForm.periode) {
-                    const d = new Date(this.modalForm.periode);
-                    if (!isNaN(d.getFullYear())) {
-                        year = d.getFullYear().toString();
-                    }
-                }
-
-                const prefix = `${regCode}-${year}-`;
-                let maxSeq = 0;
-
-                this.masterProject.forEach(p => {
-                    if (p.kodeProject && p.kodeProject.startsWith(prefix)) {
-                        const numPart = p.kodeProject.replace(prefix, '');
-                        const num = parseInt(numPart, 10);
-                        if (!isNaN(num) && num > maxSeq) {
-                            maxSeq = num;
-                        }
-                    }
-                });
-
-                const nextSeq = String(maxSeq + 1).padStart(3, '0');
-                this.modalForm.kodeProject = `${prefix}${nextSeq}`;
-            },
-
-            saveModalData() {
-                if (this.modalType === 'project') {
-                    if (this.isEdit && this.editIndex !== null) {
-                        this.masterProject[this.editIndex] = { ...this.modalForm };
-                        this.showNotification('Master Project berhasil diperbaharui!', 'success');
-                    } else {
-                        this.masterProject.push({ ...this.modalForm });
-                        this.showNotification('Master Project berhasil ditambahkan!', 'success');
-                    }
-                } else if (this.modalType === 'barang') {
-                    if (this.isEdit && this.editIndex !== null) {
-                        this.masterBarang[this.editIndex] = { ...this.modalForm };
-                        this.showNotification('Master Barang berhasil diperbaharui!', 'success');
-                    } else {
-                        this.masterBarang.push({ ...this.modalForm });
-                        this.showNotification('Master Barang berhasil ditambahkan!', 'success');
-                    }
-                } else if (this.modalType === 'gudang') {
-                    if (this.isEdit && this.editIndex !== null) {
-                        this.masterGudang[this.editIndex] = { ...this.modalForm };
-                        this.showNotification('Master Gudang berhasil diperbaharui!', 'success');
-                    } else {
-                        this.masterGudang.push({ ...this.modalForm });
-                        this.showNotification('Master Gudang berhasil ditambahkan!', 'success');
-                    }
-                }
-                this.showModal = false;
-                this.refreshIcons();
-            },
-
-            deleteItem(type, index) {
-                if (confirm('Apakah Anda yakin ingin menghapus data ini?')) {
-                    if (type === 'barang') this.masterBarang.splice(index, 1);
-                    if (type === 'gudang') this.masterGudang.splice(index, 1);
-                    if (type === 'project') this.masterProject.splice(index, 1);
-                    this.showNotification('Data berhasil dihapus!', 'success');
-                }
-            },
-
-            openInputTransaction() {
-                this.switchTab('input-transaksi');
-            },
-
-            resetInputTransaction() {
-                const today = new Date().toISOString().split('T')[0];
-                this.newTrans = {
-                    tanggal: today,
-                    noTransaksi: '',
-                    noReferensi: '',
-                    tipeTransaksi: 'Masuk',
-                    gudangAsal: '',
-                    gudangTujuan: '',
-                    kodeProject: '',
-                    keterangan: '',
-                    lampiran: '',
-                    lampiranUrl: '',
-                    items: []
-                };
-                this.editingOriginalNo = null;
-                this.selectedFile = null;
-                this.addTransactionItem();
-                this.generateNoTransaksi();
-                this.refreshIcons();
-            },
-
-            onTipeTransaksiChange() {
-                this.newTrans.gudangAsal = '';
-                this.newTrans.gudangTujuan = '';
-                this.resetItemsOnWarehouseChange();
-                this.generateNoTransaksi();
-            },
-
-            resetItemsOnWarehouseChange() {
-                this.newTrans.items = [];
-                this.addTransactionItem();
-            },
-
-            addTransactionItem() {
-                this.newTrans.items.push({
-                    kategori: '',
-                    jenis: '',
-                    kodeBarang: '',
-                    namaBarang: '',
-                    drumId: '',
-                    qty: 1
-                });
-                this.refreshIcons();
-            },
-
-            removeTransactionItem(index) {
-                if (this.newTrans.items.length > 1) {
-                    this.newTrans.items.splice(index, 1);
-                }
-            },
-
-            getCategoryByKode(kodeBarang) {
-                const brg = this.masterBarang.find(b => b.kodeBarang === kodeBarang);
-                return brg ? brg.kategori : '';
-            },
-
-            getFilteredProjectsForAsal() {
-                if (this.newTrans.tipeTransaksi !== 'Keluar') return [];
-                if (!this.newTrans.gudangAsal) return [];
-                
-                const gAsal = this.masterGudang.find(g => g.namaGudang === this.newTrans.gudangAsal);
-                if (!gAsal) return [];
-                
-                let regCode = '';
-                if (gAsal.kodeGudang.includes('PDG')) regCode = 'PDG';
-                else if (gAsal.kodeGudang.includes('PLM')) regCode = 'PLM';
-                else if (gAsal.kodeGudang.includes('ACH')) regCode = 'ACH';
-                
-                if (regCode) {
-                    return this.masterProject.filter(p => p.region.toUpperCase().includes(regCode) || (p.kodeProject && p.kodeProject.includes(regCode)));
-                }
-                return this.masterProject;
-            },
-
-            getProjectName(kodeProj) {
-                const proj = this.masterProject.find(p => p.kodeProject === kodeProj);
-                return proj ? proj.projectName : '';
-            },
-
-            generateNoTransaksi() {
-                if (this.editingOriginalNo) return; 
-
-                const tipe = this.newTrans.tipeTransaksi;
-                let whCode = 'EXT'; 
-                
-                if (tipe === 'Masuk' && this.newTrans.gudangTujuan) {
-                    const g = this.masterGudang.find(x => x.namaGudang === this.newTrans.gudangTujuan);
-                    if (g) whCode = g.kodeGudang.split('-')[0];
-                } else if ((tipe === 'Keluar' || tipe === 'Transfer') && this.newTransSaya telah melakukan pemeriksaan mendalam terhadap kode sumber yang Anda berikan. Masalah utama dari file tersebut adalah **terpotongnya *script* di baris terakhir** (`if (isCable && item.drumId`) sehingga aplikasi tidak dapat berfungsi utuh. Selain itu, saya telah memperbarui logika sistem sesuai dengan permintaan Anda:
-
-1.  **Pencarian ID Kosong Terlebih Dahulu (Gap-filling):** Sistem kini tidak lagi sekadar mencari angka tertinggi dan menambahkannya 1 (`maxSeq + 1`), melainkan mendeteksi angka berurutan yang kosong mulai dari 1 (`D01`, `D02`, dst).
-2.  **Pemecahan Drum Otomatis (Max 3000m):** Jika ada kabel masuk lebih dari batas (misal 5.000 meter), ketika Anda klik "Simpan Transaksi", item tersebut otomatis dipecah. (Misal: 3.000m masuk ke `D01`, 2.000m sisanya otomatis dicarikan ID kosong berikutnya, misal `D03`).
-
-### Rekomendasi & Masukan agar Layak Publikasi Produksi
-Agar aplikasi ini benar-benar aman dan layak tayang, berikut hal krusial yang harus Anda tingkatkan pada level *backend* dan *deployment*:
-*   **Security (Kerahasiaan Kunci):** Jangan mengekspos `SUPABASE_ANON_KEY` dan URL secara *hardcode* di *client-side* seperti ini pada *production*. Gunakan *Environment Variables* (.env) dalam framework seperti Next.js/Vite, atau manfaatkan Supabase Row Level Security (RLS) dengan autentikasi yang ketat agar tidak ada pihak luar yang bisa mengutak-atik tabel *database*.
-*   **Pemisahan File (Modularitas):** Pecah kode ini. Masukkan *Script* JS ke dalam file `app.js` dan CSS khusus ke `style.css`. HTML yang berisi 900+ baris akan sangat menyulitkan perbaikan dan *maintenance* jika diubah sewaktu-waktu.
-*   **Server-Side Validation:** Validasi di sisi UI (Alpine.js) bisa dimanipulasi dengan mudah oleh *user* lewat Inspect Element. Pastikan Anda melakukan pemotongan 3.000m kabel di level Supabase Edge Functions atau Trigger agar data yang masuk terjamin integritasnya walau aplikasi ditembus dari luar.
-
-Berikut adalah kode utuh yang sudah diperbaiki secara spesifik di bagian JavaScript-nya. Anda dapat menimpa isi file **index (15).html** dengan *script* di bawah ini.
-
-```html
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ACM-WMS</title>
-    <!-- Tailwind CSS (CDN Stable) -->
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-    <!-- Alpine.js -->
-    <script defer src="[https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js](https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js)"></script>
-    <!-- Lucide Icons -->
-    <script src="[https://unpkg.com/lucide@latest](https://unpkg.com/lucide@latest)"></script>
-    <!-- Supabase JS Client v2 -->
-    <script src="[https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2](https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2)"></script>
-    <!-- html2pdf.js for direct PDF download -->
-    <script src="[https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js](https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js)"></script>
-    <!-- Google Fonts: Inter -->
-    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap)" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; font-size: 13px; }
-        [x-cloak] { display: none !important; }
-
-        /* Pengaturan Khusus Cetak BAST PDF */
-        @media print {
-            body { background: white !important; color: black !important; }
-            .print\:hidden, aside, header, nav, .no-print { display: none !important; }
-            #printable-bast {
-                display: block !important;
-                position: static !important;
-                width: 100% !important;
-                visibility: visible !important;
-            }
-            #printable-bast * { visibility: visible !important; }
-        }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
-
-    <!-- LOGIN SCREEN -->
-    <div x-show="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-xl px-4 print:hidden" x-cloak>
-        <div class="w-full max-w-sm bg-slate-900 border border-slate-800/80 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
-            <div class="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-            <div class="text-center mb-6">
-                <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-lg shadow-indigo-500/30 mb-3">
-                    <i data-lucide="box" class="w-6 h-6"></i>
-                </div>
-                <h1 class="text-xl font-bold tracking-tight text-white">ACM-WMS</h1>
-                <p class="text-xs text-slate-400 mt-0.5">Warehouse Management System</p>
-            </div>
-
-            <form @submit.prevent="login" class="space-y-3.5">
-                <div>
-                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Email / Username</label>
-                    <input type="text" x-model="Pemeriksaan pada file **"index (15).html"**[cite: 1] menemukan bahwa file tersebut terpotong pada baris 940 di bagian fungsi `reverseTransactionEffect`. Selain perbaikan untuk melengkapi kode yang terpotong, dua logika utama yang Anda minta telah diimplementasikan: pencarian nomor urut Drum ID yang kosong (mengisi celah) dan pemecahan otomatis kabel di atas 3.000 meter.
-
-### Rincian Pembaruan & Perbaikan yang Dilakukan
-
-1. **Logika Drum ID Dinamis (Mengisi Celah yang Kosong):**
-   Fungsi `getNextDrumId()` telah dimodifikasi. Sistem kini mengumpulkan semua nomor urut drum yang ada di gudang tujuan (termasuk dari drum yang baru saja di-generate pada sesi yang sama), mengurutkannya, dan mencari angka integer positif pertama yang belum terpakai (dimulai dari 1). 
-2. **Pemecahan Otomatis Kabel (Maksimum 3.000m per Drum):**
-   Pada fungsi `submitTransaction()`, apabila transaksi bertipe "Masuk" dan kategorinya "Cable", sistem akan mengecek Qty. Jika lebih dari 3.000, qty tersebut akan dipecah (`split`) dalam sebuah loop *while* berkapasitas 3.000, kemudian masing-masing mendapatkan nomor Drum ID barunya secara otomatis menggunakan `getNextDrumId()`.
-3. **Melengkapi Kode yang Terpotong (Truncated Logic):**
-   Melanjutkan blok fungsi `reverseTransactionEffect`, menambah fungsi `submitTransaction` secara utuh, dan menyematkan kembali semua helper mutlak yang terikat pada template HTML (seperti `updateStok`, `printBAST`, filter tabel, dan fitur *Export CSV*).
-
----
-
-### Saran & Rekomendasi Kelayakan Publikasi (Production Ready)
-
-* **Keamanan Key Database (Kritis):** Kredensial `SUPABASE_ANON_KEY` saat ini terpapar jelas (hardcoded) di frontend HTML. Ini sangat berbahaya untuk publikasi karena siapapun yang membaca inspeksi kode (F12) dapat memanipulasi database Anda. **Solusi:** Terapkan *Row Level Security* (RLS) di tabel Supabase Anda dan pastikan operasi insert/update yang sensitif divalidasi, atau pindahkan file logic ke framework seperti Next.js/Nuxt.js untuk menyimpan key ini sebagai *Environment Variable* tersembunyi.
-* **Sinkronisasi State Lokal vs Cloud:** Aplikasi saat ini sangat bergantung pada `localStorage` (`safeLoadStorage`). Metode sinkronisasi `$watch` ke lokal ini tidak ideal untuk aplikasi *multi-user* (misal: dua staff gudang di lokasi berbeda tidak akan melihat update secara *real-time* sebelum me-refresh halaman yang terhubung ke call Supabase). **Solusi:** Pindahkan array master (barang, transaksi, dll) untuk di-fetch dari API Supabase secara reaktif saat aplikasi pertama dimuat (di fungsi `init()`) dan di *trigger* setiap kali `submitTransaction` selesai.
-* **Isolasi Logika (Maintainability):** Untuk versi produksi, pisahkan blok `<script>` Alpine.js ini ke dalam file `app.js` yang terpisah. Template HTML yang mencapai +1.000 baris akan menyulitkan perawatan struktur visual.
-
----
-
-### Kode Lengkap "index (15).html" 
-Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, dan struktur CSS/Tailwind dipertahankan 100% tanpa perubahan elemen visual.
-
-```html
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ACM-WMS</title>
-    <!-- Tailwind CSS (CDN Stable) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Supabase JS Client v2 -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- html2pdf.js for direct PDF download -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <!-- Google Fonts: Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; font-size: 13px; }
-        [x-cloak] { display: none !important; }
-
-        /* Pengaturan Khusus Cetak BAST PDF */
-        @media print {
-            body {
-                background: white !important;
-                color: black !important;
-            }
-            .print\:hidden, aside, header, nav, .no-print {
-                display: none !important;
-            }
-            #printable-bast {
-                display: block !important;
-                position: static !important;
-                width: 100% !important;
-                visibility: visible !important;
-            }
-            #printable-bast * {
-                visibility: visible !important;
-            }
-        }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
-
-    <!-- LOGIN SCREEN -->
-    <div x-show="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-xl px-4 print:hidden" x-cloak>
-        <div class="w-full max-w-sm bg-slate-900 border border-slate-800/80 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
-            <div class="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-            
-            <div class="text-center mb-6">
-                <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-lg shadow-indigo-500/30 mb-3">
-                    <i data-lucide="box" class="w-6 h-6"></i>
-                </div>
-                <h1 class="text-xl font-bold tracking-tight text-white">ACM-WMS</h1>
-                <p class="text-xs text-slate-400 mt-0.5">Warehouse Management System</p>
-            </div>
-
-            <form @submit.prevent="login" class="space-y-3.5">
-                <div>
-                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Email / Username</label>
-                    <input type="text" x-model="loginForm.email" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Password</label>
-                    <input type="password" x-model="loginForm.password" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Pilih Role Akses</label>
-                    <select x-model="loginForm.role" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                        <option value="Admin">Administrator (Full Access)</option>
-                        <option value="Staff Gudang">Staff Gudang (Input & Stok)</option>
-                        <option value="Project Manager">Project Manager (Project & Usage)</option>
-                    </select>
-                </div>
-                <button type="submit" class="w-full mt-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-medium py-2.5 rounded-lg shadow-lg shadow-indigo-600/20 transition duration-200 text-xs">
-                    Masuk ke Sistem
-                </button>
-            </form>
-            <div class="mt-5 text-center">
-                <span class="text-[10px] text-slate-500">Connected to Supabase Cloud & GitHub CI/CD Ready</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- MAIN APP LAYOUT -->
-    <div x-show="isLoggedIn" class="h-screen flex flex-col md:flex-row overflow-hidden print:hidden" x-cloak>
-        
-        <!-- SIDEBAR -->
-        <aside class="w-full md:w-60 bg-slate-900 border-r border-slate-800 flex flex-col justify-between shrink-0 md:h-screen md:sticky md:top-0 overflow-hidden">
-            <div>
-                <!-- Brand Header -->
-                <div class="h-14 flex items-center px-5 border-b border-slate-800 gap-2.5">
-                    <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-                        <i data-lucide="layers" class="w-4 h-4"></i>
-                    </div>
-                    <div>
-                        <span class="font-bold text-sm tracking-wide text-white">WMS System</span>
-                        <span class="block text-[9px] text-indigo-400 font-medium uppercase tracking-widest">PT Acero Cetha Metalindo</span>
-                    </div>
-                </div>
-
-                <!-- Navigation Links -->
-                <nav class="p-3.5 space-y-1 text-xs overflow-hidden">
-                    <div class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider px-2.5 mb-1.5">Menu Utama</div>
-                    
-                    <a href="#" @click.prevent="switchTab('dashboard')" :class="currentTab === 'dashboard' ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-transparent font-medium transition">
-                        <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard
-                    </a>
-
-                    <div class="pt-3 text-[9px] font-semibold text-slate-400 uppercase tracking-wider px-2.5 mb-1.5">Master Data</div>
-                    
-                    <a href="#" @click.prevent="switchTab('barang')" :class="currentTab === 'barang' ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-transparent font-medium transition">
-                        <i data-lucide="package" class="w-3.5 h-3.5"></i> Master Barang
-                    </a>
-                    <a href="#" @click.prevent="switchTab('gudang')" :class="currentTab === 'gudang' ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-transparent font-medium transition">
-                        <i data-lucide="warehouse" class="w-3.5 h-3.5"></i> Master Gudang
-                    </a>
-                    <a href="#" @click.prevent="switchTab('project')" :class="currentTab === 'project' ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-transparent font-medium transition">
-                        <i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Master Project
-                    </a>
-
-                    <div class="pt-3 text-[9px] font-semibold text-slate-400 uppercase tracking-wider px-2.5 mb-1.5">Operasional</div>
-                    
-                    <a href="#" @click.prevent="openInputTransaction()" :class="currentTab === 'input-transaksi' ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-transparent font-medium transition">
-                        <i data-lucide="file-plus" class="w-3.5 h-3.5"></i> Input Transaksi
-                    </a>
-                    <a href="#" @click.prevent="switchTab('stok')" :class="currentTab === 'stok' ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-transparent font-medium transition">
-                        <i data-lucide="boxes" class="w-3.5 h-3.5"></i> Stok & Pelacakan Drum
-                    </a>
-                    <a href="#" @click.prevent="switchTab('usage')" :class="currentTab === 'usage' ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-transparent font-medium transition">
-                        <i data-lucide="activity" class="w-3.5 h-3.5"></i> Material Usage
-                    </a>
-                    <a href="#" @click.prevent="switchTab('data-transaksi')" :class="currentTab === 'data-transaksi' ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-transparent font-medium transition">
-                        <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Data Transaksi & BAST
-                    </a>
-                </nav>
-            </div>
-
-            <!-- User Info & Logout -->
-            <div class="p-3.5 border-t border-slate-800 bg-slate-900/50 flex items-center justify-between">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-indigo-400 text-xs" x-text="(currentUser || 'AD').substring(0,2).toUpperCase()"></div>
-                    <div class="overflow-hidden">
-                        <p class="text-[11px] font-medium text-white truncate" x-text="currentUser"></p>
-                        <p class="text-[9px] text-indigo-400 font-semibold" x-text="currentRole"></p>
-                    </div>
-                </div>
-                <button type="button" @click="logout" class="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition" title="Keluar">
-                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
-                </button>
-            </div>
-        </aside>
-
-        <!-- MAIN CONTENT AREA -->
-        <main class="flex-1 flex flex-col min-w-0 h-full overflow-y-auto bg-slate-950">
-            <!-- Top Bar -->
-            <header class="h-14 border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-20 flex items-center justify-between px-5 shrink-0">
-                <div class="flex items-center gap-2.5">
-                    <h2 class="text-sm font-semibold text-white capitalize" x-text="currentTab.replace('-', ' ')"></h2>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full text-[10px] font-medium">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        Server Connected
-                    </div>
-                </div>
-            </header>
-
-            <div class="p-5 md:p-6 space-y-5">
-
-                <!-- 1. DASHBOARD TAB -->
-                <div x-show="currentTab === 'dashboard'" class="space-y-5" x-cloak>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Total Barang</span>
-                                <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400"><i data-lucide="package" class="w-4 h-4"></i></div>
-                            </div>
-                            <div class="mt-3 flex items-baseline justify-between">
-                                <h3 class="text-xl font-bold text-white" x-text="masterBarang.length"></h3>
-                                <span class="text-[10px] text-emerald-400 font-medium">Active SKU</span>
-                            </div>
-                        </div>
-                        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Gudang Aktif</span>
-                                <div class="p-2 rounded-lg bg-violet-500/10 text-violet-400"><i data-lucide="warehouse" class="w-4 h-4"></i></div>
-                            </div>
-                            <div class="mt-3 flex items-baseline justify-between">
-                                <h3 class="text-xl font-bold text-white" x-text="masterGudang.length"></h3>
-                                <span class="text-[10px] text-slate-400 font-medium">Multi-location</span>
-                            </div>
-                        </div>
-                        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Active Projects</span>
-                                <div class="p-2 rounded-lg bg-amber-500/10 text-amber-400"><i data-lucide="briefcase" class="w-4 h-4"></i></div>
-                            </div>
-                            <div class="mt-3 flex items-baseline justify-between">
-                                <h3 class="text-xl font-bold text-white" x-text="masterProject.length"></h3>
-                                <span class="text-[10px] text-emerald-400 font-medium">On Track</span>
-                            </div>
-                        </div>
-                        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Total Transaksi</span>
-                                <div class="p-2 rounded-lg bg-blue-500/10 text-blue-400"><i data-lucide="file-text" class="w-4 h-4"></i></div>
-                            </div>
-                            <div class="mt-3 flex items-baseline justify-between">
-                                <h3 class="text-xl font-bold text-white" x-text="transactions.length"></h3>
-                                <span class="text-[10px] text-indigo-400 font-medium">Updated Realtime</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 2. MASTER BARANG -->
-                <div x-show="currentTab === 'barang'" class="space-y-4" x-cloak>
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-sm font-semibold text-white">Daftar Master Barang</h3>
-                        </div>
-                        <button type="button" @click="openModal('barang')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5">
-                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Barang
-                        </button>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                                        <th class="p-3">Kategori</th>
-                                        <th class="p-3">Jenis</th>
-                                        <th class="p-3">Kode Barang</th>
-                                        <th class="p-3">Nama Barang</th>
-                                        <th class="p-3">Satuan</th>
-                                        <th class="p-3 text-right">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                    <template x-for="(item, index) in masterBarang" :key="item.kodeBarang || index">
-                                        <tr class="hover:bg-slate-800/30 transition">
-                                            <td class="p-3 font-medium text-slate-200" x-text="item.kategori"></td>
-                                            <td class="p-3 text-slate-300" x-text="item.jenis"></td>
-                                            <td class="p-3 text-indigo-400 text-[12px]" x-text="item.kodeBarang"></td>
-                                            <td class="p-3 text-white font-medium" x-text="item.namaBarang"></td>
-                                            <td class="p-3 text-slate-300" x-text="item.sat"></td>
-                                            <td class="p-3 text-right flex items-center justify-end gap-1">
-                                                <button type="button" @click="openEditModal('barang', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                                <button type="button" @click="deleteItem('barang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                    <template x-if="masterBarang.length === 0">
-                                        <tr>
-                                            <td colspan="6" class="p-6 text-center text-slate-500 text-xs">Belum ada data Master Barang.</td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. MASTER GUDANG -->
-                <div x-show="currentTab === 'gudang'" class="space-y-4" x-cloak>
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-sm font-semibold text-white">Daftar Master Gudang</h3>
-                        </div>
-                        <button type="button" @click="openModal('gudang')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5">
-                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Gudang
-                        </button>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                                        <th class="p-3">Kode Gudang</th>
-                                        <th class="p-3">Nama Gudang</th>
-                                        <th class="p-3">Tipe Kepemilikan</th>
-                                        <th class="p-3">Lokasi</th>
-                                        <th class="p-3 text-right">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                    <template x-for="(item, index) in masterGudang" :key="item.kodeGudang || index">
-                                        <tr class="hover:bg-slate-800/30 transition">
-                                            <td class="p-3 text-indigo-400 text-[12px]" x-text="item.kodeGudang"></td>
-                                            <td class="p-3 font-medium text-white" x-text="item.namaGudang"></td>
-                                            <td class="p-3">
-                                                <span class="px-2 py-0.5 rounded-full text-[11px] font-medium" :class="item.tipeKepemilikan === 'Milik Sendiri' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'" x-text="item.tipeKepemilikan"></span>
-                                            </td>
-                                            <td class="p-3 text-slate-300" x-text="item.lokasi"></td>
-                                            <td class="p-3 text-right flex items-center justify-end gap-1">
-                                                <button type="button" @click="openEditModal('gudang', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                                <button type="button" @click="deleteItem('gudang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                    <template x-if="masterGudang.length === 0">
-                                        <tr>
-                                            <td colspan="5" class="p-6 text-center text-slate-500 text-xs">Belum ada data Master Gudang.</td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 4. MASTER PROJECT -->
-                <div x-show="currentTab === 'project'" class="space-y-4" x-cloak>
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                        <div>
-                            <h3 class="text-sm font-semibold text-white">Daftar Master Project</h3>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button type="button" @click="openModal('project')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5">
-                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Project
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-x-auto shadow-sm">
-                        <table class="w-full text-left border-collapse whitespace-nowrap">
-                            <thead>
-                                <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                                    <th class="p-3">Periode</th>
-                                    <th class="p-3">Region</th>
-                                    <th class="p-3">Kode Project</th>
-                                    <th class="p-3">Type</th>
-                                    <th class="p-3">No PO</th>
-                                    <th class="p-3">Project Name</th>
-                                    <th class="p-3 text-right">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                <template x-for="(item, index) in masterProject" :key="item.kodeProject || index">
-                                    <tr class="hover:bg-slate-800/30 transition">
-                                        <td class="p-3 text-slate-300" x-text="item.periode"></td>
-                                        <td class="p-3 text-slate-300" x-text="item.region"></td>
-                                        <td class="p-3 text-indigo-400 text-[12px] font-semibold" x-text="item.kodeProject"></td>
-                                        <td class="p-3 text-slate-300" x-text="item.type"></td>
-                                        <td class="p-3 text-slate-200" x-text="item.noPO"></td>
-                                        <td class="p-3 text-slate-200 font-medium" x-text="item.projectName"></td>
-                                        <td class="p-3 text-right flex items-center justify-end gap-1">
-                                            <button type="button" @click="openEditModal('project', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                            <button type="button" @click="deleteItem('project', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                                        </td>
-                                    </tr>
-                                </template>
-                                <template x-if="masterProject.length === 0">
-                                    <tr>
-                                        <td colspan="7" class="p-6 text-center text-slate-500 text-xs">Belum ada data Master Project.</td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- 5. INPUT TRANSAKSI -->
-                <div x-show="currentTab === 'input-transaksi'" class="space-y-4" x-cloak>
-                    <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 md:p-6 shadow-sm">
-                        <div class="border-b border-slate-800 pb-3 mb-4 flex items-center justify-between">
-                            <div>
-                                <h3 class="text-sm font-semibold text-white" x-text="editingOriginalNo ? 'Edit Transaksi: ' + editingOriginalNo : 'Input Transaksi Baru'"></h3>
-                            </div>
-                            <button type="button" @click="resetInputTransaction()" class="text-[10px] text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg transition flex items-center gap-1">
-                                <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Reset Form
-                            </button>
-                        </div>
-
-                        <form @submit.prevent="submitTransaction" class="space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Tanggal Transaksi</label>
-                                    <input type="date" x-model="newTrans.tanggal" @change="generateNoTransaksi()" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">No Transaksi</label>
-                                    <input type="text" x-model="newTrans.noTransaksi" readonly class="w-full bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-2 text-xs text-indigo-400 font-mono cursor-not-allowed">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">
-                                        No Referensi <span class="text-rose-400">*</span>
-                                    </label>
-                                    <input type="text" x-model="newTrans.noReferensi" required placeholder="No Referensi..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Tipe Transaksi</label>
-                                    <select x-model="newTrans.tipeTransaksi" @change="onTipeTransaksiChange();newTrans.kodeProject = ''" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                        <option value="Masuk">Masuk</option>
-                                        <option value="Keluar">Keluar</option>
-                                        <option value="Transfer">Transfer</option>
-                                    </select>
-                                </div>
-
-                                <!-- Dynamic Gudang Asal -->
-                                <div>
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">
-                                        Gudang / Sumber Asal <span x-show="newTrans.tipeTransaksi === 'Masuk'" class="text-slate-500">(Pemasok / Vendor)</span>
-                                    </label>
-                                    <template x-if="newTrans.tipeTransaksi === 'Masuk'">
-                                        <input type="text" x-model="newTrans.gudangAsal" @input="generateNoTransaksi()" placeholder="Vendor / Supplier (misal: YOFC)" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                    </template>
-                                    <template x-if="newTrans.tipeTransaksi !== 'Masuk'">
-                                        <select x-model="newTrans.gudangAsal" @change="resetItemsOnWarehouseChange(); generateNoTransaksi();newTrans.kodeProject = ''" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                            <option value="">Pilih Gudang Asal</option>
-                                            <template x-for="g in masterGudang" :key="g.kodeGudang">
-                                                <option :value="g.namaGudang" x-text="g.namaGudang"></option>
-                                            </template>
-                                        </select>
-                                    </template>
-                                </div>
-
-                                <!-- Dynamic Gudang Tujuan -->
-                                <div>
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">
-                                        Gudang / Tujuan <span x-show="newTrans.tipeTransaksi === 'Keluar'" class="text-slate-500">(Project / Lapangan)</span>
-                                    </label>
-                                    <template x-if="newTrans.tipeTransaksi === 'Keluar'">
-                                        <input type="text" x-model="newTrans.gudangTujuan" @input="generateNoTransaksi()" placeholder="Tujuan / Lapangan / Eksternal" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                    </template>
-                                    <template x-if="newTrans.tipeTransaksi !== 'Keluar'">
-                                        <select x-model="newTrans.gudangTujuan" @change="generateNoTransaksi()" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                            <option value="">Pilih Gudang Tujuan</option>
-                                            <template x-for="g in getGudangTujuanList()" :key="g.kodeGudang">
-                                                <option :value="g.namaGudang" x-text="g.namaGudang"></option>
-                                            </template>
-                                        </select>
-                                    </template>
-                                </div>
-
-                                <!-- Kode Project Terkait -->
-                                <div class="md:col-span-1">
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
-                                    <select x-model="newTrans.kodeProject" 
-                                            :disabled="newTrans.tipeTransaksi !== 'Keluar' || getFilteredProjectsForAsal().length === 0" 
-                                            class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed">
-                                        <option value="">Pilih Project...</option>
-                                        <template x-for="p in getFilteredProjectsForAsal()" :key="p.kodeProject">
-                                            <option :value="p.kodeProject" x-text="p.kodeProject + ' - ' + p.projectName"></option>
-                                        </template>
-                                    </select>
-                                </div>
-                                <div class="md:col-span-1">
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">
-                                        Keterangan <span class="text-rose-400">*</span>
-                                    </label>
-                                    <input type="text" x-model="newTrans.keterangan" required placeholder="Keterangan" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                </div>
-                                
-                                <!-- Lampiran Dokumen -->
-                                <div class="md:col-span-1">
-                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Lampiran Dokumen (Supabase Storage)</label>
-                                    <input type="file" @change="handleFileUpload($event)" accept="image/*,.pdf" class="w-full text-[10px] text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500">
-                                    <template x-if="newTrans.lampiran">
-                                        <p class="text-[9px] text-indigo-400 mt-1 truncate">
-                                            <i data-lucide="check-circle" class="w-3 h-3 inline text-emerald-400"></i>
-                                            Terpilih: <span x-text="newTrans.lampiran"></span>
-                                        </p>
-                                    </template>
-                                </div>
-                            </div>
-
-                            <!-- Detail Material Item Dynamic Table -->
-                            <div class="pt-3 border-t border-slate-800">
-                                <div class="flex items-center justify-between mb-2.5">
-                                    <div>
-                                        <h4 class="text-xs font-semibold text-white">Detail Material & Pelacakan Nomor Drum Kabel</h4>
-                                        <p class="text-[10px] text-slate-400">Pilih Kategori → Jenis → Kode Barang → Tentukan Drum & Qty</p>
-                                    </div>
-                                    <button type="button" @click="addTransactionItem" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-400 px-2.5 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1">
-                                        <i data-lucide="plus" class="w-3 h-3"></i> Tambah Item
-                                    </button>
-                                </div>
-
-                                <div class="space-y-2.5">
-                                    <template x-for="(item, index) in newTrans.items" :key="index">
-                                        <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                                            <div class="md:col-span-2">
-                                                <select x-model="item.kategori" @change="item.jenis=''; item.kodeBarang=''; item.namaBarang=''; item.drumId=''" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200">
-                                                    <option value="">Pilih Kategori</option>
-                                                    <template x-for="kat in getCategories(item)" :key="kat">
-                                                        <option :value="kat" x-text="kat"></option>
-                                                    </template>
-                                                </select>
-                                            </div>
-                                            <div class="md:col-span-2">
-                                                <select x-model="item.jenis" @change="item.kodeBarang=''; item.namaBarang=''; item.drumId=''" :disabled="!item.kategori" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50">
-                                                    <option value="">Pilih Jenis</option>
-                                                    <template x-for="jns in getJenis(item.kategori)" :key="jns">
-                                                        <option :value="jns" x-text="jns"></option>
-                                                    </template>
-                                                </select>
-                                            </div>
-                                            <div class="md:col-span-2">
-                                                <select x-model="item.kodeBarang" @change="fillNamaBarang(item); item.drumId=''" :disabled="!item.jenis" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-50 font-mono">
-                                                    <option value="">Pilih Kode</option>
-                                                    <template x-for="brg in getBarangList(item.kategori, item.jenis)" :key="brg.kodeBarang">
-                                                        <option :value="brg.kodeBarang" x-text="brg.kodeBarang"></option>
-                                                    </template>
-                                                </select>
-                                            </div>
-                                            <div class="md:col-span-2">
-                                                <input type="text" x-model="item.namaBarang" readonly placeholder="Nama Barang" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 bg-slate-950/50 cursor-not-allowed">
-                                            </div>
-                                            <div class="md:col-span-2">
-                                                <template x-if="getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer')">
-                                                    <select x-model="item.drumId" required class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
-                                                        <option value="">Pilih Drum ID</option>
-                                                        <template x-for="d in getDrumList(item)" :key="d.drumId">
-                                                            <option :value="d.drumId" :title="'Sisa Stok / Panjang: ' + d.remainingLength + ' m'" x-text="d.drumId + ' (Sisa: ' + d.remainingLength + 'm)'"></option>
-                                                        </template>
-                                                    </select>
-                                                </template>
-                                                <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer'))">
-                                                    <input type="text" x-model="item.drumId" 
-                                                        :placeholder="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Auto-generate jika kosong' : 'Drum ID (Opsional)'" 
+                                                        :placeholder="newTrans.tipeTransaksi === 'Masuk' && getCategoryByKode(item.kodeBarang) === 'Cable' ? 'Otomatis Auto-Split [PAD01-036-D01]' : 'Drum ID (Opsional)'" 
                                                         class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
                                                 </template>
                                             </div>
@@ -2563,6 +1029,8 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                 isEdit: false,
                 editIndex: null,
 
+                showSecondaryCols: false,
+
                 notification: { show: false, message: '', type: 'error' },
                 isLoading: false,
                 selectedFile: null,
@@ -2608,11 +1076,11 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                 drumLedger: safeLoadStorage('vortex_drumLedger', [
                     { drumId: 'NPMJKT01-024-D01', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
                     { drumId: 'NPMJKT01-024-D02', kodeBarang: 'CBL-ADSS-024', namaBarang: 'Kabel ADSS-024 24Core (Max 3000m/Drum)', gudang: 'Gudang Utama Jakarta', initialLength: 3000, remainingLength: 3000, status: 'Full' },
-                    { drumId: 'PDG01-036-D01', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', gudang: 'Gudang Regional Padang', initialLength: 3000, remainingLength: 3000, status: 'Full' }
+                    { drumId: 'PAD01-036-D02', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', gudang: 'Gudang Regional Padang', initialLength: 3000, remainingLength: 3000, status: 'Full' }
                 ]),
 
                 materialUsage: safeLoadStorage('vortex_materialUsage', [
-                    { id: 'USG-INIT-001', transactionNo: 'ACM-PDG-OUT-202609-01', kodeProject: 'ACH-2026-001', noPO: 'PO/2026/0192', projectName: 'Project Aceh FTTH 2026', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', drumId: 'PDG01-036-D01', qty: 1000, tanggal: '2026-09-02' }
+                    { id: 'USG-INIT-001', transactionNo: 'ACM-PDG-OUT-202609-01', kodeProject: 'ACH-2026-001', noPO: 'PO/2026/0192', projectName: 'Project Aceh FTTH 2026', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', drumId: 'PAD01-036-D02', qty: 1000, tanggal: '2026-09-02' }
                 ]),
 
                 transactions: safeLoadStorage('vortex_transactions', [
@@ -2628,7 +1096,7 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                         keterangan: 'Penerimaan material kabel ADSS-036 Padang',
                         lampiran: '',
                         lampiranUrl: '',
-                        items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', drumId: 'PDG01-036-D01', qty: 3000, keterangan: 'Segel utuh' }]
+                        items: [{ kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core (Max 3000m/Drum)', drumId: 'PAD01-036-D02', qty: 3000, keterangan: 'Segel utuh' }]
                     }
                 ]),
 
@@ -2711,7 +1179,7 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                 },
 
                 reuseDrum(drum, index) {
-                    if (confirm(`Apakah Anda yakin ingin melakukan Re-use / Scrap pada Drum ID "${drum.drumId}"?\nDrum ini akan dihapus dari Drum Ledger aktif.`)) {
+                    if (confirm(`Apakah Anda yakin ingin melakukan Re-use / Scrap pada Drum ID "${drum.drumId}"?\nDrum ini akan dihapus dari Drum Ledger aktif, sehingga nomor Drum ID tersebut dapat dibersihkan dan digunakan kembali untuk barang masuk berikutnya tanpa penumpukan.`)) {
                         this.drumLedger.splice(index, 1);
                         this.showNotification(`Drum ID "${drum.drumId}" berhasil di-re-use / dikosongkan dari ledger!`, 'success');
                         this.refreshIcons();
@@ -2744,16 +1212,19 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
 
                             if (error) {
                                 console.warn('Supabase Storage Upload Warning:', error.message);
-                                this.showNotification('Berkas disimpan lokal', 'error');
+                                this.showNotification('Berkas disimpan lokal (Supabase storage memerlukan bucket public "attachments")', 'error');
                             } else {
-                                const { data: publicUrlData } = supabaseClient.storage.from('attachments').getPublicUrl(filePath);
+                                const { data: publicUrlData } = supabaseClient.storage
+                                    .from('attachments')
+                                    .getPublicUrl(filePath);
+
                                 if (publicUrlData && publicUrlData.publicUrl) {
                                     this.newTrans.lampiranUrl = publicUrlData.publicUrl;
-                                    this.showNotification('Berkas berhasil diunggah!', 'success');
+                                    this.showNotification('Berkas berhasil diunggah ke Supabase Storage Bucket!', 'success');
                                 }
                             }
                         } catch (err) {
-                            console.error(err);
+                            console.error('File upload exception:', err);
                         } finally {
                             this.isLoading = false;
                         }
@@ -2766,7 +1237,14 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                     this.editIndex = null;
                     if (type === 'project') {
                         const today = new Date().toISOString().split('T')[0];
-                        this.modalForm = { periode: today, region: '', kodeProject: '', type: 'Main Feeder', noPO: '', projectName: '' };
+                        this.modalForm = {
+                            periode: today,
+                            region: '',
+                            kodeProject: '',
+                            type: 'Main Feeder',
+                            noPO: '',
+                            projectName: '',
+                        };
                         this.generateKodeProject();
                     } else if (type === 'barang') {
                         this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Pcs' };
@@ -2774,16 +1252,22 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                         this.modalForm = { kodeGudang: '', namaGudang: '', tipeKepemilikan: 'Milik Sendiri', lokasi: '' };
                     }
                     this.showModal = true;
+                    this.refreshIcons();
                 },
 
                 openEditModal(type, index) {
                     this.modalType = type;
                     this.isEdit = true;
                     this.editIndex = index;
-                    if (type === 'project') this.modalForm = { ...this.masterProject[index] };
-                    else if (type === 'barang') this.modalForm = { ...this.masterBarang[index] };
-                    else if (type === 'gudang') this.modalForm = { ...this.masterGudang[index] };
+                    if (type === 'project') {
+                        this.modalForm = { ...this.masterProject[index] };
+                    } else if (type === 'barang') {
+                        this.modalForm = { ...this.masterBarang[index] };
+                    } else if (type === 'gudang') {
+                        this.modalForm = { ...this.masterGudang[index] };
+                    }
                     this.showModal = true;
+                    this.refreshIcons();
                 },
 
                 getRegionCode(reg) {
@@ -2802,35 +1286,56 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                     let year = '2026';
                     if (this.modalForm.periode) {
                         const d = new Date(this.modalForm.periode);
-                        if (!isNaN(d.getFullYear())) year = d.getFullYear().toString();
+                        if (!isNaN(d.getFullYear())) {
+                            year = d.getFullYear().toString();
+                        }
                     }
 
                     const prefix = `${regCode}-${year}-`;
                     let maxSeq = 0;
+
                     this.masterProject.forEach(p => {
                         if (p.kodeProject && p.kodeProject.startsWith(prefix)) {
                             const numPart = p.kodeProject.replace(prefix, '');
                             const num = parseInt(numPart, 10);
-                            if (!isNaN(num) && num > maxSeq) maxSeq = num;
+                            if (!isNaN(num) && num > maxSeq) {
+                                maxSeq = num;
+                            }
                         }
                     });
+
                     const nextSeq = String(maxSeq + 1).padStart(3, '0');
                     this.modalForm.kodeProject = `${prefix}${nextSeq}`;
                 },
 
                 saveModalData() {
                     if (this.modalType === 'project') {
-                        if (this.isEdit) this.masterProject[this.editIndex] = { ...this.modalForm };
-                        else this.masterProject.push({ ...this.modalForm });
+                        if (this.isEdit && this.editIndex !== null) {
+                            this.masterProject[this.editIndex] = { ...this.modalForm };
+                            this.showNotification('Master Project berhasil diperbaharui!', 'success');
+                        } else {
+                            this.masterProject.push({ ...this.modalForm });
+                            this.showNotification('Master Project berhasil ditambahkan!', 'success');
+                        }
                     } else if (this.modalType === 'barang') {
-                        if (this.isEdit) this.masterBarang[this.editIndex] = { ...this.modalForm };
-                        else this.masterBarang.push({ ...this.modalForm });
+                        if (this.isEdit && this.editIndex !== null) {
+                            this.masterBarang[this.editIndex] = { ...this.modalForm };
+                            this.showNotification('Master Barang berhasil diperbaharui!', 'success');
+                        } else {
+                            this.masterBarang.push({ ...this.modalForm });
+                            this.showNotification('Master Barang berhasil ditambahkan!', 'success');
+                        }
                     } else if (this.modalType === 'gudang') {
-                        if (this.isEdit) this.masterGudang[this.editIndex] = { ...this.modalForm };
-                        else this.masterGudang.push({ ...this.modalForm });
+                        if (this.isEdit && this.editIndex !== null) {
+                            this.masterGudang[this.editIndex] = { ...this.modalForm };
+                            this.showNotification('Master Gudang berhasil diperbaharui!', 'success');
+                        } else {
+                            this.masterGudang.push({ ...this.modalForm });
+                            this.showNotification('Master Gudang berhasil ditambahkan!', 'success');
+                        }
                     }
-                    this.showNotification(`Master ${this.modalType} berhasil disimpan!`, 'success');
                     this.showModal = false;
+                    this.refreshIcons();
                 },
 
                 deleteItem(type, index) {
@@ -2875,23 +1380,34 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                     let whCode3 = 'NPM';
                     if (whName) {
                         const foundGudang = this.masterGudang.find(g => g.namaGudang === whName);
-                        whCode3 = foundGudang && foundGudang.kodeGudang ? foundGudang.kodeGudang.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : whName.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+                        if (foundGudang && foundGudang.kodeGudang) {
+                            whCode3 = foundGudang.kodeGudang.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+                        } else {
+                            whCode3 = whName.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+                        }
                     }
                     if (!whCode3 || whCode3.length < 3) whCode3 = 'NPM';
 
-                    const prefixToCheck = `ACM-${whCode3}-${typeCode}-${d}-`;
+                    const periodStr = d;
+                    const prefixToCheck = `ACM-${whCode3}-${typeCode}-${periodStr}-`;
+                    
                     let existingSeqs = [];
                     this.transactions.forEach(t => {
                         if (t.noTransaksi && t.noTransaksi.startsWith(prefixToCheck)) {
                             const seqPart = t.noTransaksi.replace(prefixToCheck, '');
                             const seqNum = parseInt(seqPart, 10);
-                            if (!isNaN(seqNum)) existingSeqs.push(seqNum);
+                            if (!isNaN(seqNum)) {
+                                existingSeqs.push(seqNum);
+                            }
                         }
                     });
 
                     let seqNum = 1;
-                    while (existingSeqs.includes(seqNum)) seqNum++;
-                    this.newTrans.noTransaksi = `${prefixToCheck}${String(seqNum).padStart(2, '0')}`;
+                    while (existingSeqs.includes(seqNum)) {
+                        seqNum++;
+                    }
+                    const seqStr = String(seqNum).padStart(2, '0');
+                    this.newTrans.noTransaksi = `ACM-${whCode3}-${typeCode}-${periodStr}-${seqStr}`;
                 },
 
                 onTipeTransaksiChange() {
@@ -2901,19 +1417,36 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                 },
 
                 resetItemsOnWarehouseChange() {
-                    this.newTrans.items.forEach(item => item.drumId = '');
+                    this.newTrans.items.forEach(item => {
+                        item.drumId = '';
+                    });
                 },
 
                 getGudangTujuanList() {
-                    return this.newTrans.tipeTransaksi === 'Transfer' ? this.masterGudang.filter(g => g.namaGudang !== this.newTrans.gudangAsal) : this.masterGudang;
+                    if (this.newTrans.tipeTransaksi === 'Transfer') {
+                        return this.masterGudang.filter(g => g.namaGudang !== this.newTrans.gudangAsal);
+                    }
+                    return this.masterGudang;
                 },
 
+                getFilteredProjects() {
+                    return this.masterProject;
+                },
+                
                 getFilteredProjectsForAsal() {
-                    if (this.newTrans.tipeTransaksi !== 'Keluar' || !this.newTrans.gudangAsal) return [];
+                    if (this.newTrans.tipeTransaksi !== 'Keluar' || !this.newTrans.gudangAsal) {
+                        return [];
+                    }
                     const foundGudang = this.masterGudang.find(g => g.namaGudang === this.newTrans.gudangAsal);
-                    if (!foundGudang || !foundGudang.kodeGudang) return this.masterProject;
+                    if (!foundGudang || !foundGudang.kodeGudang) {
+                        return this.masterProject;
+                    }
                     const gudangRegionCode = this.getRegionCode(foundGudang.kodeGudang);
-                    const filtered = this.masterProject.filter(p => p.region && this.getRegionCode(p.region) === gudangRegionCode);
+
+                    const filtered = this.masterProject.filter(p => {
+                        if (!p.region) return false;
+                        return this.getRegionCode(p.region) === gudangRegionCode;
+                    });
                     return filtered.length > 0 ? filtered : this.masterProject;
                 },
                 
@@ -2922,31 +1455,44 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                 },
 
                 removeTransactionItem(index) {
-                    if (this.newTrans.items.length > 1) this.newTrans.items.splice(index, 1);
-                    else this.showNotification('Minimal satu item transaksi harus diisi!', 'error');
+                    if (this.newTrans.items.length > 1) {
+                        this.newTrans.items.splice(index, 1);
+                    } else {
+                        this.showNotification('Minimal satu item transaksi harus diisi!', 'error');
+                    }
                 },
 
                 getCategories(item) {
                     if (this.newTrans.tipeTransaksi !== 'Masuk' && this.newTrans.gudangAsal) {
-                        const validKode = this.stokGudang.filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0).map(s => s.kodeBarang);
-                        return [...new Set(this.masterBarang.filter(b => validKode.includes(b.kodeBarang)).map(b => b.kategori))];
+                        const validKode = this.stokGudang
+                            .filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0)
+                            .map(s => s.kodeBarang);
+                        const validBarang = this.masterBarang.filter(b => validKode.includes(b.kodeBarang));
+                        return [...new Set(validBarang.map(b => b.kategori))];
                     }
-                    return [...new Set(this.masterBarang.map(b => b.kategori))];
+                    const cats = this.masterBarang.map(b => b.kategori);
+                    return [...new Set(cats)];
                 },
 
                 getJenis(kategori) {
                     if (!kategori) return [];
                     if (this.newTrans.tipeTransaksi !== 'Masuk' && this.newTrans.gudangAsal) {
-                        const validKode = this.stokGudang.filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0).map(s => s.kodeBarang);
-                        return [...new Set(this.masterBarang.filter(b => validKode.includes(b.kodeBarang) && b.kategori === kategori).map(b => b.jenis))];
+                        const validKode = this.stokGudang
+                            .filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0)
+                            .map(s => s.kodeBarang);
+                        const validBarang = this.masterBarang.filter(b => validKode.includes(b.kodeBarang) && b.kategori === kategori);
+                        return [...new Set(validBarang.map(b => b.jenis))];
                     }
-                    return [...new Set(this.masterBarang.filter(b => b.kategori === kategori).map(b => b.jenis))];
+                    const jns = this.masterBarang.filter(b => b.kategori === kategori).map(b => b.jenis);
+                    return [...new Set(jns)];
                 },
 
                 getBarangList(kategori, jenis) {
                     if (!kategori || !jenis) return [];
                     if (this.newTrans.tipeTransaksi !== 'Masuk' && this.newTrans.gudangAsal) {
-                         const validKode = this.stokGudang.filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0).map(s => s.kodeBarang);
+                         const validKode = this.stokGudang
+                            .filter(s => s.gudang === this.newTrans.gudangAsal && s.qty > 0)
+                            .map(s => s.kodeBarang);
                          return this.masterBarang.filter(b => validKode.includes(b.kodeBarang) && b.kategori === kategori && b.jenis === jenis);
                     }
                     return this.masterBarang.filter(b => b.kategori === kategori && b.jenis === jenis);
@@ -2959,18 +1505,26 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
 
                 fillNamaBarang(item) {
                     const brg = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                    item.namaBarang = brg ? brg.namaBarang : '';
+                    if (brg) {
+                        item.namaBarang = brg.namaBarang;
+                    } else {
+                        item.namaBarang = '';
+                    }
                 },
 
                 getDrumList(item) {
                     if (!item.kodeBarang) return [];
-                    return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === this.newTrans.gudangAsal && d.remainingLength > 0);
+                    const wh = this.newTrans.gudangAsal;
+                    return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === wh && d.remainingLength > 0);
                 },
 
                 /* =========================================================
-                   LOGIKA UTAMA PENOMORAN DRUM BARU - MENGISI CELAH KOSONG
+                   LOGIKA GAP-FILLING & AUTO-SPLITTING ID DRUM KABEL (PERBAIKAN)
                    ========================================================= */
-                getNextDrumId(targetWh, kodeBarang, currentSessionDrums = []) {
+                allocateDrumIds(targetWh, kodeBarang, totalQty, currentSessionDrums = []) {
+                    const MAX_CAPACITY = 3000; // Maksimum 3.000 meter per drum
+
+                    // 1. Tentukan Prefix ID Drum berdasarkan Gudang dan Kode Barang
                     const foundGudang = this.masterGudang.find(g => g.namaGudang === targetWh);
                     let whCode = foundGudang ? foundGudang.kodeGudang : targetWh;
                     whCode = (whCode || 'NPM').replace(/[-_\s]/g, '').toUpperCase();
@@ -2979,9 +1533,10 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                     const digitsOnly = cleanKode.replace(/[^0-9]/g, '');
                     const last3Barang = digitsOnly ? digitsOnly.slice(-3).padStart(3, '0') : cleanKode.slice(-3).padStart(3, '0');
 
-                    const prefix = `${whCode}-${last3Barang}-D`;
+                    const prefix = `${whCode}-${last3Barang}-D`; // Contoh Prefix: PAD01-036-D
 
-                    let usedSeqs = [];
+                    // 2. Kumpulkan nomor urut drum yang SUDAH TERISI di Gudang Tujuan ini
+                    const occupiedSet = new Set();
                     const combinedLedger = [...this.drumLedger, ...currentSessionDrums];
 
                     combinedLedger.forEach(drum => {
@@ -2989,187 +1544,53 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                             if (drum.drumId.startsWith(prefix)) {
                                 const numPart = drum.drumId.replace(prefix, '');
                                 const seq = parseInt(numPart, 10);
-                                if (!isNaN(seq)) usedSeqs.push(seq);
+                                if (!isNaN(seq)) {
+                                    occupiedSet.add(seq);
+                                }
                             } else {
                                 const match = drum.drumId.match(/-D(\d+)$/i);
                                 if (match) {
                                     const seq = parseInt(match[1], 10);
-                                    if (!isNaN(seq)) usedSeqs.push(seq);
+                                    if (!isNaN(seq)) {
+                                        occupiedSet.add(seq);
+                                    }
                                 }
                             }
                         }
                     });
 
-                    // Sort untuk mencari celah angka yang kosong (misal ada 1, 3 -> akan return 2)
-                    usedSeqs.sort((a, b) => a - b);
-                    let nextSeq = 1;
-                    for (let i = 0; i < usedSeqs.length; i++) {
-                        if (usedSeqs[i] === nextSeq) {
-                            nextSeq++;
-                        } else if (usedSeqs[i] > nextSeq) {
-                            break; 
-                        }
+                    // 3. Pecah totalQty menjadi potongan per drum max 3.000 meter
+                    let remaining = Number(totalQty);
+                    const splits = [];
+
+                    while (remaining > 0) {
+                        const chunk = Math.min(remaining, MAX_CAPACITY);
+                        splits.push(chunk);
+                        remaining -= chunk;
                     }
 
-                    const seqStr = String(nextSeq).padStart(2, '0');
-                    return `${prefix}${seqStr}`;
-                },
+                    // 4. Alokasikan nomor ID Drum kosong (Gap-Filling)
+                    const allocatedDrums = [];
+                    splits.forEach(chunkQty => {
+                        let seq = 1;
+                        while (occupiedSet.has(seq)) {
+                            seq++; // Cari nomor urut terkecil yang masih kosong
+                        }
+                        occupiedSet.add(seq); // Tandai nomor urut ini telah dipakai
 
-                updateStok(gudang, item, qtyChange) {
-                    let stok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === gudang);
-                    if (stok) {
-                        stok.qty += qtyChange;
-                        if(stok.qty < 0) stok.qty = 0;
-                    } else if (qtyChange > 0) {
-                        const master = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                        this.stokGudang.push({
-                            id: `${item.kodeBarang}_${gudang}`,
-                            kodeBarang: item.kodeBarang,
-                            namaBarang: item.namaBarang,
-                            kategori: master ? master.kategori : '',
-                            gudang: gudang,
-                            qty: qtyChange,
-                            sat: master ? master.sat : 'Pcs'
+                        const seqStr = String(seq).padStart(2, '0');
+                        const drumId = `${prefix}${seqStr}`;
+
+                        allocatedDrums.push({
+                            drumId: drumId,
+                            qty: chunkQty
                         });
-                    }
+                    });
+
+                    return allocatedDrums;
                 },
 
-                async submitTransaction() {
-                    this.isLoading = true;
-                    try {
-                        let processedItems = [];
-                        let generatedDrums = [];
-
-                        for (const item of this.newTrans.items) {
-                            if (!item.kategori || !item.jenis || !item.kodeBarang || !item.qty) {
-                                throw new Error("Mohon lengkapi semua data material (Kategori, Jenis, Kode, Qty).");
-                            }
-
-                            const qtyNum = Number(item.qty);
-                            if (qtyNum <= 0) throw new Error("Qty harus lebih dari 0");
-
-                            const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
-
-                            if (this.newTrans.tipeTransaksi === 'Masuk') {
-                                if (isCable) {
-                                    // Logika Pemecahan Kabel Otomatis (Max 3000m)
-                                    let remainingQty = qtyNum;
-                                    let chunkIndex = 0;
-
-                                    while (remainingQty > 0) {
-                                        let currentQty = Math.min(remainingQty, 3000);
-                                        remainingQty -= currentQty;
-                                        
-                                        let newDrumId;
-                                        if (item.drumId && chunkIndex === 0) {
-                                            // Gunakan input manual untuk potongan pertama jika user mengisinya
-                                            newDrumId = item.drumId;
-                                        } else {
-                                            newDrumId = this.getNextDrumId(this.newTrans.gudangTujuan, item.kodeBarang, generatedDrums);
-                                        }
-
-                                        generatedDrums.push({
-                                            drumId: newDrumId,
-                                            kodeBarang: item.kodeBarang,
-                                            namaBarang: item.namaBarang,
-                                            gudang: this.newTrans.gudangTujuan,
-                                            initialLength: currentQty,
-                                            remainingLength: currentQty,
-                                            status: 'Full'
-                                        });
-
-                                        processedItems.push({ ...item, drumId: newDrumId, qty: currentQty });
-                                        chunkIndex++;
-                                    }
-                                } else {
-                                    processedItems.push({ ...item });
-                                }
-                            } else { 
-                                // Validasi Keluar & Transfer
-                                const sourceWh = this.newTrans.gudangAsal;
-                                const stokItem = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === sourceWh);
-                                if (!stokItem || stokItem.qty < qtyNum) throw new Error(`Stok ${item.namaBarang} tidak mencukupi!`);
-
-                                if (isCable) {
-                                    if (!item.drumId) throw new Error(`Drum ID wajib dipilih untuk kabel saat Keluar/Transfer.`);
-                                    const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === sourceWh);
-                                    if (!drum || drum.remainingLength < qtyNum) {
-                                         throw new Error(`Sisa kabel Drum ${item.drumId} tidak mencukupi (Sisa: ${drum ? drum.remainingLength : 0}m)`);
-                                    }
-                                }
-                                processedItems.push({ ...item });
-                            }
-                        }
-
-                        if (this.editingOriginalNo) {
-                             const oldTxIndex = this.transactions.findIndex(t => t.noTransaksi === this.editingOriginalNo);
-                             if (oldTxIndex !== -1) {
-                                 this.reverseTransactionEffect(this.transactions[oldTxIndex]);
-                                 this.transactions.splice(oldTxIndex, 1);
-                             }
-                        }
-
-                        // Terapkan Perubahan Final ke Stok dan Ledger
-                        for (const item of processedItems) {
-                            const qtyNum = Number(item.qty);
-                            const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
-
-                            if (this.newTrans.tipeTransaksi === 'Masuk') {
-                                 this.updateStok(this.newTrans.gudangTujuan, item, qtyNum);
-                                 if (isCable) {
-                                     const genDrum = generatedDrums.find(d => d.drumId === item.drumId);
-                                     if (genDrum) this.drumLedger.push(genDrum);
-                                 }
-                            } else if (this.newTrans.tipeTransaksi === 'Keluar') {
-                                 this.updateStok(this.newTrans.gudangAsal, item, -qtyNum);
-                                 if (isCable) {
-                                     const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
-                                     if (drum) drum.remainingLength -= qtyNum;
-                                 }
-                                 
-                                 const proj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
-                                 this.materialUsage.push({
-                                     id: `USG-${Date.now()}-${Math.random().toString(36).substring(2,7)}`,
-                                     transactionNo: this.newTrans.noTransaksi,
-                                     kodeProject: this.newTrans.kodeProject,
-                                     noPO: proj ? proj.noPO : '-',
-                                     projectName: proj ? proj.projectName : '-',
-                                     kodeBarang: item.kodeBarang,
-                                     namaBarang: item.namaBarang,
-                                     drumId: item.drumId || '',
-                                     qty: qtyNum,
-                                     tanggal: this.newTrans.tanggal
-                                 });
-                            } else if (this.newTrans.tipeTransaksi === 'Transfer') {
-                                 this.updateStok(this.newTrans.gudangAsal, item, -qtyNum);
-                                 this.updateStok(this.newTrans.gudangTujuan, item, qtyNum);
-                                 if (isCable) {
-                                     const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
-                                     if (drum) {
-                                         drum.remainingLength -= qtyNum;
-                                         if (drum.remainingLength === 0) {
-                                             drum.gudang = this.newTrans.gudangTujuan;
-                                             drum.remainingLength = qtyNum;
-                                         } else {
-                                             this.drumLedger.push({ ...drum, gudang: this.newTrans.gudangTujuan, initialLength: qtyNum, remainingLength: qtyNum });
-                                         }
-                                     }
-                                 }
-                            }
-                        }
-
-                        this.transactions.push({ ...this.newTrans, items: processedItems });
-                        this.showNotification(this.editingOriginalNo ? 'Transaksi berhasil diupdate!' : 'Transaksi berhasil disimpan!', 'success');
-                        this.resetInputTransaction();
-                        this.switchTab('data-transaksi');
-                    } catch (error) {
-                        this.showNotification(error.message, 'error');
-                    } finally {
-                        this.isLoading = false;
-                    }
-                },
-
-                // Lanjutan Kode Original yang Terpotong (Truncated Recovery)
+                // Pembalikan Efek Transaksi Lama saat Edit / Hapus
                 reverseTransactionEffect(tx) {
                     if (!tx || !tx.items) return;
                     for (const item of tx.items) {
@@ -3177,108 +1598,431 @@ Ganti seluruh isi file Anda dengan kode utuh di bawah ini. Template, styling, da
                         const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
 
                         if (tx.tipeTransaksi === 'Masuk') {
-                            this.updateStok(tx.gudangTujuan, item, -qtyNum);
+                            const targetWh = tx.gudangTujuan;
+                            const stokItem = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === targetWh);
+                            if (stokItem) {
+                                stokItem.qty = Math.max(0, stokItem.qty - qtyNum);
+                            }
                             if (isCable) {
-                                this.drumLedger = this.drumLedger.filter(d => !(d.drumId === item.drumId && d.gudang === tx.gudangTujuan));
+                                this.drumLedger = this.drumLedger.filter(d => !(d.drumId === item.drumId && d.gudang === targetWh));
                             }
                         } else if (tx.tipeTransaksi === 'Keluar') {
-                            this.updateStok(tx.gudangAsal, item, qtyNum);
+                            const sourceWh = tx.gudangAsal;
+                            const stokItem = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === sourceWh);
+                            if (stokItem) {
+                                stokItem.qty += qtyNum;
+                            }
                             if (isCable && item.drumId) {
-                                const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === tx.gudangAsal);
-                                if (drum) drum.remainingLength += qtyNum;
-                                this.materialUsage = this.materialUsage.filter(u => u.transactionNo !== tx.noTransaksi);
+                                const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === sourceWh);
+                                if (drum) {
+                                    drum.remainingLength += qtyNum;
+                                    if (drum.remainingLength > drum.initialLength) drum.remainingLength = drum.initialLength;
+                                    drum.status = drum.remainingLength === drum.initialLength ? 'Full' : 'Partial';
+                                }
+                            }
+                            if (tx.noTransaksi) {
+                                this.materialUsage = this.materialUsage.filter(m => m.transactionNo !== tx.noTransaksi);
                             }
                         } else if (tx.tipeTransaksi === 'Transfer') {
-                            this.updateStok(tx.gudangAsal, item, qtyNum);
-                            this.updateStok(tx.gudangTujuan, item, -qtyNum);
+                            const sourceWh = tx.gudangAsal;
+                            const targetWh = tx.gudangTujuan;
+
+                            const stokSource = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === sourceWh);
+                            if (stokSource) stokSource.qty += qtyNum;
+
+                            const stokTarget = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === targetWh);
+                            if (stokTarget) stokTarget.qty = Math.max(0, stokTarget.qty - qtyNum);
+
                             if (isCable && item.drumId) {
-                                const drumAsal = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === tx.gudangAsal);
-                                if (drumAsal) drumAsal.remainingLength += qtyNum;
-                                this.drumLedger = this.drumLedger.filter(d => !(d.drumId === item.drumId && d.gudang === tx.gudangTujuan && d.initialLength === qtyNum));
+                                const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === targetWh);
+                                if (drum) {
+                                    drum.gudang = sourceWh;
+                                }
                             }
                         }
                     }
                 },
 
-                // HELPER METHODS UNTUK BINDING TEMPLATE
-                getFilteredStokGudang() {
-                    return this.filterStokGudang ? this.stokGudang.filter(s => s.gudang === this.filterStokGudang) : this.stokGudang;
+                async submitTransaction() {
+                    if (!this.newTrans.tanggal || !this.newTrans.noTransaksi) {
+                        this.showNotification('Lengkapi data header transaksi terlebih dahulu!', 'error');
+                        return;
+                    }
+
+                    if (!this.newTrans.noReferensi || !this.newTrans.noReferensi.trim()) {
+                        this.showNotification('No Referensi wajib diisi!', 'error');
+                        return;
+                    }
+                    if (!this.newTrans.keterangan || !this.newTrans.keterangan.trim()) {
+                        this.showNotification('Keterangan wajib diisi!', 'error');
+                        return;
+                    }
+
+                    if (!this.newTrans.items || this.newTrans.items.length === 0) {
+                        this.showNotification('Tambahkan minimal 1 item material!', 'error');
+                        return;
+                    }
+
+                    for (let i = 0; i < this.newTrans.items.length; i++) {
+                        const item = this.newTrans.items[i];
+                        if (!item.kodeBarang) {
+                            this.showNotification(`Item ke-${i + 1}: Kode barang belum dipilih!`, 'error');
+                            return;
+                        }
+                        if (!item.qty || Number(item.qty) <= 0) {
+                            this.showNotification(`Item ke-${i + 1}: Kuantitas (Qty) harus lebih dari 0!`, 'error');
+                            return;
+                        }
+
+                        const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
+                        if (isCable && (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer')) {
+                            if (!item.drumId) {
+                                this.showNotification(`Item ke-${i + 1}: Drum ID wajib dipilih untuk transaksi kabel keluar/transfer!`, 'error');
+                                return;
+                            }
+                            const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === this.newTrans.gudangAsal);
+                            if (!drum) {
+                                this.showNotification(`Item ke-${i + 1}: Drum ID ${item.drumId} tidak ditemukan di gudang asal!`, 'error');
+                                return;
+                            }
+                            if (Number(item.qty) > drum.remainingLength) {
+                                this.showNotification(`Item ke-${i + 1}: Qty (${item.qty}m) melebihi sisa panjang drum (${drum.remainingLength}m)!`, 'error');
+                                return;
+                            }
+                        }
+
+                        if (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') {
+                            const stockKey = `${item.kodeBarang}_${this.newTrans.gudangAsal}`;
+                            const stokItem = this.stokGudang.find(s => s.id === stockKey || (s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangAsal));
+                            if (!stokItem || stokItem.qty < Number(item.qty)) {
+                                const currentQty = stokItem ? stokItem.qty : 0;
+                                this.showNotification(`Stok barang ${item.namaBarang || item.kodeBarang} di ${this.newTrans.gudangAsal} tidak mencukupi (Stok: ${currentQty}, Diminta: ${item.qty})!`, 'error');
+                                return;
+                            }
+                        }
+                    }
+
+                    this.isLoading = true;
+
+                    try {
+                        if (this.editingOriginalNo) {
+                            const oldTx = this.transactions.find(t => t.noTransaksi === this.editingOriginalNo);
+                            if (oldTx) {
+                                this.reverseTransactionEffect(oldTx);
+                            }
+                        }
+
+                        const txRecord = JSON.parse(JSON.stringify(this.newTrans));
+
+                        if (txRecord.kodeProject) {
+                            const projInfo = this.masterProject.find(p => p.kodeProject === txRecord.kodeProject);
+                            if (projInfo) {
+                                txRecord.projectName = projInfo.projectName;
+                            }
+                        }
+
+                        let expandedFinalItems = [];
+                        let sessionCreatedDrums = [];
+
+                        for (const item of txRecord.items) {
+                            const qtyNum = Number(item.qty);
+                            const isCable = this.getCategoryByKode(item.kodeBarang) === 'Cable';
+
+                            if (txRecord.tipeTransaksi === 'Masuk') {
+                                const targetWh = txRecord.gudangTujuan;
+                                const stokKey = `${item.kodeBarang}_${targetWh}`;
+                                let stokItem = this.stokGudang.find(s => s.id === stokKey || (s.kodeBarang === item.kodeBarang && s.gudang === targetWh));
+                                const brgInfo = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang) || {};
+                                
+                                if (stokItem) {
+                                    stokItem.qty += qtyNum;
+                                } else {
+                                    this.stokGudang.push({
+                                        id: stokKey,
+                                        kodeBarang: item.kodeBarang,
+                                        namaBarang: item.namaBarang || brgInfo.namaBarang,
+                                        kategori: item.kategori || brgInfo.kategori,
+                                        gudang: targetWh,
+                                        qty: qtyNum,
+                                        sat: brgInfo.sat || 'Unit'
+                                    });
+                                }
+
+                                if (isCable) {
+                                    // Panggil fungsi Gap-Filling & Auto-Splitting ID Drum
+                                    const drumAllocations = this.allocateDrumIds(targetWh, item.kodeBarang, qtyNum, sessionCreatedDrums);
+                                    
+                                    drumAllocations.forEach(alloc => {
+                                        const newDrumObj = {
+                                            drumId: alloc.drumId,
+                                            kodeBarang: item.kodeBarang,
+                                            namaBarang: item.namaBarang || brgInfo.namaBarang,
+                                            gudang: targetWh,
+                                            initialLength: alloc.qty,
+                                            remainingLength: alloc.qty,
+                                            status: 'Full'
+                                        };
+                                        this.drumLedger.push(newDrumObj);
+                                        sessionCreatedDrums.push(newDrumObj);
+
+                                        expandedFinalItems.push({
+                                            kategori: item.kategori,
+                                            jenis: item.jenis,
+                                            kodeBarang: item.kodeBarang,
+                                            namaBarang: item.namaBarang,
+                                            drumId: alloc.drumId,
+                                            qty: alloc.qty
+                                        });
+                                    });
+                                } else {
+                                    expandedFinalItems.push({ ...item });
+                                }
+
+                            } else if (txRecord.tipeTransaksi === 'Keluar') {
+                                const sourceWh = txRecord.gudangAsal;
+                                const stokItem = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === sourceWh);
+                                if (stokItem) {
+                                    stokItem.qty = Math.max(0, stokItem.qty - qtyNum);
+                                }
+
+                                if (isCable && item.drumId) {
+                                    const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === sourceWh);
+                                    if (drum) {
+                                        drum.remainingLength = Math.max(0, drum.remainingLength - qtyNum);
+                                        drum.status = drum.remainingLength === 0 ? 'Empty' : 'Partial';
+                                    }
+                                }
+
+                                this.materialUsage.push({
+                                    id: 'USG-' + Date.now() + '-' + Math.random().toString(36).substring(2, 5),
+                                    transactionNo: txRecord.noTransaksi,
+                                    kodeProject: txRecord.kodeProject || '-',
+                                    noPO: this.getPOByProject(txRecord.kodeProject),
+                                    projectName: txRecord.projectName || this.getProjectName(txRecord.kodeProject),
+                                    kodeBarang: item.kodeBarang,
+                                    namaBarang: item.namaBarang,
+                                    drumId: item.drumId || '-',
+                                    qty: qtyNum,
+                                    tanggal: txRecord.tanggal
+                                });
+
+                                expandedFinalItems.push({ ...item });
+
+                            } else if (txRecord.tipeTransaksi === 'Transfer') {
+                                const sourceWh = txRecord.gudangAsal;
+                                const targetWh = txRecord.gudangTujuan;
+
+                                const stokSource = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === sourceWh);
+                                if (stokSource) stokSource.qty = Math.max(0, stokSource.qty - qtyNum);
+
+                                const stokTargetKey = `${item.kodeBarang}_${targetWh}`;
+                                let stokTarget = this.stokGudang.find(s => s.id === stokTargetKey || (s.kodeBarang === item.kodeBarang && s.gudang === targetWh));
+                                const brgInfo = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang) || {};
+
+                                if (stokTarget) {
+                                    stokTarget.qty += qtyNum;
+                                } else {
+                                    this.stokGudang.push({
+                                        id: stokTargetKey,
+                                        kodeBarang: item.kodeBarang,
+                                        namaBarang: item.namaBarang || brgInfo.namaBarang,
+                                        kategori: item.kategori || brgInfo.kategori,
+                                        gudang: targetWh,
+                                        qty: qtyNum,
+                                        sat: brgInfo.sat || 'Unit'
+                                    });
+                                }
+
+                                if (isCable && item.drumId) {
+                                    const drum = this.drumLedger.find(d => d.drumId === item.drumId && d.gudang === sourceWh);
+                                    if (drum) {
+                                        drum.gudang = targetWh;
+                                    }
+                                }
+
+                                expandedFinalItems.push({ ...item });
+                            }
+                        }
+
+                        txRecord.items = expandedFinalItems;
+
+                        if (this.editingOriginalNo) {
+                            const index = this.transactions.findIndex(t => t.noTransaksi === this.editingOriginalNo);
+                            if (index !== -1) {
+                                this.transactions[index] = txRecord;
+                            } else {
+                                this.transactions.unshift(txRecord);
+                            }
+                            this.showNotification('Transaksi berhasil diperbaharui!', 'success');
+                        } else {
+                            this.transactions.unshift(txRecord);
+                            this.showNotification('Transaksi berhasil disimpan!', 'success');
+                        }
+
+                        if (supabaseClient) {
+                            try {
+                                await supabaseClient.from('transactions').upsert(txRecord);
+                            } catch (sbErr) {
+                                console.warn('Supabase DB Sync Exception:', sbErr);
+                            }
+                        }
+
+                        this.resetInputTransaction();
+                        this.switchTab('data-transaksi');
+
+                    } catch (err) {
+                        console.error('Error submitting transaction:', err);
+                        this.showNotification('Terjadi kesalahan saat menyimpan transaksi!', 'error');
+                    } finally {
+                        this.isLoading = false;
+                    }
                 },
-                getFilteredDrumLedger() {
-                    return this.filterStokGudang ? this.drumLedger.filter(d => d.gudang === this.filterStokGudang) : this.drumLedger;
-                },
-                getUniqueRegions() {
-                    return [...new Set(this.masterProject.map(p => p.region).filter(Boolean))];
-                },
-                getFilteredMaterialUsage() {
-                    return this.materialUsage.filter(u => {
-                        const matchReg = !this.filterRegionUsage || (this.masterProject.find(p => p.kodeProject === u.kodeProject)?.region === this.filterRegionUsage);
-                        const matchSearch = !this.searchMaterialUsageProject || (u.kodeProject.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase()) || (u.projectName && u.projectName.toLowerCase().includes(this.searchMaterialUsageProject.toLowerCase())));
-                        return matchReg && matchSearch;
-                    });
-                },
-                getFilteredTransactions() {
-                    return this.transactions.filter(tx => {
-                        const mNo = !this.searchNoTransaksi || tx.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
-                        const mRef = !this.searchNoReferensi || (tx.noReferensi && tx.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
-                        return mNo && mRef;
-                    }).reverse();
-                },
-                getProjectName(kode) {
-                    const p = this.masterProject.find(p => p.kodeProject === kode);
-                    return p ? p.projectName : '-';
-                },
+
                 editTransaction(tx) {
                     this.editingOriginalNo = tx.noTransaksi;
                     this.newTrans = JSON.parse(JSON.stringify(tx));
                     this.switchTab('input-transaksi');
+                    this.showNotification(`Mengedit transaksi ${tx.noTransaksi}. Lakukan perubahan lalu klik Simpan.`, 'success');
                 },
+
                 deleteTransaction(tx) {
-                    if(confirm(`Yakin Hapus Transaksi ${tx.noTransaksi}?`)) {
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"?\nSemua penyesuaian stok dan ledger drum terkait akan dikembalikan (rollback).`)) {
                         this.reverseTransactionEffect(tx);
                         this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-                        this.showNotification('Transaksi dihapus!', 'success');
+                        this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus dan stok telah di-rollback!`, 'success');
+                        this.refreshIcons();
                     }
                 },
-                
-                // FITUR PRINT & EXPORT
+
+                getPOByProject(kodeProject) {
+                    if (!kodeProject) return '-';
+                    const p = this.masterProject.find(pr => pr.kodeProject === kodeProject);
+                    return p ? p.noPO : '-';
+                },
+
+                getProjectName(kodeProject) {
+                    if (!kodeProject) return '-';
+                    const p = this.masterProject.find(pr => pr.kodeProject === kodeProject);
+                    return p ? p.projectName : '-';
+                },
+
+                getUniqueRegions() {
+                    const regions = this.masterProject.map(p => p.region).filter(Boolean);
+                    return [...new Set(regions)];
+                },
+
+                getFilteredStokGudang() {
+                    if (!this.filterStokGudang) return this.stokGudang;
+                    return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
+                },
+
+                getFilteredDrumLedger() {
+                    if (!this.filterStokGudang) return this.drumLedger;
+                    return this.drumLedger.filter(d => d.gudang === this.filterStokGudang);
+                },
+
+                getFilteredMaterialUsage() {
+                    return this.materialUsage.filter(u => {
+                        const matchRegion = !this.filterRegionUsage || (u.kodeProject && u.kodeProject.startsWith(this.getRegionCode(this.filterRegionUsage)));
+                        const searchLower = (this.searchMaterialUsageProject || '').toLowerCase();
+                        const matchSearch = !searchLower || 
+                            (u.kodeProject && u.kodeProject.toLowerCase().includes(searchLower)) ||
+                            (u.projectName && u.projectName.toLowerCase().includes(searchLower)) ||
+                            (u.noPO && u.noPO.toLowerCase().includes(searchLower)) ||
+                            (u.namaBarang && u.namaBarang.toLowerCase().includes(searchLower));
+                        return matchRegion && matchSearch;
+                    });
+                },
+
+                getFilteredTransactions() {
+                    return this.transactions.filter(t => {
+                        const matchNo = !this.searchNoTransaksi || (t.noTransaksi && t.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase()));
+                        const matchRef = !this.searchNoReferensi || (t.noReferensi && t.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase()));
+                        return matchNo && matchRef;
+                    });
+                },
+
                 printBAST(tx) {
                     this.activeBast = JSON.parse(JSON.stringify(tx));
-                    setTimeout(() => { window.print(); }, 300);
+                    this.$nextTick(() => {
+                        window.print();
+                    });
                 },
+
                 getExpandedBastItems() {
-                    return this.activeBast.items || [];
+                    if (!this.activeBast || !this.activeBast.items) return [];
+                    return this.activeBast.items;
                 },
+
                 shouldShowSummary() {
                     return this.getExpandedBastItems().length > 1;
                 },
+
                 getBastSummaryTotals() {
-                    let sums = {};
-                    this.getExpandedBastItems().forEach(item => {
-                        if (!sums[item.namaBarang]) sums[item.namaBarang] = 0;
-                        sums[item.namaBarang] += Number(item.qty);
+                    const items = this.getExpandedBastItems();
+                    const summaryMap = {};
+
+                    items.forEach(item => {
+                        const key = item.namaBarang || item.kodeBarang;
+                        const qtyNum = Number(item.qty) || 0;
+                        if (summaryMap[key]) {
+                            summaryMap[key] += qtyNum;
+                        } else {
+                            summaryMap[key] = qtyNum;
+                        }
                     });
-                    return Object.keys(sums).map(key => ({ namaBarang: key, totalQty: sums[key] }));
+
+                    return Object.keys(summaryMap).map(key => ({
+                        namaBarang: key,
+                        totalQty: summaryMap[key]
+                    }));
                 },
-                exportCSV(filename, rows) {
-                    const csv = rows.map(r => Object.values(r).map(v => `"${v}"`).join(',')).join('\n');
-                    const blob = new Blob([csv], { type: 'text/csv' });
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.setAttribute('href', url);
-                    a.setAttribute('download', filename);
-                    a.click();
-                },
-                exportStokCSV() { this.exportCSV('Stok_Gudang.csv', this.getFilteredStokGudang()); },
-                exportUsageCSV() { this.exportCSV('Material_Usage.csv', this.getFilteredMaterialUsage()); },
-                exportTransactionCSV() {
-                    const flat = [];
-                    this.getFilteredTransactions().forEach(tx => {
-                        tx.items.forEach(it => {
-                            flat.push({ NoTx: tx.noTransaksi, Tanggal: tx.tanggal, Tipe: tx.tipeTransaksi, Barang: it.namaBarang, Qty: it.qty, Drum: it.drumId });
+
+                // Ekspor Data ke File CSV
+                exportCSV(filename, headers, rows) {
+                    let csvContent = "\uFEFF"; // UTF-8 BOM untuk Microsoft Excel
+                    csvContent += headers.join(",") + "\n";
+                    
+                    rows.forEach(row => {
+                        const formattedRow = row.map(field => {
+                            const stringField = field === null || field === undefined ? "" : String(field);
+                            return `"${stringField.replace(/"/g, '""')}"`;
                         });
+                        csvContent += formattedRow.join(",") + "\n";
                     });
-                    this.exportCSV('Data_Transaksi.csv', flat);
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement("a");
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", filename);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+
+                exportStokCSV() {
+                    const headers = ["Kode Barang", "Nama Barang", "Kategori", "Gudang", "Total Stok", "Satuan"];
+                    const data = this.getFilteredStokGudang().map(s => [
+                        s.kodeBarang, s.namaBarang, s.kategori, s.gudang, s.qty, s.sat
+                    ]);
+                    this.exportCSV(`Stok_Gudang_${new Date().toISOString().split('T')[0]}.csv`, headers, data);
+                },
+
+                exportUsageCSV() {
+                    const headers = ["Kode Project", "No PO", "Project Name", "Kode Barang", "Nama Barang", "Drum ID", "Qty Dipakai", "Tanggal"];
+                    const data = this.getFilteredMaterialUsage().map(u => [
+                        u.kodeProject, u.noPO, u.projectName, u.kodeBarang, u.namaBarang, u.drumId, u.qty, u.tanggal
+                    ]);
+                    this.exportCSV(`Material_Usage_${new Date().toISOString().split('T')[0]}.csv`, headers, data);
+                },
+
+                exportTransactionCSV() {
+                    const headers = ["Tanggal", "No Transaksi", "No Referensi", "Tipe Transaksi", "Gudang Asal", "Gudang Tujuan", "Kode Project", "Keterangan"];
+                    const data = this.getFilteredTransactions().map(t => [
+                        t.tanggal, t.noTransaksi, t.noReferensi, t.tipeTransaksi, t.gudangAsal, t.gudangTujuan, t.kodeProject, t.keterangan
+                    ]);
+                    this.exportCSV(`Data_Transaksi_${new Date().toISOString().split('T')[0]}.csv`, headers, data);
                 }
             };
         }
