@@ -925,7 +925,8 @@
                 <p><strong>No Transaksi:</strong> <span x-text="activeBast.noTransaksi"></span></p>
                 <p><strong>Tanggal:</strong> <span x-text="activeBast.tanggal"></span></p>
                 <p><strong>No Referensi:</strong> <span x-text="activeBast.noReferensi || '-'"></span></p>
-                <p><strong>Project:</strong> <span x-text="activeBast.projectName || activeBast.kodeProject || '-'"></span></p>
+                <!-- DITAMPILKAN NAMA PROJECTNYA, BUKAN KODE PROJECTNYA -->
+                <p><strong>Project:</strong> <span x-text="activeBast.projectName || getProjectName(activeBast.kodeProject) || '-'"></span></p>
             </div>
             <div>
                 <p><strong>Tipe Transaksi:</strong> <span x-text="activeBast.tipeTransaksi"></span></p>
@@ -1089,6 +1090,7 @@
                         gudangAsal: 'PT Prysmian Cable',
                         gudangTujuan: 'Gudang Utama Jakarta',
                         kodeProject: 'ACH-2026-001',
+                        projectName: 'Project Aceh FTTH 2026',
                         keterangan: 'Penerimaan awal material kabel project',
                         lampiran: '',
                         lampiranUrl: '',
@@ -1637,6 +1639,15 @@
                         }
 
                         const txRecord = JSON.parse(JSON.stringify(this.newTrans));
+
+                        // Simpan Nama Project ke dalam record transaksi jika ada kodeProject
+                        if (txRecord.kodeProject) {
+                            const projInfo = this.masterProject.find(p => p.kodeProject === txRecord.kodeProject);
+                            if (projInfo) {
+                                txRecord.projectName = projInfo.projectName;
+                            }
+                        }
+
                         let expandedFinalItems = [];
 
                         for (const item of txRecord.items) {
@@ -1760,7 +1771,9 @@
                             }
                         }
 
-                        txRecord.items = expandedFinalItems;
+                        if (expandedFinalItems.length > 0) {
+                            txRecord.items = expandedFinalItems;
+                        }
 
                         if (this.editingOriginalNo) {
                             const idx = this.transactions.findIndex(t => t.noTransaksi === this.editingOriginalNo);
@@ -1777,22 +1790,23 @@
 
                         if (supabaseClient) {
                             try {
-                                await supabaseClient.from('transactions').upsert([txRecord]);
+                                const { error } = await supabaseClient.from('transactions').upsert([txRecord]);
+                                if (error) console.warn('Supabase save warning:', error.message);
                             } catch (e) {
-                                console.warn('Supabase sync skipped:', e);
+                                console.warn('Supabase save exception:', e);
                             }
                         }
 
                         this.resetInputTransaction();
+                        this.switchTab('data-transaksi');
                     } catch (err) {
                         console.error('Error submitting transaction:', err);
-                        this.showNotification('Gagal memproses transaksi: ' + err.message, 'error');
+                        this.showNotification('Gagal memproses transaksi: ' + (err.message || err), 'error');
                     } finally {
                         this.isLoading = false;
                     }
                 },
 
-                // Getters & Filtering Methods
                 getFilteredStokGudang() {
                     if (!this.filterStokGudang) return this.stokGudang;
                     return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
@@ -1813,15 +1827,20 @@
                         let matchRegion = true;
                         if (this.filterRegionUsage) {
                             const proj = this.masterProject.find(p => p.kodeProject === u.kodeProject);
-                            matchRegion = proj ? (proj.region === this.filterRegionUsage) : false;
+                            matchRegion = proj ? proj.region === this.filterRegionUsage : true;
                         }
+
                         let matchSearch = true;
                         if (this.searchMaterialUsageProject) {
                             const q = this.searchMaterialUsageProject.toLowerCase();
-                            matchSearch = (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
-                                          (u.projectName && u.projectName.toLowerCase().includes(q)) ||
-                                          (u.noPO && u.noPO.toLowerCase().includes(q));
+                            const kp = (u.kodeProject || '').toLowerCase();
+                            const pn = (u.projectName || '').toLowerCase();
+                            const po = (u.noPO || '').toLowerCase();
+                            const kb = (u.kodeBarang || '').toLowerCase();
+                            const nb = (u.namaBarang || '').toLowerCase();
+                            matchSearch = kp.includes(q) || pn.includes(q) || po.includes(q) || kb.includes(q) || nb.includes(q);
                         }
+
                         return matchRegion && matchSearch;
                     });
                 },
@@ -1830,11 +1849,11 @@
                     return this.transactions.filter(t => {
                         let matchNo = true;
                         if (this.searchNoTransaksi) {
-                            matchNo = t.noTransaksi && t.noTransaksi.toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
+                            matchNo = (t.noTransaksi || '').toLowerCase().includes(this.searchNoTransaksi.toLowerCase());
                         }
                         let matchRef = true;
                         if (this.searchNoReferensi) {
-                            matchRef = t.noReferensi && t.noReferensi.toLowerCase().includes(this.searchNoReferensi.toLowerCase());
+                            matchRef = (t.noReferensi || '').toLowerCase().includes(this.searchNoReferensi.toLowerCase());
                         }
                         return matchNo && matchRef;
                     });
@@ -1844,26 +1863,44 @@
                     this.editingOriginalNo = tx.noTransaksi;
                     this.newTrans = JSON.parse(JSON.stringify(tx));
                     this.switchTab('input-transaksi');
-                    this.showNotification(`Memuat transaksi ${tx.noTransaksi} untuk diedit`, 'success');
+                    this.showNotification('Mode edit transaksi aktif. Silakan lakukan penyesuaian.', 'info');
                 },
 
                 deleteTransaction(tx) {
-                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"? Stok dan Drum Ledger akan dikembalikan.`)) {
+                    if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"?`)) {
                         this.reverseTransactionEffect(tx);
                         this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-                        if (supabaseClient) {
-                            supabaseClient.from('transactions').delete().eq('noTransaksi', tx.noTransaksi).then(() => {}).catch(e => console.warn(e));
-                        }
-                        this.showNotification(`Transaksi ${tx.noTransaksi} berhasil dihapus!`, 'success');
+                        this.showNotification(`Transaksi ${tx.noTransaksi} telah dihapus.`, 'success');
                     }
+                },
+
+                // HELPER PENTING: MENDAPATKAN NAMA PROJECT DARI KODE PROJECT
+                getProjectName(kodeProject) {
+                    if (!kodeProject) return '';
+                    const proj = this.masterProject.find(p => p.kodeProject === kodeProject);
+                    if (proj && proj.projectName) {
+                        return proj.projectName;
+                    }
+                    const projByName = this.masterProject.find(p => p.projectName === kodeProject);
+                    if (projByName && projByName.projectName) {
+                        return projByName.projectName;
+                    }
+                    return '';
                 },
 
                 printBAST(tx) {
                     this.activeBast = JSON.parse(JSON.stringify(tx));
-                    this.refreshIcons();
-                    setTimeout(() => {
+                    const pName = this.getProjectName(tx.kodeProject || tx.projectName);
+                    if (pName) {
+                        this.activeBast.projectName = pName;
+                    } else if (tx.projectName && tx.projectName !== tx.kodeProject) {
+                        this.activeBast.projectName = tx.projectName;
+                    } else {
+                        this.activeBast.projectName = '-';
+                    }
+                    this.$nextTick(() => {
                         window.print();
-                    }, 300);
+                    });
                 },
 
                 getExpandedBastItems() {
@@ -1877,28 +1914,28 @@
 
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
-                    const map = {};
-                    this.activeBast.items.forEach(item => {
-                        const name = item.namaBarang || item.kodeBarang;
+                    const totalsMap = {};
+                    for (const item of this.activeBast.items) {
+                        const name = item.namaBarang || item.kodeBarang || 'Material';
                         const qty = Number(item.qty) || 0;
-                        if (!map[name]) {
-                            map[name] = 0;
+                        if (!totalsMap[name]) {
+                            totalsMap[name] = 0;
                         }
-                        map[name] += qty;
-                    });
-                    return Object.keys(map).map(namaBarang => ({
-                        namaBarang,
-                        totalQty: map[namaBarang]
+                        totalsMap[name] += qty;
+                    }
+                    return Object.keys(totalsMap).map(key => ({
+                        namaBarang: key,
+                        totalQty: totalsMap[key]
                     }));
                 },
 
-                // Export CSV Methods
-                downloadCSV(csvContent, fileName) {
+                downloadCSV(csvContent, filename) {
                     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
                     link.setAttribute('href', url);
-                    link.setAttribute('download', fileName);
+                    link.setAttribute('download', filename);
+                    link.style.visibility = 'hidden';
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -1907,43 +1944,40 @@
                 exportStokCSV() {
                     const data = this.getFilteredStokGudang();
                     if (data.length === 0) {
-                        this.showNotification('Tidak ada data stok untuk diekspor!', 'error');
+                        this.showNotification('Tidak ada data stok untuk diekspor.', 'error');
                         return;
                     }
                     let csv = 'Kode Barang,Nama Barang,Kategori,Gudang,Total Stok,Satuan\n';
-                    data.forEach(row => {
-                        csv += `"${row.kodeBarang || ''}","${row.namaBarang || ''}","${row.kategori || ''}","${row.gudang || ''}",${row.qty || 0},"${row.sat || ''}"\n`;
+                    data.forEach(s => {
+                        csv += `"${s.kodeBarang || ''}","${s.namaBarang || ''}","${s.kategori || ''}","${s.gudang || ''}",${s.qty || 0},"${s.sat || ''}"\n`;
                     });
-                    this.downloadCSV(csv, `Stok_Gudang_${new Date().toISOString().split('T')[0]}.csv`);
-                    this.showNotification('Data Stok Gudang berhasil diekspor!', 'success');
+                    this.downloadCSV(csv, `stok_gudang_${new Date().toISOString().slice(0,10)}.csv`);
                 },
 
                 exportUsageCSV() {
                     const data = this.getFilteredMaterialUsage();
                     if (data.length === 0) {
-                        this.showNotification('Tidak ada data material usage untuk diekspor!', 'error');
+                        this.showNotification('Tidak ada data material usage untuk diekspor.', 'error');
                         return;
                     }
                     let csv = 'Kode Project,No PO,Project Name,Kode Barang,Nama Barang,Drum ID,Qty,Tanggal\n';
-                    data.forEach(row => {
-                        csv += `"${row.kodeProject || ''}","${row.noPO || ''}","${row.projectName || ''}","${row.kodeBarang || ''}","${row.namaBarang || ''}","${row.drumId || ''}",${row.qty || 0},"${row.tanggal || ''}"\n`;
+                    data.forEach(u => {
+                        csv += `"${u.kodeProject || ''}","${u.noPO || ''}","${u.projectName || ''}","${u.kodeBarang || ''}","${u.namaBarang || ''}","${u.drumId || ''}",${u.qty || 0},"${u.tanggal || ''}"\n`;
                     });
-                    this.downloadCSV(csv, `Material_Usage_${new Date().toISOString().split('T')[0]}.csv`);
-                    this.showNotification('Data Material Usage berhasil diekspor!', 'success');
+                    this.downloadCSV(csv, `material_usage_${new Date().toISOString().slice(0,10)}.csv`);
                 },
 
                 exportTransactionCSV() {
                     const data = this.getFilteredTransactions();
                     if (data.length === 0) {
-                        this.showNotification('Tidak ada data transaksi untuk diekspor!', 'error');
+                        this.showNotification('Tidak ada data transaksi untuk diekspor.', 'error');
                         return;
                     }
                     let csv = 'Tanggal,No Transaksi,No Referensi,Tipe,Gudang Asal,Gudang Tujuan,Kode Project,Keterangan\n';
-                    data.forEach(row => {
-                        csv += `"${row.tanggal || ''}","${row.noTransaksi || ''}","${row.noReferensi || ''}","${row.tipeTransaksi || ''}","${row.gudangAsal || ''}","${row.gudangTujuan || ''}","${row.kodeProject || ''}","${row.keterangan || ''}"\n`;
+                    data.forEach(t => {
+                        csv += `"${t.tanggal || ''}","${t.noTransaksi || ''}","${t.noReferensi || ''}","${t.tipeTransaksi || ''}","${t.gudangAsal || ''}","${t.gudangTujuan || ''}","${t.kodeProject || ''}","${t.keterangan || ''}"\n`;
                     });
-                    this.downloadCSV(csv, `Data_Transaksi_${new Date().toISOString().split('T')[0]}.csv`);
-                    this.showNotification('Data Transaksi berhasil diekspor!', 'success');
+                    this.downloadCSV(csv, `data_transaksi_${new Date().toISOString().slice(0,10)}.csv`);
                 }
             };
         }
