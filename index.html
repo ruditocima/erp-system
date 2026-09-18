@@ -1890,10 +1890,26 @@
                 },
 
                 printBAST(tx) {
-                    this.activeBast = JSON.parse(JSON.stringify(tx));
+                    this.activeBast = tx;
                     this.refreshIcons();
+                    this.$nextTab = true;
                     this.$nextTick(() => {
-                        window.print();
+                        const element = document.getElementById('printable-bast');
+                        // Format penamaan file: [No transaksi-Gudang asal-gudang tujuan]
+                        const safeAsal = (tx.gudangAsal || 'Eksternal').replace(/[/\\?%*:|"<>]/g, '-');
+                        const safeTujuan = (tx.gudangTujuan || 'Eksternal').replace(/[/\\?%*:|"<>]/g, '-');
+                        const filename = `${tx.noTransaksi}-${safeAsal}-${safeTujuan}.pdf`;
+        
+                        const opt = {
+                            margin:       10,
+                            filename:     filename,
+                            image:        { type: 'jpeg', quality: 0.98 },
+                            html2canvas:  { scale: 2, useCORS: true },
+                            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                        };
+        
+                        // Auto download PDF
+                        html2pdf().from(element).set(opt).save();
                     });
                 },
 
@@ -1948,39 +1964,37 @@
 
                 getBastSummaryTotals() {
                     if (!this.activeBast || !this.activeBast.items) return [];
-
                     const map = {};
-                    const expanded = this.getExpandedBastItems();
-
-                    expanded.forEach(item => {
-                        const key = item.kodeBarang;
-                        const master = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                        const sat = master ? master.sat : 'Pcs';
-
-                        if (!map[key]) {
-                            map[key] = {
-                                namaBarang: item.namaBarang,
-                                satuan: sat,
-                                totalQty: 0,
-                                drumDetails: []
-                            };
+    
+                    this.activeBast.items.forEach(item => {
+                        const name = item.namaBarang || item.kodeBarang;
+                        const qty = Number(item.qty) || 0;
+                        const sat = item.sat || 'Pcs';
+        
+                        if (!map[name]) {
+                            map[name] = { totalQty: 0, satuan: sat, count: 0 };
                         }
-
-                        map[key].totalQty += Number(item.qty) || 0;
-                        if (item.drumId && item.drumId !== '-') {
-                            map[key].drumDetails.push({
-                                id: item.drumId,
-                                vol: item.qty
-                            });
-                        }
+                        map[name].totalQty += qty;
+                        map[name].count += 1;
                     });
 
-                    return Object.values(map);
+                    const result = [];
+                    // Hanya ambil barang yang memiliki nama yang sama (count > 1)
+                    for (const name in map) {
+                        if (map[name].count > 1) {
+                            result.push({ 
+                                namaBarang: name, 
+                                totalQty: map[name].totalQty, 
+                                satuan: map[name].satuan 
+                            });
+                        }
+                    }
+                    return result;
                 },
 
                 shouldShowSummary() {
-                    return this.activeBast && this.activeBast.items && this.activeBast.items.length > 0;
-                },
+                    return this.getBastSummaryTotals().length > 0;
+                }
 
                 getProjectName(kodeProj) {
                     if (!kodeProj) return '';
