@@ -1891,13 +1891,12 @@
 
                 printBAST(tx) {
                     this.activeBast = JSON.parse(JSON.stringify(tx));
-                    setTimeout(() => {
+                    this.$nextTick(() => {
                         window.print();
-                    }, 300);
+                    });
                 },
 
                 getExpandedBastItems() {
-                    // Mencegah error jika data kosong
                     if (!this.activeBast || !this.activeBast.items) return [];
                     
                     let result = [];
@@ -1916,21 +1915,34 @@
                             };
                         }
                         
-                        // Akumulasi total Qty untuk baris induk
-                        grouped[key].totalQty += Number(item.qty);
+                        grouped[key].totalQty += Number(item.qty) || 0;
                         
-                        // Tampung Drum ID jika ada
-                        if (item.drumId) {
-                            grouped[key].drums.push({ drumId: item.drumId, qty: item.qty });
+                        if (item.drumDetails && Array.isArray(item.drumDetails) && item.drumDetails.length > 0) {
+                            item.drumDetails.forEach(d => {
+                                grouped[key].drums.push({ drumId: d.id || d.drumId, qty: Number(d.vol || d.qty || 0) });
+                            });
+                        } else if (item.drumId && item.drumId !== '-') {
+                            if (typeof item.drumId === 'string' && item.drumId.includes(',')) {
+                                const parts = item.drumId.split(',').map(s => s.trim()).filter(Boolean);
+                                let rem = Number(item.qty) || 0;
+                                parts.forEach((dId, idx) => {
+                                    let vol = Math.min(rem, 3000);
+                                    if (idx === parts.length - 1) vol = rem;
+                                    if (vol < 0) vol = 0;
+                                    grouped[key].drums.push({ drumId: dId, qty: vol });
+                                    rem -= vol;
+                                });
+                            } else {
+                                grouped[key].drums.push({ drumId: item.drumId, qty: Number(item.qty) || 0 });
+                            }
                         }
                     });
 
-                    // 2. Susun baris BAST (Baris Utama + Baris Rincian Drum)
+                    // 2. Susun baris BAST (Baris Utama + Baris Rincian Drum di baris selanjutnya)
                     for (let key in grouped) {
                         let g = grouped[key];
                         
                         if (g.drums.length <= 1) {
-                            // Jika Drum hanya 1 atau bukan kabel (Hardware), tampilkan 1 baris normal
                             result.push({
                                 isDetail: false,
                                 no: indexCounter++,
@@ -1940,7 +1952,6 @@
                                 qty: g.totalQty
                             });
                         } else {
-                            // Jika Drum > 1, buat baris Utama/Header terlebih dahulu
                             result.push({
                                 isDetail: false,
                                 no: indexCounter++,
@@ -1950,13 +1961,12 @@
                                 qty: g.totalQty
                             });
                             
-                            // Looping baris selanjutnya khusus untuk Drum ID dan volumenya
                             g.drums.forEach(d => {
                                 result.push({
                                     isDetail: true,
-                                    no: '', // Kosongkan agar nomor tabel utama urut
-                                    kodeBarang: '', // Kosongkan untuk efek indentasi
-                                    namaBarang: '↳ Detail Drum ID:', // Indikator rincian
+                                    no: '',
+                                    kodeBarang: '',
+                                    namaBarang: '↳ Detail Drum ID:',
                                     drumId: d.drumId,
                                     qty: d.qty
                                 });
@@ -1976,21 +1986,36 @@
                     let totals = {};
                     
                     this.activeBast.items.forEach(item => {
-                        if (!totals[item.namaBarang]) {
-                            // Cek master barang untuk mendapatkan tipe satuan (Meter/Pcs)
+                        const name = item.namaBarang || item.kodeBarang || 'Item';
+                        if (!totals[name]) {
                             const brg = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                            totals[item.namaBarang] = { 
+                            totals[name] = { 
                                 totalQty: 0, 
-                                satuan: brg ? brg.sat : '',
-                                drums: [] 
+                                satuan: brg ? brg.sat : (item.sat || 'Meter'),
+                                drumDetails: [] 
                             };
                         }
                         
-                        totals[item.namaBarang].totalQty += Number(item.qty);
+                        totals[name].totalQty += Number(item.qty) || 0;
                         
-                        // Menampung detail drum id per masing-masing volume
-                        if (item.drumId && item.drumId !== '-') {
-                            totals[item.namaBarang].drums.push({ id: item.drumId, vol: item.qty });
+                        if (item.drumDetails && Array.isArray(item.drumDetails) && item.drumDetails.length > 0) {
+                            item.drumDetails.forEach(d => {
+                                totals[name].drumDetails.push({ id: d.id || d.drumId, vol: Number(d.vol || d.qty || 0) });
+                            });
+                        } else if (item.drumId && item.drumId !== '-') {
+                            if (typeof item.drumId === 'string' && item.drumId.includes(',')) {
+                                const parts = item.drumId.split(',').map(s => s.trim()).filter(Boolean);
+                                let rem = Number(item.qty) || 0;
+                                parts.forEach((dId, idx) => {
+                                    let vol = Math.min(rem, 3000);
+                                    if (idx === parts.length - 1) vol = rem;
+                                    if (vol < 0) vol = 0;
+                                    totals[name].drumDetails.push({ id: dId, vol: vol });
+                                    rem -= vol;
+                                });
+                            } else {
+                                totals[name].drumDetails.push({ id: item.drumId, vol: Number(item.qty) || 0 });
+                            }
                         }
                     });
                     
@@ -1999,7 +2024,7 @@
                             namaBarang: key,
                             totalQty: totals[key].totalQty,
                             satuan: totals[key].satuan,
-                            drumDetails: totals[key].drums
+                            drumDetails: totals[key].drumDetails
                         };
                     });
                 },
