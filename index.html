@@ -843,6 +843,47 @@
                                 projectName: p.project_name
                             }));
                         }
+
+                        const { data: stokData } = await supabaseClient.from('stok_gudang').select('*');
+                        if (stokData && stokData.length > 0) {
+                            this.stokGudang = stokData.map(s => ({
+                                kodeBarang: s.kode_barang,
+                                namaBarang: s.nama_barang,
+                                kategori: s.kategori,
+                                gudang: s.gudang,
+                                qty: s.qty,
+                                sat: s.sat
+                            }));
+                        }
+
+                        const { data: drumData } = await supabaseClient.from('drum_ledger').select('*');
+                        if (drumData && drumData.length > 0) {
+                            this.drumLedger = drumData.map(d => ({
+                                drumId: d.drum_id,
+                                kodeBarang: d.kode_barang,
+                                namaBarang: d.nama_barang,
+                                gudang: d.gudang,
+                                initialLength: d.initial_length,
+                                remainingLength: d.remaining_length
+                            }));
+                        }
+
+                        const { data: txData } = await supabaseClient.from('transactions').select('*');
+                        if (txData && txData.length > 0) {
+                            this.transactions = txData.map(t => ({
+                                tanggal: t.tanggal,
+                                noTransaksi: t.no_transaksi,
+                                noReferensi: t.no_referensi,
+                                tipeTransaksi: t.tipe_transaksi,
+                                gudangAsal: t.gudang_asal,
+                                gudangTujuan: t.gudang_tujuan,
+                                kodeProject: t.kode_project,
+                                keterangan: t.keterangan,
+                                lampiran: t.lampiran,
+                                lampiranUrl: t.lampiran_url || '',
+                                items: t.items || []
+                            }));
+                        }
                     } catch (e) {
                         console.warn('Gagal memuat data dari Supabase, menggunakan lokal storage:', e);
                     }
@@ -1121,7 +1162,7 @@
                     this.newTrans.lampiranUrl = URL.createObjectURL(file);
                 },
 
-                submitTransaction() {
+                async submitTransaction() {
                     // Validasi pengaman: Gudang Asal dan Tujuan tidak boleh sama
                     if (this.newTrans.gudangAsal && this.newTrans.gudangTujuan && 
                         this.newTrans.gudangAsal.trim().toLowerCase() === this.newTrans.gudangTujuan.trim().toLowerCase()) {
@@ -1294,9 +1335,61 @@
                     // Otomatis hapus drum dari ledger jika sisa panjangnya habis (<= 0)
                     this.drumLedger = this.drumLedger.filter(d => d.remainingLength > 0);
 
-                    // Simpan Transaksi ke Riwayat
+                    // SINKRONISASI KE SUPABASE
+                    if (supabaseClient) {
+                        try {
+                            this.isLoading = true;
+                            // 1. Simpan Transaksi ke Supabase
+                            await supabaseClient.from('transactions').upsert({
+                                no_transaksi: this.newTrans.noTransaksi,
+                                tanggal: this.newTrans.tanggal,
+                                no_referensi: this.newTrans.noReferensi,
+                                tipe_transaksi: this.newTrans.tipeTransaksi,
+                                gudang_asal: this.newTrans.gudangAsal,
+                                gudang_tujuan: this.newTrans.gudangTujuan,
+                                kode_project: this.newTrans.kodeProject,
+                                keterangan: this.newTrans.keterangan,
+                                lampiran: this.newTrans.lampiran,
+                                lampiran_url: this.newTrans.lampiranUrl || '',
+                                items: this.newTrans.items
+                            }, { onConflict: 'no_transaksi' });
+
+                            // 2. Update Stok Gudang ke Supabase
+                            for (let stok of this.stokGudang) {
+                                await supabaseClient.from('stok_gudang').upsert({
+                                    kode_barang: stok.kodeBarang,
+                                    nama_barang: stok.namaBarang,
+                                    kategori: stok.kategori,
+                                    gudang: stok.gudang,
+                                    qty: stok.qty,
+                                    sat: stok.sat
+                                }, { onConflict: 'kode_barang, gudang' });
+                            }
+
+                            // 3. Update Drum Ledger ke Supabase
+                            for (let drum of this.drumLedger) {
+                                await supabaseClient.from('drum_ledger').upsert({
+                                    drum_id: drum.drumId,
+                                    kode_barang: drum.kodeBarang,
+                                    nama_barang: drum.namaBarang,
+                                    gudang: drum.gudang,
+                                    initial_length: drum.initialLength,
+                                    remaining_length: drum.remainingLength
+                                }, { onConflict: 'drum_id' });
+                            }
+                        } catch (err) {
+                            console.error('Gagal sinkronisasi transaksi ke Supabase:', err);
+                            this.showNotification('Gagal menyimpan ke database Supabase: ' + err.message, 'error');
+                            this.isLoading = false;
+                            return;
+                        } finally {
+                            this.isLoading = false;
+                        }
+                    }
+
+                    // Simpan Transaksi ke Riwayat Lokal & Reset Form
                     this.transactions.unshift(JSON.parse(JSON.stringify(this.newTrans)));
-                    this.showNotification('Transaksi berhasil disimpan & stok diperbarui!', 'success');
+                    this.showNotification('Transaksi berhasil disimpan & tersinkronisasi ke Supabase!', 'success');
                     this.resetInputTransaction();
                     this.switchTab('data-transaksi');
                 },
@@ -1319,7 +1412,7 @@
                     this.switchTab('input-transaksi');
                 },
 
-                deleteTransaction(tx) {
+                async deleteTransaction(tx) {
                     if (confirm('Apakah Anda yakin ingin menghapus transaksi ini? Stok dan pelacakan drum terkait akan dikembalikan (rollback).')) {
                         const tipe = tx.tipeTransaksi;
                         const gudangMasuk = tx.gudangTujuan;
@@ -1374,9 +1467,44 @@
                         // Otomatis hapus drum dari ledger jika sisa panjang habis (<= 0)
                         this.drumLedger = this.drumLedger.filter(d => d.remainingLength > 0);
 
+                        // SINKRONISASI PENGHAPUSAN & ROLLBACK KE SUPABASE
+                        if (supabaseClient) {
+                            try {
+                                this.isLoading = true;
+                                await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
+
+                                for (let stok of this.stokGudang) {
+                                    await supabaseClient.from('stok_gudang').upsert({
+                                        kode_barang: stok.kodeBarang,
+                                        nama_barang: stok.namaBarang,
+                                        kategori: stok.kategori,
+                                        gudang: stok.gudang,
+                                        qty: stok.qty,
+                                        sat: stok.sat
+                                    }, { onConflict: 'kode_barang, gudang' });
+                                }
+
+                                for (let drum of this.drumLedger) {
+                                    await supabaseClient.from('drum_ledger').upsert({
+                                        drum_id: drum.drumId,
+                                        kode_barang: drum.kodeBarang,
+                                        nama_barang: drum.namaBarang,
+                                        gudang: drum.gudang,
+                                        initial_length: drum.initialLength,
+                                        remaining_length: drum.remainingLength
+                                    }, { onConflict: 'drum_id' });
+                                }
+                            } catch (err) {
+                                console.error('Gagal memperbarui Supabase saat delete:', err);
+                                this.showNotification('Gagal sinkronisasi rollback ke Supabase: ' + err.message, 'error');
+                            } finally {
+                                this.isLoading = false;
+                            }
+                        }
+
                         // Hapus transaksi dari riwayat utama
                         this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-                        this.showNotification('Transaksi berhasil dihapus dan stok telah dikembalikan (rollback)!', 'success');
+                        this.showNotification('Transaksi berhasil dihapus dan database Supabase telah diperbarui!', 'success');
                     }
                 },
 
