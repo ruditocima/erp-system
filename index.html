@@ -2049,6 +2049,34 @@
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
+
+                    async function processDrumAction(drumId, deductLength, actionType, notes) {
+        try {
+            console.log(`Memproses pemotongan ${deductLength}m dari drum ${drumId}...`);
+
+            const { data, error } = await supabase.rpc('deduct_drum_length', {
+                p_drum_id: drumId,
+                p_length_to_deduct: deductLength,
+                p_action: actionType,
+                p_notes: notes
+            });
+
+            if (error) {
+                throw new Error(error.message || "Gagal memproses drum.");
+            }
+
+            alert(`Berhasil! Sisa panjang kabel drum ${data.drum_id} sekarang adalah ${data.remaining_length} meter.`);
+            
+            // fetchMasterDrums(); 
+
+            return data;
+
+        } catch (err) {
+            console.error("Transaction Error:", err);
+            alert("Validasi Gagal: " + err.message);
+            return null;
+        }
+    }
                 }
             }
         }
