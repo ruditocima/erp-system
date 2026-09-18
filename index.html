@@ -1548,44 +1548,72 @@
                                     occupiedSet.add(seq);
                                 }
                             } else {
-                                const match = drum.drumId.match(/-D(\d+)$/i);
-                                if (match) {
-                                    const seq = parseInt(match[1], 10);
-                                    if (!isNaN(seq)) {
-                                        occupiedSet.add(seq);
+                                const (match) {
+                                        const seq = parseInt(match[1], 10);
+                                        if (!isNaN(seq)) {
+                                            occupiedSet.add(seq);
+                                        }
                                     }
                                 }
                             }
-                        }
-                    });
-
-                    let remaining = Number(totalQty);
-                    const splits = [];
-                    while (remaining > 0) {
-                        const chunk = Math.min(remaining, MAX_CAPACITY);
-                        splits.push(chunk);
-                        remaining -= chunk;
-                    }
-
-                    const allocatedDrums = [];
-                    splits.forEach(chunkQty => {
-                        let seq = 1;
-                        while (occupiedSet.has(seq)) {
-                            seq++;
-                        }
-                        occupiedSet.add(seq);
-                        const seqStr = String(seq).padStart(2, '0');
-                        const drumId = `${prefix}${seqStr}`;
-
-                        allocatedDrums.push({
-                            drumId: drumId,
-                            qty: chunkQty
                         });
-                    });
 
-                    return allocatedDrums;
+                    let currentSeq = 1;
+                        let remainingQty = Number(totalQty);
+                        let allocatedDrums = [];
+
+                        while (remainingQty > 0) {
+                            while (occupiedSet.has(currentSeq)) {
+                                currentSeq++;
+                            }
+                            occupiedSet.add(currentSeq);
+                            
+                            const seqStr = String(currentSeq).padStart(2, '0');
+                            const newDrumId = `${prefix}${seqStr}`;
+                            const allocQty = Math.min(remainingQty, MAX_CAPACITY);
+                            
+                            allocatedDrums.push({ drumId: newDrumId, qty: allocQty });
+                            remainingQty -= allocQty;
+                        }
+
+                        return allocatedDrums;
+                    },
+                submitTransaction() { 
+                        alert('Logika simpan transaksi perlu ditambahkan di sini.'); 
+                    },
                 },
-
+                    getFilteredStokGudang() {
+                        return this.filterStokGudang 
+                            ? this.stokGudang.filter(s => s.gudang === this.filterStokGudang) 
+                            : this.stokGudang;
+                    },
+                    getFilteredDrumLedger() {
+                        return this.filterStokGudang 
+                            ? this.drumLedger.filter(d => d.gudang === this.filterStokGudang) 
+                            : this.drumLedger;
+                    },
+                    getUniqueRegions() { 
+                        return ['ACH', 'PDG', 'PLM']; 
+                    },
+                    getFilteredMaterialUsage() { 
+                        return this.materialUsage || []; 
+                    },
+                    getFilteredTransactions() { 
+                        return this.transactions || []; 
+                    },
+                    exportStokCSV() {},
+                    exportUsageCSV() {},
+                    exportTransactionCSV() {},
+                    editTransaction(tx) {},
+                    deleteTransaction(tx) {},
+                    printBAST(tx) { 
+                        this.activeBast = tx; 
+                        setTimeout(() => window.print(), 300);
+                    },
+                    getProjectName(kodeProject) { return ''; },
+                    getExpandedBastItems() { return []; },
+                    shouldShowSummary() { return false; },
+                    getBastSummaryTotals() { return []; }
                 // Fungsi parsing string input manual (dipisah dengan nama beda agar tidak menimpa allocateDrumIds)
                 parseDrumInputString(input) {
                     if (!input) return [];
