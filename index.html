@@ -1888,13 +1888,28 @@
                 },
 
                 printBAST(tx) {
-                    this.activeBast = JSON.parse(JSON.stringify(tx));
+                    this.activeBast = tx;
                     this.refreshIcons();
-                    setTimeout(() => {
-                        window.print();
-                    }, 300);
+                    this.$nextTab = true;
+                    this.$nextTick(() => {
+                        const element = document.getElementById('printable-bast');
+                        // Format penamaan file: [No transaksi-Gudang asal-gudang tujuan]
+                        const safeAsal = (tx.gudangAsal || 'Eksternal').replace(/[/\\?%*:|"<>]/g, '-');
+                        const safeTujuan = (tx.gudangTujuan || 'Eksternal').replace(/[/\\?%*:|"<>]/g, '-');
+                        const filename = `${tx.noTransaksi}-${safeAsal}-${safeTujuan}.pdf`;
+        
+                        const opt = {
+                            margin:       10,
+                            filename:     filename,
+                            image:        { type: 'jpeg', quality: 0.98 },
+                            html2canvas:  { scale: 2, useCORS: true },
+                            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                        };
+        
+                        // Auto download PDF
+                        html2pdf().from(element).set(opt).save();
+                    });
                 },
-
                 getExpandedBastItems() {
                     if (!this.activeBast || !this.activeBast.items) return [];
                     let expanded = [];
@@ -1926,37 +1941,38 @@
                 },
 
                 shouldShowSummary() {
-                    return this.activeBast && this.activeBast.items && this.activeBast.items.length > 0;
-                },
+                    return this.getBastSummaryTotals().length > 0;
+                }
 
                 getBastSummaryTotals() {
-                    if (!this.activeBast || !this.activeBast.items) return [];
-                    let map = {};
-                    this.activeBast.items.forEach(item => {
-                        const key = item.namaBarang;
-                        const brg = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                        const satuan = brg ? brg.sat : 'Pcs';
+    if (!this.activeBast || !this.activeBast.items) return [];
+    const map = {};
+    
+    this.activeBast.items.forEach(item => {
+        const name = item.namaBarang || item.kodeBarang;
+        const qty = Number(item.qty) || 0;
+        const sat = item.sat || 'Pcs';
+        
+        if (!map[name]) {
+            map[name] = { totalQty: 0, satuan: sat, count: 0 };
+        }
+        map[name].totalQty += qty;
+        map[name].count += 1;
+    });
 
-                        if (!map[key]) {
-                            map[key] = { namaBarang: key, totalQty: 0, satuan: satuan, drumDetails: [] };
-                        }
-                        map[key].totalQty += Number(item.qty) || 0;
-
-                        if (item.drumId && item.drumId !== '-') {
-                            if (item.drumId.includes(',')) {
-                                const drums = item.drumId.split(',').map(d => d.trim());
-                                const splitQty = Math.round(Number(item.qty) / drums.length);
-                                drums.forEach(dId => {
-                                    map[key].drumDetails.push({ id: dId, vol: splitQty || item.qty });
-                                });
-                            } else {
-                                map[key].drumDetails.push({ id: item.drumId, vol: item.qty });
-                            }
-                        }
-                    });
-                    return Object.values(map);
-                },
-
+    const result = [];
+    // Hanya ambil barang yang memiliki nama yang sama (count > 1)
+    for (const name in map) {
+        if (map[name].count > 1) {
+            result.push({ 
+                namaBarang: name, 
+                totalQty: map[name].totalQty, 
+                satuan: map[name].satuan 
+            });
+        }
+    }
+    return result;
+},
                 getProjectName(kodeProject) {
                     const p = this.masterProject.find(proj => proj.kodeProject === kodeProject);
                     return p ? p.projectName : '';
