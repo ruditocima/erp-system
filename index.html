@@ -431,7 +431,7 @@
                                                     </select>
                                                 </template>
                                                 <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer'))">
-                                                    <input type="text" x-model="item.drumId" placeholder="Drum ID (Opsional)" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
+                                                    <input type="text" x-model="item.drumId" placeholder="Drum ID (Otomatis/Opsional)" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
                                                 </template>
                                             </div>
                                             <div class="md:col-span-1">
@@ -1137,6 +1137,88 @@
                     const tipe = this.newTrans.tipeTransaksi;
                     const gudangMasuk = this.newTrans.gudangTujuan; 
                     const gudangKeluar = this.newTrans.gudangAsal; 
+
+                    // AUTOMATIC CABLE SPLIT & DRUM ID ASSIGNMENT (Rules 1-5)
+                    if (tipe === 'Masuk') {
+                        let processedItems = [];
+                        this.newTrans.items.forEach(item => {
+                            const kat = this.getCategoryByKode(item.kodeBarang);
+                            let totalQty = parseInt(item.qty) || 0;
+                            const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
+                            
+                            if (kat === 'Cable' && totalQty > 0) {
+                                // Rule 5: Kode Gudang Tujuan + 3 Karakter Terakhir Kode Barang
+                                const whObj = this.masterGudang.find(g => g.namaGudang === gudangMasuk);
+                                let whCode = 'PLB';
+                                if (whObj && whObj.kodeGudang) {
+                                    whCode = whObj.kodeGudang.split('-')[0].toUpperCase();
+                                } else if (gudangMasuk) {
+                                    whCode = gudangMasuk.substring(0, 3).toUpperCase();
+                                }
+                                const threeCharBarang = item.kodeBarang ? item.kodeBarang.split('-').pop() : '036';
+
+                                let remainingToAllocate = totalQty;
+
+                                while (remainingToAllocate > 0) {
+                                    let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
+                                    remainingToAllocate -= chunkQty;
+
+                                    // Rule 4: Baca Drum ID yang stok-nya (remainingLength) == 0
+                                    let zeroDrum = this.drumLedger.find(d => 
+                                        d.kodeBarang === item.kodeBarang && 
+                                        d.gudang === gudangMasuk && 
+                                        d.remainingLength === 0
+                                    );
+
+                                    let assignedDrumId = '';
+
+                                    if (zeroDrum) {
+                                        assignedDrumId = zeroDrum.drumId;
+                                        zeroDrum.initialLength = chunkQty;
+                                        zeroDrum.remainingLength = chunkQty;
+                                    } else {
+                                        // Buat Drum ID baru: baca Drum ID terakhir lalu ditambah 1
+                                        const existingDrums = this.drumLedger.filter(d => 
+                                            d.kodeBarang === item.kodeBarang && 
+                                            d.gudang === gudangMasuk
+                                        );
+
+                                        let maxSeq = 0;
+                                        existingDrums.forEach(d => {
+                                            const parts = d.drumId.split('-D');
+                                            if (parts.length > 1) {
+                                                const seqNum = parseInt(parts[parts.length - 1], 10);
+                                                if (!isNaN(seqNum) && seqNum > maxSeq) {
+                                                    maxSeq = seqNum;
+                                                }
+                                            }
+                                        });
+                                        let nextSeq = maxSeq + 1;
+
+                                        assignedDrumId = `${whCode}-${threeCharBarang}-D${String(nextSeq).padStart(2, '0')}`;
+
+                                        this.drumLedger.push({
+                                            drumId: assignedDrumId,
+                                            kodeBarang: item.kodeBarang,
+                                            namaBarang: namaBrg,
+                                            gudang: gudangMasuk,
+                                            initialLength: chunkQty,
+                                            remainingLength: chunkQty
+                                        });
+                                    }
+
+                                    processedItems.push({
+                                        ...item,
+                                        drumId: assignedDrumId,
+                                        qty: chunkQty
+                                    });
+                                }
+                            } else {
+                                processedItems.push(item);
+                            }
+                        });
+                        this.newTrans.items = processedItems;
+                    }
 
                     // 1. Proses Pembaruan Stok Gudang & Pelacakan Drum
                     this.newTrans.items.forEach(item => {
