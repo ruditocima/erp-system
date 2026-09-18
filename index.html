@@ -57,14 +57,6 @@
                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Password</label>
                     <input type="password" x-model="loginForm.password" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
                 </div>
-                <div>
-                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Pilih Role Akses (Fallback)</label>
-                    <select x-model="loginForm.role" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                        <option value="Admin">Administrator (Full Access)</option>
-                        <option value="Staff Gudang">Staff Gudang (Input & Stok)</option>
-                        <option value="Project Manager">Project Manager (Project & Usage)</option>
-                    </select>
-                </div>
                 <button type="submit" :disabled="isLoading" class="w-full mt-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-medium py-2.5 rounded-lg shadow-lg shadow-indigo-600/20 transition duration-200 text-xs flex items-center justify-center gap-2">
                     <span x-show="isLoading" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
                     <span x-text="isLoading ? 'Memproses...' : 'Masuk ke Sistem'"></span>
@@ -780,7 +772,7 @@
                 currentUser: localStorage.getItem('vortex_user') || 'Admin',
                 currentRole: localStorage.getItem('vortex_role') || 'Admin',
                 currentTab: 'dashboard',
-                loginForm: { email: '', password: '', role: 'Admin' },
+                loginForm: { email: '', password: '' },
                 profileForm: { namaLengkap: '', email: '', newPassword: '' },
 
                 showModal: false, modalType: '', modalForm: {}, isEdit: false, editIndex: null,
@@ -829,7 +821,7 @@
                     if (!supabaseClient) {
                         this.isLoggedIn = true;
                         this.currentUser = this.loginForm.email.split('@')[0] || 'User';
-                        this.currentRole = this.loginForm.role;
+                        this.currentRole = 'Staff Gudang';
                         localStorage.setItem('vortex_logged_in', 'true');
                         localStorage.setItem('vortex_user', this.currentUser);
                         localStorage.setItem('vortex_role', this.currentRole);
@@ -846,15 +838,19 @@
                         if (authError) throw authError;
 
                         const userId = authData.user.id;
-                        const { data: profileData } = await supabaseClient
+                        const { data: profileData, error: profileError } = await supabaseClient
                             .from('profiles')
                             .select('role, nama_lengkap')
                             .eq('id', userId)
                             .single();
 
+                        if (profileError || !profileData) {
+                            throw new Error('Data profil pengguna tidak ditemukan di database.');
+                        }
+
                         this.isLoggedIn = true;
-                        this.currentUser = profileData?.nama_lengkap || authData.user.email.split('@')[0];
-                        this.currentRole = profileData?.role || this.loginForm.role;
+                        this.currentUser = profileData.nama_lengkap || authData.user.email.split('@')[0];
+                        this.currentRole = profileData.role;
 
                         localStorage.setItem('vortex_logged_in', 'true');
                         localStorage.setItem('vortex_user', this.currentUser);
