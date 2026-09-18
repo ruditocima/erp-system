@@ -868,6 +868,21 @@
                             }));
                         }
 
+                        // Sinkronisasi pemuatan data material_usage dari Supabase
+                        const { data: usageData } = await supabaseClient.from('material_usage').select('*');
+                        if (usageData && usageData.length > 0) {
+                            this.materialUsage = usageData.map(u => ({
+                                id: u.id,
+                                kodeProject: u.kode_project,
+                                noPO: u.no_po,
+                                projectName: u.project_name,
+                                namaBarang: u.nama_barang,
+                                drumId: u.drum_id,
+                                qty: u.qty,
+                                tanggal: u.tanggal
+                            }));
+                        }
+
                         const { data: txData } = await supabaseClient.from('transactions').select('*');
                         if (txData && txData.length > 0) {
                             this.transactions = txData.map(t => ({
@@ -1377,6 +1392,20 @@
                                     remaining_length: drum.remainingLength
                                 }, { onConflict: 'drum_id' });
                             }
+
+                            // 4. Update Material Usage ke Supabase secara otomatis
+                            for (let usage of this.materialUsage) {
+                                await supabaseClient.from('material_usage').upsert({
+                                    id: usage.id,
+                                    kode_project: usage.kodeProject,
+                                    no_po: usage.noPO,
+                                    project_name: usage.projectName,
+                                    nama_barang: usage.namaBarang,
+                                    drum_id: usage.drumId,
+                                    qty: usage.qty,
+                                    tanggal: usage.tanggal
+                                }, { onConflict: 'id' });
+                            }
                         } catch (err) {
                             console.error('Gagal sinkronisasi transaksi ke Supabase:', err);
                             this.showNotification('Gagal menyimpan ke database Supabase: ' + err.message, 'error');
@@ -1472,6 +1501,11 @@
                             try {
                                 this.isLoading = true;
                                 await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
+                                
+                                // Hapus data material_usage terkait di Supabase jika transaksi bertipe Keluar
+                                if (tx.tipeTransaksi === 'Keluar' && tx.kodeProject) {
+                                    await supabaseClient.from('material_usage').delete().eq('kode_project', tx.kodeProject).eq('tanggal', tx.tanggal);
+                                }
 
                                 for (let stok of this.stokGudang) {
                                     await supabaseClient.from('stok_gudang').upsert({
