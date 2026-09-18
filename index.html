@@ -1523,6 +1523,7 @@
                     return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === wh && d.remainingLength > 0);
                 },
 
+                // Fungsi tunggal untuk alokasi otomatis Drum ID Kabel
                 allocateDrumIds(targetWh, kodeBarang, totalQty, currentSessionDrums = []) {
                     const MAX_CAPACITY = 3000;
                     const foundGudang = this.masterGudang.find(g => g.namaGudang === targetWh);
@@ -1582,6 +1583,15 @@
                     });
 
                     return allocatedDrums;
+                },
+
+                // Fungsi parsing string input manual (dipisah dengan nama beda agar tidak menimpa allocateDrumIds)
+                parseDrumInputString(input) {
+                    if (!input) return [];
+                    return input
+                        .split(/[\n,]+/)
+                        .map(id => id.trim())
+                        .filter(id => id.length > 0);
                 },
 
                 reverseTransactionEffect(tx) {
@@ -1880,24 +1890,10 @@
                     }
                 },
 
-                allocateDrumIds(input) {
-                    if (!input) return [];
-            
-                    // Mengambil deretan angka dari input teks
-                    const digitsOnly = input.toString().replace(/\D/g, '');
-            
-                    // Mengubah input daftar Drum ID (dipisah koma atau baris baru) menjadi array
-                    return input
-                        .split(/[\n,]+/)
-                        .map(id => id.trim())
-                        .filter(id => id.length > 0);
-                },
-                
                 printBAST(tx) {
                     this.activeBast = JSON.parse(JSON.stringify(tx));
                     this.refreshIcons();
                     this.$nextTick(() => {
-                        // Ubah document.title agar saat di save as PDF namanya sesuai format: No transaksi-Gudang asal-gudang tujuan
                         const originalTitle = document.title;
                         const gudangAsal = tx.gudangAsal || 'Eksternal';
                         const gudangTujuan = tx.gudangTujuan || 'Eksternal';
@@ -1905,14 +1901,12 @@
                         
                         window.print();
                         
-                        // Kembalikan ke title aslinya
                         setTimeout(() => {
                             document.title = originalTitle;
                         }, 1000);
                     });
                 },
 
-                /* LOGIKA UTAMA PEMBARUAN BAST PDF: MENGURAIKAN DRUM ID LANGSUNG KE BARIS TABEL */
                 getExpandedBastItems() {
                     if (!this.activeBast || !this.activeBast.items) return [];
 
@@ -1920,7 +1914,6 @@
                     let rowCounter = 1;
 
                     this.activeBast.items.forEach(item => {
-                        // 1. Jika item memiliki rincian drumDetails (hasil pecahan kabel saat transaksi)
                         if (item.drumDetails && Array.isArray(item.drumDetails) && item.drumDetails.length > 0) {
                             item.drumDetails.forEach(d => {
                                 result.push({
@@ -1932,7 +1925,6 @@
                                 });
                             });
                         } 
-                        // 2. Jika merupakan kabel tanpa drumDetails tetapi panjangnya > 3000m (alokasi otomatis langsung)
                         else if (this.getCategoryByKode(item.kodeBarang) === 'Cable' && Number(item.qty) > 3000 && this.activeBast.tipeTransaksi === 'Masuk') {
                             const targetWh = this.activeBast.gudangTujuan;
                             const allocated = this.allocateDrumIds(targetWh, item.kodeBarang, Number(item.qty));
@@ -1946,7 +1938,6 @@
                                 });
                             });
                         } 
-                        // 3. Item standar / single drum
                         else {
                             result.push({
                                 no: rowCounter++,
@@ -1996,12 +1987,10 @@
                 shouldShowSummary() {
                     if (!this.activeBast || !this.activeBast.items || this.activeBast.items.length === 0) return false;
                     
-                    // Mengecek apakah ada nama barang yang sama di dalam tabel BAST
                     const expanded = this.getExpandedBastItems();
                     const itemNames = expanded.map(item => item.namaBarang);
                     const uniqueNames = new Set(itemNames);
                     
-                    // Munculkan summary HANYA jika jumlah total item lebih besar dari jumlah nama barang unik
                     return itemNames.length > uniqueNames.size;
                 },
 
