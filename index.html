@@ -1099,7 +1099,6 @@
                 onTipeTransaksiChange() { this.newTrans.gudangAsal = ''; this.newTrans.gudangTujuan = ''; this.generateNoTransaksi(); },
                 resetItemsOnWarehouseChange() { this.newTrans.items.forEach(i => i.drumId = ''); },
                 
-                // Mencegah Gudang Asal muncul di pilihan Gudang Tujuan
                 getGudangTujuanList() { 
                     return this.masterGudang.filter(g => g.namaGudang !== this.newTrans.gudangAsal); 
                 },
@@ -1134,8 +1133,88 @@
                         this.showNotification('No Referensi dan Keterangan wajib diisi!', 'error');
                         return;
                     }
+
+                    const tipe = this.newTrans.tipeTransaksi;
+                    const gudangMasuk = this.newTrans.gudangTujuan; 
+                    const gudangKeluar = this.newTrans.gudangAsal; 
+
+                    // 1. Proses Pembaruan Stok Gudang & Pelacakan Drum
+                    this.newTrans.items.forEach(item => {
+                        const qty = parseInt(item.qty) || 0;
+                        const kat = this.getCategoryByKode(item.kodeBarang);
+                        const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
+                        const satBrg = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.sat || 'Pcs';
+
+                        const modifyStok = (gudangName, delta) => {
+                            if (!gudangName) return;
+                            let stokItem = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === gudangName);
+                            if (stokItem) {
+                                stokItem.qty += delta;
+                                if (stokItem.qty < 0) stokItem.qty = 0;
+                            } else if (delta > 0) {
+                                this.stokGudang.push({
+                                    kodeBarang: item.kodeBarang,
+                                    namaBarang: namaBrg,
+                                    kategori: kat,
+                                    gudang: gudangName,
+                                    qty: delta,
+                                    sat: satBrg
+                                });
+                            }
+                        };
+
+                        if (tipe === 'Masuk') {
+                            modifyStok(gudangMasuk, qty);
+                            if (kat === 'Cable' && item.drumId) {
+                                let existingDrum = this.drumLedger.find(d => d.drumId === item.drumId);
+                                if (!existingDrum) {
+                                    this.drumLedger.push({
+                                        drumId: item.drumId,
+                                        kodeBarang: item.kodeBarang,
+                                        namaBarang: namaBrg,
+                                        gudang: gudangMasuk,
+                                        initialLength: qty,
+                                        remainingLength: qty
+                                    });
+                                }
+                            }
+                        } else if (tipe === 'Keluar') {
+                            modifyStok(gudangKeluar, -qty);
+                            if (kat === 'Cable' && item.drumId) {
+                                let drum = this.drumLedger.find(d => d.drumId === item.drumId);
+                                if (drum) {
+                                    drum.remainingLength -= qty;
+                                    if (drum.remainingLength < 0) drum.remainingLength = 0;
+                                }
+                            }
+                            if (this.newTrans.kodeProject) {
+                                const proj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
+                                this.materialUsage.unshift({
+                                    id: Date.now() + Math.random(),
+                                    kodeProject: this.newTrans.kodeProject,
+                                    noPO: proj ? proj.noPO : '-',
+                                    projectName: proj ? proj.projectName : '-',
+                                    namaBarang: namaBrg,
+                                    drumId: item.drumId || '-',
+                                    qty: qty,
+                                    tanggal: this.newTrans.tanggal
+                                });
+                            }
+                        } else if (tipe === 'Transfer') {
+                            modifyStok(gudangKeluar, -qty);
+                            modifyStok(gudangMasuk, qty);
+                            if (kat === 'Cable' && item.drumId) {
+                                let drum = this.drumLedger.find(d => d.drumId === item.drumId);
+                                if (drum) {
+                                    drum.gudang = gudangMasuk;
+                                }
+                            }
+                        }
+                    });
+
+                    // 2. Simpan Transaksi ke Riwayat
                     this.transactions.unshift(JSON.parse(JSON.stringify(this.newTrans)));
-                    this.showNotification('Transaksi berhasil disimpan!', 'success');
+                    this.showNotification('Transaksi berhasil disimpan & stok diperbarui!', 'success');
                     this.resetInputTransaction();
                     this.switchTab('data-transaksi');
                 },
