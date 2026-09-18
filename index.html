@@ -967,11 +967,23 @@
 
         <!-- Rekapitulasi Summary -->
         <div class="mb-6 text-[11px] bg-slate-50 p-2.5 border border-slate-300 rounded" x-show="shouldShowSummary()">
-            <p class="font-bold mb-1 uppercase tracking-wider text-[10px] text-slate-700">Summary:</p>
-            <div class="space-y-1">
+            <p class="font-bold mb-1.5 uppercase tracking-wider text-[10px] text-slate-700">Summary & Rincian Drum:</p>
+            <div class="space-y-2">
                 <template x-for="summary in getBastSummaryTotals()" :key="summary.namaBarang">
                     <div>
-                        <span class="font-medium" x-text="summary.namaBarang"></span> : <span class="font-bold" x-text="summary.totalQty"></span>
+                        <!-- Menampilkan Total Qty Keseluruhan -->
+                        <div class="font-medium text-slate-800">
+                            <span x-text="summary.namaBarang"></span> : <span class="font-bold" x-text="summary.totalQty + ' ' + summary.satuan"></span>
+                        </div>
+                        
+                        <!-- Merincikan Drum ID dan Volume Masing-masing -->
+                        <template x-if="summary.drumDetails && summary.drumDetails.length > 0">
+                            <div class="ml-2 mt-0.5 border-l-2 border-slate-300 pl-2 text-[10px] text-slate-600 space-y-0.5">
+                                <template x-for="(drum, dIdx) in summary.drumDetails" :key="dIdx">
+                                    <div x-text="'- ' + drum.id + ' (Volume: ' + drum.vol + ' ' + summary.satuan + ')'"></div>
+                                </template>
+                            </div>
+                        </template>
                     </div>
                 </template>
             </div>
@@ -1876,8 +1888,7 @@
                 },
 
                 printBAST(tx) {
-                    this.activeBast = tx;
-                    this.refreshIcons();
+                    this.activeBast = JSON.parse(JSON.stringify(tx));
                     setTimeout(() => {
                         window.print();
                     }, 300);
@@ -1885,25 +1896,50 @@
 
                 getExpandedBastItems() {
                     if (!this.activeBast || !this.activeBast.items) return [];
-                    return this.activeBast.items;
+                    return this.activeBast.items.map(item => ({
+                        kodeBarang: item.kodeBarang,
+                        namaBarang: item.namaBarang,
+                        drumId: item.drumId || '-',
+                        qty: item.qty
+                    }));
                 },
 
                 shouldShowSummary() {
-                    const items = this.getExpandedBastItems();
-                    return items.length > 1;
+                    if (!this.activeBast || !this.activeBast.items) return false;
+                    return this.activeBast.items.length > 0;
                 },
 
                 getBastSummaryTotals() {
-                    const items = this.getExpandedBastItems();
-                    const map = {};
-                    items.forEach(i => {
-                        const key = i.namaBarang || i.kodeBarang;
-                        if (!map[key]) {
-                            map[key] = { namaBarang: key, totalQty: 0 };
+                    if (!this.activeBast || !this.activeBast.items) return [];
+                    let totals = {};
+                    
+                    this.activeBast.items.forEach(item => {
+                        if (!totals[item.namaBarang]) {
+                            // Cek master barang untuk mendapatkan tipe satuan (Meter/Pcs)
+                            const brg = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
+                            totals[item.namaBarang] = { 
+                                totalQty: 0, 
+                                satuan: brg ? brg.sat : '',
+                                drums: [] 
+                            };
                         }
-                        map[key].totalQty += Number(i.qty) || 0;
+                        
+                        totals[item.namaBarang].totalQty += Number(item.qty);
+                        
+                        // Menampung detail drum id per masing-masing volume
+                        if (item.drumId && item.drumId !== '-') {
+                            totals[item.namaBarang].drums.push({ id: item.drumId, vol: item.qty });
+                        }
                     });
-                    return Object.values(map);
+                    
+                    return Object.keys(totals).map(key => {
+                        return {
+                            namaBarang: key,
+                            totalQty: totals[key].totalQty,
+                            satuan: totals[key].satuan,
+                            drumDetails: totals[key].drums
+                        };
+                    });
                 },
 
                 getProjectName(code) {
