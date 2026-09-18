@@ -793,9 +793,10 @@
                 newTrans: { tanggal: '', noTransaksi: '', noReferensi: '', tipeTransaksi: 'Masuk', gudangAsal: '', gudangTujuan: '', kodeProject: '', keterangan: '', lampiran: '', lampiranUrl: '', items: [] },
                 activeBast: {},
 
-                init() {
+                async init() {
                     this.resetInputTransaction();
                     this.initProfileData();
+                    await this.loadDataFromSupabase();
                     this.refreshIcons();
 
                     this.$watch('masterBarang', val => localStorage.setItem('vortex_masterBarang', JSON.stringify(val)), { deep: true });
@@ -805,6 +806,46 @@
                     this.$watch('drumLedger', val => localStorage.setItem('vortex_drumLedger', JSON.stringify(val)), { deep: true });
                     this.$watch('transactions', val => localStorage.setItem('vortex_transactions', JSON.stringify(val)), { deep: true });
                     this.$watch('materialUsage', val => localStorage.setItem('vortex_materialUsage', JSON.stringify(val)), { deep: true });
+                },
+
+                async loadDataFromSupabase() {
+                    if (!supabaseClient) return;
+                    try {
+                        const { data: barangData } = await supabaseClient.from('master_barang').select('*');
+                        if (barangData && barangData.length > 0) {
+                            this.masterBarang = barangData.map(b => ({
+                                kategori: b.kategori,
+                                jenis: b.jenis,
+                                kodeBarang: b.kode_barang,
+                                namaBarang: b.nama_barang,
+                                sat: b.sat
+                            }));
+                        }
+
+                        const { data: gudangData } = await supabaseClient.from('master_gudang').select('*');
+                        if (gudangData && gudangData.length > 0) {
+                            this.masterGudang = gudangData.map(g => ({
+                                kodeGudang: g.kode_gudang,
+                                namaGudang: g.nama_gudang,
+                                tipeKepemilikan: g.tipe_kepemilikan,
+                                lokasi: g.lokasi
+                            }));
+                        }
+
+                        const { data: projectData } = await supabaseClient.from('master_project').select('*');
+                        if (projectData && projectData.length > 0) {
+                            this.masterProject = projectData.map(p => ({
+                                periode: p.periode,
+                                region: p.region,
+                                kodeProject: p.kode_project,
+                                type: p.type,
+                                noPO: p.no_po,
+                                projectName: p.project_name
+                            }));
+                        }
+                    } catch (e) {
+                        console.warn('Gagal memuat data dari Supabase, menggunakan lokal storage:', e);
+                    }
                 },
 
                 refreshIcons() {
@@ -950,18 +991,80 @@
                     this.modalForm.kodeProject = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
                 },
 
-                saveModalData() {
-                    if (this.modalType === 'project') {
-                        if (this.isEdit) this.masterProject[this.editIndex] = { ...this.modalForm };
-                        else this.masterProject.push({ ...this.modalForm });
-                    } else if (this.modalType === 'barang') {
-                        if (this.isEdit) this.masterBarang[this.editIndex] = { ...this.modalForm };
-                        else this.masterBarang.push({ ...this.modalForm });
-                    } else if (this.modalType === 'gudang') {
-                        if (this.isEdit) this.masterGudang[this.editIndex] = { ...this.modalForm };
-                        else this.masterGudang.push({ ...this.modalForm });
+                async saveModalData() {
+                    if (!supabaseClient) {
+                        this.showNotification('Koneksi Supabase tidak tersedia!', 'error');
+                        return;
                     }
-                    this.showModal = false; this.showNotification('Data berhasil disimpan!', 'success');
+
+                    try {
+                        if (this.modalType === 'barang') {
+                            const payload = {
+                                kategori: this.modalForm.kategori,
+                                jenis: this.modalForm.jenis,
+                                kode_barang: this.modalForm.kodeBarang,
+                                nama_barang: this.modalForm.namaBarang,
+                                sat: this.modalForm.sat
+                            };
+
+                            const { error } = await supabaseClient
+                                .from('master_barang')
+                                .upsert(payload, { onConflict: 'kode_barang' });
+
+                            if (error) throw error;
+
+                            if (this.isEdit) {
+                                this.masterBarang[this.editIndex] = { ...this.modalForm };
+                            } else {
+                                this.masterBarang.push({ ...this.modalForm });
+                            }
+                        } else if (this.modalType === 'gudang') {
+                            const payload = {
+                                kode_gudang: this.modalForm.kodeGudang,
+                                nama_gudang: this.modalForm.namaGudang,
+                                tipe_kepemilikan: this.modalForm.tipeKepemilikan,
+                                lokasi: this.modalForm.lokasi
+                            };
+
+                            const { error } = await supabaseClient
+                                .from('master_gudang')
+                                .upsert(payload, { onConflict: 'kode_gudang' });
+
+                            if (error) throw error;
+
+                            if (this.isEdit) {
+                                this.masterGudang[this.editIndex] = { ...this.modalForm };
+                            } else {
+                                this.masterGudang.push({ ...this.modalForm });
+                            }
+                        } else if (this.modalType === 'project') {
+                            const payload = {
+                                periode: this.modalForm.periode,
+                                region: this.modalForm.region,
+                                kode_project: this.modalForm.kodeProject,
+                                type: this.modalForm.type,
+                                no_po: this.modalForm.noPO,
+                                project_name: this.modalForm.projectName
+                            };
+
+                            const { error } = await supabaseClient
+                                .from('master_project')
+                                .upsert(payload, { onConflict: 'kode_project' });
+
+                            if (error) throw error;
+
+                            if (this.isEdit) {
+                                this.masterProject[this.editIndex] = { ...this.modalForm };
+                            } else {
+                                this.masterProject.push({ ...this.modalForm });
+                            }
+                        }
+
+                        this.showModal = false;
+                        this.showNotification('Data berhasil disimpan ke Supabase!', 'success');
+                    } catch (err) {
+                        this.showNotification('Gagal menyimpan ke database: ' + err.message, 'error');
+                    }
                 },
 
                 deleteItem(type, index) {
