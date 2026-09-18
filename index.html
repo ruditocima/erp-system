@@ -954,11 +954,13 @@
             </thead>
             <tbody>
                 <template x-for="(item, idx) in getExpandedBastItems()" :key="idx">
-                    <tr>
-                        <td class="border border-slate-400 p-1.5 text-center" x-text="idx + 1"></td>
+                    <!-- Tambahkan background redup khusus untuk baris rincian drum -->
+                    <tr :class="item.isDetail ? 'bg-slate-50 text-slate-700' : ''">
+                        <!-- Gunakan item.no alih-alih idx + 1 agar penomoran tidak berantakan -->
+                        <td class="border border-slate-400 p-1.5 text-center" x-text="item.no"></td>
                         <td class="border border-slate-400 p-1.5 font-mono" x-text="item.kodeBarang"></td>
-                        <td class="border border-slate-400 p-1.5" x-text="item.namaBarang"></td>
-                        <td class="border border-slate-400 p-1.5 font-mono" x-text="item.drumId || '-'"></td>
+                        <td class="border border-slate-400 p-1.5" :class="item.isDetail ? 'pl-5 text-[10px] italic' : ''" x-text="item.namaBarang"></td>
+                        <td class="border border-slate-400 p-1.5 font-mono" :class="item.isDetail ? 'text-indigo-600 font-semibold' : ''" x-text="item.drumId || '-'"></td>
                         <td class="border border-slate-400 p-1.5 text-center font-bold" x-text="item.qty"></td>
                     </tr>
                 </template>
@@ -1895,13 +1897,73 @@
                 },
 
                 getExpandedBastItems() {
+                    // Mencegah error jika data kosong
                     if (!this.activeBast || !this.activeBast.items) return [];
-                    return this.activeBast.items.map(item => ({
-                        kodeBarang: item.kodeBarang,
-                        namaBarang: item.namaBarang,
-                        drumId: item.drumId || '-',
-                        qty: item.qty
-                    }));
+                    
+                    let result = [];
+                    let indexCounter = 1;
+                    
+                    // 1. Kelompokkan item berdasarkan kodeBarang
+                    let grouped = {};
+                    this.activeBast.items.forEach(item => {
+                        let key = item.kodeBarang;
+                        if (!grouped[key]) {
+                            grouped[key] = {
+                                kodeBarang: item.kodeBarang,
+                                namaBarang: item.namaBarang,
+                                totalQty: 0,
+                                drums: []
+                            };
+                        }
+                        
+                        // Akumulasi total Qty untuk baris induk
+                        grouped[key].totalQty += Number(item.qty);
+                        
+                        // Tampung Drum ID jika ada
+                        if (item.drumId) {
+                            grouped[key].drums.push({ drumId: item.drumId, qty: item.qty });
+                        }
+                    });
+
+                    // 2. Susun baris BAST (Baris Utama + Baris Rincian Drum)
+                    for (let key in grouped) {
+                        let g = grouped[key];
+                        
+                        if (g.drums.length <= 1) {
+                            // Jika Drum hanya 1 atau bukan kabel (Hardware), tampilkan 1 baris normal
+                            result.push({
+                                isDetail: false,
+                                no: indexCounter++,
+                                kodeBarang: g.kodeBarang,
+                                namaBarang: g.namaBarang,
+                                drumId: g.drums.length === 1 ? g.drums[0].drumId : '-',
+                                qty: g.totalQty
+                            });
+                        } else {
+                            // Jika Drum > 1, buat baris Utama/Header terlebih dahulu
+                            result.push({
+                                isDetail: false,
+                                no: indexCounter++,
+                                kodeBarang: g.kodeBarang,
+                                namaBarang: g.namaBarang,
+                                drumId: 'Multi-Drum (Lihat Rincian)',
+                                qty: g.totalQty
+                            });
+                            
+                            // Looping baris selanjutnya khusus untuk Drum ID dan volumenya
+                            g.drums.forEach(d => {
+                                result.push({
+                                    isDetail: true,
+                                    no: '', // Kosongkan agar nomor tabel utama urut
+                                    kodeBarang: '', // Kosongkan untuk efek indentasi
+                                    namaBarang: '↳ Detail Drum ID:', // Indikator rincian
+                                    drumId: d.drumId,
+                                    qty: d.qty
+                                });
+                            });
+                        }
+                    }
+                    return result;
                 },
 
                 shouldShowSummary() {
