@@ -873,9 +873,11 @@
                         if (usageData && usageData.length > 0) {
                             this.materialUsage = usageData.map(u => ({
                                 id: u.id,
+                                transactionNo: u.transaction_no || '',
                                 kodeProject: u.kode_project,
                                 noPO: u.no_po,
                                 projectName: u.project_name,
+                                kodeBarang: u.kode_barang || '',
                                 namaBarang: u.nama_barang,
                                 drumId: u.drum_id,
                                 qty: u.qty,
@@ -1201,14 +1203,8 @@
                         if (tipe === 'Masuk') {
                             modifyStok(gudangMasuk, -qty);
                             if (kat === 'Cable' && item.drumId) {
-                                let drumIdx = this.drumLedger.findIndex(d => d.drumId === item.drumId);
-                                if (drumIdx !== -1) {
-                                    this.drumLedger[drumIdx].remainingLength -= qty;
-                                    this.drumLedger[drumIdx].initialLength -= qty;
-                                    if (this.drumLedger[drumIdx].remainingLength <= 0) {
-                                        this.drumLedger.splice(drumIdx, 1);
-                                    }
-                                }
+                                // Hapus drum secara penuh dari array lokal jika transaksi masuk dihapus
+                                this.drumLedger = this.drumLedger.filter(d => d.drumId !== item.drumId);
                             }
                         } else if (tipe === 'Keluar') {
                             modifyStok(gudangKeluar, qty);
@@ -1217,6 +1213,7 @@
                                 if (drum) {
                                     drum.remainingLength += qty;
                                 } else {
+                                    // Jika drum sudah hilang dari memori (karena stok 0m), buat ulang entri drumnya
                                     const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
                                     this.drumLedger.push({
                                         drumId: item.drumId,
@@ -1230,7 +1227,7 @@
                             }
                             if (tx.kodeProject) {
                                 this.materialUsage = this.materialUsage.filter(u => 
-                                    !(u.kodeProject === tx.kodeProject && u.drumId === item.drumId && u.tanggal === tx.tanggal)
+                                    !(u.transactionNo === tx.noTransaksi && u.drumId === item.drumId)
                                 );
                             }
                         } else if (tipe === 'Transfer') {
@@ -1421,20 +1418,20 @@
                                 }
                             }
                             if (this.newTrans.kodeProject) {
-    const proj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
-    this.materialUsage.unshift({
-        id: String(Date.now() + Math.random()), // Pastikan ID diubah menjadi string
-        transactionNo: this.newTrans.noTransaksi, // Tambahkan no transaksi
-        kodeProject: this.newTrans.kodeProject,
-        noPO: proj ? proj.noPO : '-',
-        projectName: proj ? proj.projectName : '-',
-        kodeBarang: item.kodeBarang, // Tambahkan kode barang
-        namaBarang: namaBrg,
-        drumId: item.drumId || '-',
-        qty: qty,
-        tanggal: this.newTrans.tanggal
-    });
-}
+                                const proj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
+                                this.materialUsage.unshift({
+                                    id: String(Date.now() + Math.random()), // Pastikan ID diubah menjadi string
+                                    transactionNo: this.newTrans.noTransaksi, // Tambahkan no transaksi
+                                    kodeProject: this.newTrans.kodeProject,
+                                    noPO: proj ? proj.noPO : '-',
+                                    projectName: proj ? proj.projectName : '-',
+                                    kodeBarang: item.kodeBarang, // Tambahkan kode barang
+                                    namaBarang: namaBrg,
+                                    drumId: item.drumId || '-',
+                                    qty: qty,
+                                    tanggal: this.newTrans.tanggal
+                                });
+                            }
                         } else if (tipe === 'Transfer') {
                             modifyStok(gudangKeluar, -qty);
                             modifyStok(gudangMasuk, qty);
@@ -1494,20 +1491,20 @@
                             }
 
                             // 4. Update Material Usage ke Supabase secara otomatis
-for (let usage of this.materialUsage) {
-    await supabaseClient.from('material_usage').upsert({
-        id: String(usage.id),
-        transaction_no: usage.transactionNo, // Kirim ke Supabase
-        kode_project: usage.kodeProject,
-        no_po: usage.noPO,
-        project_name: usage.projectName,
-        kode_barang: usage.kodeBarang,       // Kirim ke Supabase
-        nama_barang: usage.namaBarang,
-        drum_id: usage.drumId,
-        qty: usage.qty,
-        tanggal: usage.tanggal
-    }, { onConflict: 'id' });
-}
+                            for (let usage of this.materialUsage) {
+                                await supabaseClient.from('material_usage').upsert({
+                                    id: String(usage.id),
+                                    transaction_no: usage.transactionNo, // Kirim ke Supabase
+                                    kode_project: usage.kodeProject,
+                                    no_po: usage.noPO,
+                                    project_name: usage.projectName,
+                                    kode_barang: usage.kodeBarang,       // Kirim ke Supabase
+                                    nama_barang: usage.namaBarang,
+                                    drum_id: usage.drumId,
+                                    qty: usage.qty,
+                                    tanggal: usage.tanggal
+                                }, { onConflict: 'id' });
+                            }
                         } catch (err) {
                             console.error('Gagal sinkronisasi transaksi ke Supabase:', err);
                             this.showNotification('Gagal menyimpan ke database Supabase: ' + err.message, 'error');
@@ -1564,7 +1561,7 @@ for (let usage of this.materialUsage) {
                     // 2. Kembalikan kondisi stok, drum, dan material usage (secara lokal)
                     this.rollbackTransaction(tx);
 
-                    // 3. Deteksi item yang terhapus dari lokal setelah rollback (qty mencapai 0)
+                    // 3. Deteksi item yang terhapus dari lokal setelah rollback (qty mencapai 0 atau drum terhapus)
                     const drumsAfter = this.drumLedger.map(d => d.drumId);
                     const deletedDrums = drumsBefore.filter(id => !drumsAfter.includes(id));
                     
@@ -1584,20 +1581,29 @@ for (let usage of this.materialUsage) {
                             
                             // B. Hapus material usage jika ada (untuk transaksi Keluar)
                             if (tx.kodeProject) {
-                                await supabaseClient.from('material_usage').delete().eq('tanggal', tx.tanggal).eq('kode_project', tx.kodeProject);
+                                await supabaseClient.from('material_usage').delete().eq('transaction_no', tx.noTransaksi);
                             }
 
-                            // C. Update stok & drum yang masih ada (Upsert)
+                            // C. Jika transaksi 'Masuk', hapus drum terkait secara permanen dari Supabase
+                            if (tx.tipeTransaksi === 'Masuk') {
+                                for (let item of tx.items) {
+                                    if (item.drumId) {
+                                        await supabaseClient.from('drum_ledger').delete().eq('drum_id', item.drumId);
+                                    }
+                                }
+                            }
+
+                            // D. Update stok & drum yang masih ada (Upsert)
                             await this.syncStokAndDrumToSupabase();
 
-                            // D. HAPUS PERMANEN drum dari Supabase jika stok panjangnya sudah habis ditarik mundur
+                            // E. HAPUS PERMANEN drum dari Supabase jika stok panjangnya sudah habis ditarik mundur
                             if (deletedDrums.length > 0) {
                                 for (let dId of deletedDrums) {
                                     await supabaseClient.from('drum_ledger').delete().eq('drum_id', dId);
                                 }
                             }
 
-                            // E. HAPUS PERMANEN entri stok dari Supabase jika qty mencapai 0
+                            // F. HAPUS PERMANEN entri stok dari Supabase jika qty mencapai 0
                             if (deletedStok.length > 0) {
                                 for (let sId of deletedStok) {
                                     const [kb, gd] = sId.split('_');
