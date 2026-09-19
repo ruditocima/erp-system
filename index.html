@@ -1464,61 +1464,62 @@
 
                     this.drumLedger = this.drumLedger.filter(d => d.remainingLength > 0);
 
+                    // Integrasi Pemanggilan RPC pada Supabase (Atomic Operation & Validasi Server)
                     if (supabaseClient) {
                         try {
                             this.isLoading = true;
-                            await supabaseClient.from('transactions').upsert({
-                                no_transaksi: this.newTrans.noTransaksi,
-                                tanggal: this.newTrans.tanggal,
-                                no_referensi: this.newTrans.noReferensi,
-                                tipe_transaksi: this.newTrans.tipeTransaksi,
-                                gudang_asal: this.newTrans.gudangAsal,
-                                gudang_tujuan: this.newTrans.gudangTujuan,
-                                kode_project: this.newTrans.kodeProject,
-                                keterangan: this.newTrans.keterangan,
-                                lampiran: this.newTrans.lampiran,
-                                lampiran_url: this.newTrans.lampiranUrl || '',
-                                items: this.newTrans.items
-                            }, { onConflict: 'no_transaksi' });
+                            const stokPayload = this.stokGudang.map(s => ({
+                                kode_barang: s.kodeBarang,
+                                nama_barang: s.namaBarang,
+                                kategori: s.kategori,
+                                gudang: s.gudang,
+                                qty: s.qty,
+                                sat: s.sat
+                            }));
+                            const drumPayload = this.drumLedger.map(d => ({
+                                drum_id: d.drumId,
+                                kode_barang: d.kodeBarang,
+                                nama_barang: d.namaBarang,
+                                gudang: d.gudang,
+                                initial_length: d.initialLength,
+                                remaining_length: d.remainingLength
+                            }));
+                            const usagePayload = this.materialUsage.map(u => ({
+                                id: String(u.id),
+                                transaction_no: u.transactionNo || '',
+                                kode_project: u.kodeProject || '',
+                                no_po: u.noPO || '',
+                                project_name: u.projectName || '',
+                                kode_barang: u.kodeBarang || '',
+                                nama_barang: u.namaBarang || '',
+                                drum_id: u.drumId || '',
+                                qty: u.qty || 0,
+                                tanggal: u.tanggal || new Date().toISOString().split('T')[0]
+                            }));
 
-                            for (let stok of this.stokGudang) {
-                                await supabaseClient.from('stok_gudang').upsert({
-                                    kode_barang: stok.kodeBarang,
-                                    nama_barang: stok.namaBarang,
-                                    kategori: stok.kategori,
-                                    gudang: stok.gudang,
-                                    qty: stok.qty,
-                                    sat: stok.sat
-                                }, { onConflict: 'kode_barang, gudang' });
-                            }
+                            const { data, error } = await supabaseClient.rpc('process_warehouse_transaction', {
+                                p_no_transaksi: this.newTrans.noTransaksi,
+                                p_tanggal: this.newTrans.tanggal,
+                                p_no_referensi: this.newTrans.noReferensi,
+                                p_tipe_transaksi: this.newTrans.tipeTransaksi,
+                                p_gudang_asal: this.newTrans.gudangAsal || null,
+                                p_gudang_tujuan: this.newTrans.gudangTujuan || null,
+                                p_kode_project: this.newTrans.kodeProject || null,
+                                p_keterangan: this.newTrans.keterangan,
+                                p_lampiran: this.newTrans.lampiran || null,
+                                p_lampiran_url: this.newTrans.lampiranUrl || null,
+                                p_items: this.newTrans.items,
+                                p_stok_updates: stokPayload,
+                                p_drum_updates: drumPayload,
+                                p_usage_records: usagePayload
+                            });
 
-                            for (let drum of this.drumLedger) {
-                                await supabaseClient.from('drum_ledger').upsert({
-                                    drum_id: drum.drumId,
-                                    kode_barang: drum.kodeBarang,
-                                    nama_barang: drum.namaBarang,
-                                    gudang: drum.gudang,
-                                    initial_length: drum.initialLength,
-                                    remaining_length: drum.remainingLength
-                                }, { onConflict: 'drum_id' });
-                            }
-
-                            for (let usage of this.materialUsage) {
-                                await supabaseClient.from('material_usage').upsert({
-                                    id: String(usage.id),
-                                    transaction_no: usage.transactionNo,
-                                    kode_project: usage.kodeProject,
-                                    no_po: usage.noPO,
-                                    project_name: usage.projectName,
-                                    kode_barang: usage.kodeBarang,
-                                    nama_barang: usage.namaBarang,
-                                    drum_id: usage.drumId,
-                                    qty: usage.qty,
-                                    tanggal: usage.tanggal
-                                }, { onConflict: 'id' });
+                            if (error) throw error;
+                            if (data && !data.success) {
+                                throw new Error(data.message || 'Gagal memproses transaksi di server.');
                             }
                         } catch (err) {
-                            console.error('Gagal sinkronisasi transaksi ke Supabase:', err);
+                            console.error('Gagal sinkronisasi transaksi via RPC Supabase:', err);
                             this.showNotification('Gagal menyimpan ke database Supabase: ' + err.message, 'error');
                             this.isLoading = false;
                             return;
@@ -1538,7 +1539,7 @@
                         this.transactions.unshift(JSON.parse(JSON.stringify(this.newTrans)));
                     }
 
-                    this.showNotification('Transaksi berhasil disimpan & tersinkronisasi ke Supabase!', 'success');
+                    this.showNotification('Transaksi berhasil disimpan & tersinkronisasi ke Supabase (via RPC)!', 'success');
                     this.resetInputTransaction();
                     this.switchTab('data-transaksi');
                 },
