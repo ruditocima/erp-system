@@ -1421,18 +1421,20 @@
                                 }
                             }
                             if (this.newTrans.kodeProject) {
-                                const proj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
-                                this.materialUsage.unshift({
-                                    id: Date.now() + Math.random(),
-                                    kodeProject: this.newTrans.kodeProject,
-                                    noPO: proj ? proj.noPO : '-',
-                                    projectName: proj ? proj.projectName : '-',
-                                    namaBarang: namaBrg,
-                                    drumId: item.drumId || '-',
-                                    qty: qty,
-                                    tanggal: this.newTrans.tanggal
-                                });
-                            }
+    const proj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
+    this.materialUsage.unshift({
+        id: String(Date.now() + Math.random()), // Pastikan ID diubah menjadi string
+        transactionNo: this.newTrans.noTransaksi, // Tambahkan no transaksi
+        kodeProject: this.newTrans.kodeProject,
+        noPO: proj ? proj.noPO : '-',
+        projectName: proj ? proj.projectName : '-',
+        kodeBarang: item.kodeBarang, // Tambahkan kode barang
+        namaBarang: namaBrg,
+        drumId: item.drumId || '-',
+        qty: qty,
+        tanggal: this.newTrans.tanggal
+    });
+}
                         } else if (tipe === 'Transfer') {
                             modifyStok(gudangKeluar, -qty);
                             modifyStok(gudangMasuk, qty);
@@ -1492,18 +1494,20 @@
                             }
 
                             // 4. Update Material Usage ke Supabase secara otomatis
-                            for (let usage of this.materialUsage) {
-                                await supabaseClient.from('material_usage').upsert({
-                                    id: usage.id,
-                                    kode_project: usage.kodeProject,
-                                    no_po: usage.noPO,
-                                    project_name: usage.projectName,
-                                    nama_barang: usage.namaBarang,
-                                    drum_id: usage.drumId,
-                                    qty: usage.qty,
-                                    tanggal: usage.tanggal
-                                }, { onConflict: 'id' });
-                            }
+for (let usage of this.materialUsage) {
+    await supabaseClient.from('material_usage').upsert({
+        id: String(usage.id),
+        transaction_no: usage.transactionNo, // Kirim ke Supabase
+        kode_project: usage.kodeProject,
+        no_po: usage.noPO,
+        project_name: usage.projectName,
+        kode_barang: usage.kodeBarang,       // Kirim ke Supabase
+        nama_barang: usage.namaBarang,
+        drum_id: usage.drumId,
+        qty: usage.qty,
+        tanggal: usage.tanggal
+    }, { onConflict: 'id' });
+}
                         } catch (err) {
                             console.error('Gagal sinkronisasi transaksi ke Supabase:', err);
                             this.showNotification('Gagal menyimpan ke database Supabase: ' + err.message, 'error');
