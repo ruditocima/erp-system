@@ -143,6 +143,11 @@
                     <h2 class="text-sm font-semibold text-white capitalize" x-text="currentTab.replace('-', ' ')"></h2>
                 </div>
                 <div class="flex items-center gap-3">
+                    <!-- Indikator Loading Global -->
+                    <div x-show="isLoading" class="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2.5 py-1 rounded-full text-[10px] font-medium" x-cloak>
+                        <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping"></span>
+                        Memproses Data...
+                    </div>
                     <div class="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full text-[10px] font-medium">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                         Supabase Cloud Connected
@@ -810,6 +815,7 @@
 
                 async loadDataFromSupabase() {
                     if (!supabaseClient) return;
+                    this.isLoading = true;
                     try {
                         const { data: barangData } = await supabaseClient.from('master_barang').select('*');
                         if (barangData && barangData.length > 0) {
@@ -884,7 +890,7 @@
                             }));
                         }
 
-                        const { data: txData } = await supabaseClient.from('transactions').select('*');
+                        const { data: txData } = await supabaseClient.from('transactions').select('*').order('tanggal', { ascending: false });
                         if (txData && txData.length > 0) {
                             this.transactions = txData.map(t => ({
                                 tanggal: t.tanggal,
@@ -902,6 +908,8 @@
                         }
                     } catch (e) {
                         console.warn('Gagal memuat data dari Supabase, menggunakan lokal storage:', e);
+                    } finally {
+                        this.isLoading = false;
                     }
                 },
 
@@ -923,7 +931,7 @@
                         localStorage.setItem('vortex_logged_in', 'true');
                         localStorage.setItem('vortex_user', this.currentUser);
                         localStorage.setItem('vortex_role', this.currentRole);
-                        this.showNotification('Berhasil masuk (Mode Lokal)!', 'success');
+                        this.showNotification('Berhasil masuk (Mode Offline / Lokal)!', 'success');
                         return;
                     }
 
@@ -1055,6 +1063,7 @@
                     }
 
                     try {
+                        this.isLoading = true;
                         if (this.modalType === 'barang') {
                             const payload = {
                                 kategori: this.modalForm.kategori,
@@ -1121,6 +1130,8 @@
                         this.showNotification('Data berhasil disimpan ke Supabase!', 'success');
                     } catch (err) {
                         this.showNotification('Gagal menyimpan ke database: ' + err.message, 'error');
+                    } finally {
+                        this.isLoading = false;
                     }
                 },
 
@@ -1146,11 +1157,26 @@
                     this.generateNoTransaksi();
                 },
 
+                // Generator No Transaksi Dinamis Unik (Cegah Bentrokan ID)
                 generateNoTransaksi() {
                     if (this.editingOriginalNo) return;
-                    const d = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : '202609';
+                    const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0,7).replace('-', '');
                     const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-                    this.newTrans.noTransaksi = `ACM-${typeCode}-${d}-01`;
+                    const prefix = `ACM-${typeCode}-${dateStr}-`;
+
+                    let maxSeq = 0;
+                    this.transactions.forEach(t => {
+                        if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
+                            const seqPart = t.noTransaksi.replace(prefix, '');
+                            const seqNum = parseInt(seqPart, 10);
+                            if (!isNaN(seqNum) && seqNum > maxSeq) {
+                                maxSeq = seqNum;
+                            }
+                        }
+                    });
+
+                    const nextSeqStr = String(maxSeq + 1).padStart(2, '0');
+                    this.newTrans.noTransaksi = `${prefix}${nextSeqStr}`;
                 },
 
                 onTipeTransaksiChange() { this.newTrans.gudangAsal = ''; this.newTrans.gudangTujuan = ''; this.generateNoTransaksi(); },
@@ -1519,8 +1545,16 @@
 
                 getFilteredStokGudang() { return this.filterStokGudang ? this.stokGudang.filter(s => s.gudang === this.filterStokGudang) : this.stokGudang; },
                 getFilteredDrumLedger() { return this.filterStokGudang ? this.drumLedger.filter(d => d.gudang === this.filterStokGudang) : this.drumLedger; },
-                getFilteredMaterialUsage() { return this.materialUsage; },
-                getFilteredTransactions() { return this.transactions; },
+                getFilteredMaterialUsage() { 
+                    if (!this.searchMaterialUsageProject) return this.materialUsage;
+                    const q = this.searchMaterialUsageProject.toLowerCase();
+                    return this.materialUsage.filter(u => (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) || (u.projectName && u.projectName.toLowerCase().includes(q)));
+                },
+                getFilteredTransactions() { 
+                    if (!this.searchNoTransaksi) return this.transactions;
+                    const q = this.searchNoTransaksi.toLowerCase();
+                    return this.transactions.filter(t => t.noTransaksi && t.noTransaksi.toLowerCase().includes(q));
+                },
 
                 reuseDrum(drum, index) {
                     if (confirm(`Hapus drum ${drum.drumId} dari ledger?`)) {
@@ -1597,6 +1631,7 @@
                     }
                 },
 
+                // Fungsi Cetak BAST via Windows Print Dialog
                 printBAST(tx) {
                     this.activeBast = JSON.parse(JSON.stringify(tx));
                     this.refreshIcons();
