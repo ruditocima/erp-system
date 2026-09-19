@@ -1553,25 +1553,55 @@
                 async deleteTransaction(tx) {
                     if (!confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Stok dan pelacakan drum terkait akan dikembalikan (rollback).`)) return;
 
-                    // 1. Kembalikan kondisi stok, drum, dan material usage
+                    // 1. Simpan state sebelum rollback untuk mendeteksi item yang habis/terhapus
+                    const drumsBefore = this.drumLedger.map(d => d.drumId);
+                    const stokBefore = this.stokGudang.map(s => s.kodeBarang + '_' + s.gudang);
+
+                    // 2. Kembalikan kondisi stok, drum, dan material usage (secara lokal)
                     this.rollbackTransaction(tx);
 
-                    // 2. Hapus transaksi dari daftar lokal
+                    // 3. Deteksi item yang terhapus dari lokal setelah rollback (qty mencapai 0)
+                    const drumsAfter = this.drumLedger.map(d => d.drumId);
+                    const deletedDrums = drumsBefore.filter(id => !drumsAfter.includes(id));
+                    
+                    const stokAfter = this.stokGudang.map(s => s.kodeBarang + '_' + s.gudang);
+                    const deletedStok = stokBefore.filter(id => !stokAfter.includes(id));
+
+                    // 4. Hapus transaksi dari daftar lokal
                     this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
 
-                    // 3. Sinkronisasi penghapusan ke Supabase
+                    // 5. Sinkronisasi dan Hapus Permanen di Supabase
                     if (supabaseClient) {
                         try {
                             this.isLoading = true;
+                            
+                            // A. Hapus riwayat transaksi utama
                             await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
                             
+                            // B. Hapus material usage jika ada (untuk transaksi Keluar)
                             if (tx.kodeProject) {
                                 await supabaseClient.from('material_usage').delete().eq('tanggal', tx.tanggal).eq('kode_project', tx.kodeProject);
                             }
 
+                            // C. Update stok & drum yang masih ada (Upsert)
                             await this.syncStokAndDrumToSupabase();
 
-                            this.showNotification('Transaksi berhasil dihapus dan database Supabase telah diperbarui!', 'success');
+                            // D. HAPUS PERMANEN drum dari Supabase jika stok panjangnya sudah habis ditarik mundur
+                            if (deletedDrums.length > 0) {
+                                for (let dId of deletedDrums) {
+                                    await supabaseClient.from('drum_ledger').delete().eq('drum_id', dId);
+                                }
+                            }
+
+                            // E. HAPUS PERMANEN entri stok dari Supabase jika qty mencapai 0
+                            if (deletedStok.length > 0) {
+                                for (let sId of deletedStok) {
+                                    const [kb, gd] = sId.split('_');
+                                    await supabaseClient.from('stok_gudang').delete().eq('kode_barang', kb).eq('gudang', gd);
+                                }
+                            }
+
+                            this.showNotification('Transaksi dihapus dan stok/drum berhasil ikut terhapus di database!', 'success');
                         } catch (err) {
                             console.error('Gagal memperbarui Supabase saat delete:', err);
                             this.showNotification('Gagal sinkronisasi rollback ke Supabase: ' + err.message, 'error');
@@ -1579,7 +1609,7 @@
                             this.isLoading = false;
                         }
                     } else {
-                        this.showNotification('Transaksi berhasil dihapus dan stok/drum dikembalikan!', 'success');
+                        this.showNotification('Transaksi berhasil dihapus dan stok/drum dikembalikan (Mode Lokal)!', 'success');
                     }
                 },
 
