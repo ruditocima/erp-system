@@ -681,11 +681,19 @@
                                         <td class="p-3 font-sans text-slate-300" x-text="tx.keterangan"></td>
                                         <td class="p-3 text-right">
                                             <div class="flex items-center justify-end gap-1.5 font-sans">
-                                                <template x-if="tx.lampiranUrl">
-                                                    <a :href="tx.lampiranUrl" target="_blank" class="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded text-[11px] font-medium flex items-center gap-1 transition" title="Lihat Lampiran PDF">
-                                                        <i data-lucide="paperclip" class="w-3.5 h-3.5"></i> Lampiran
-                                                    </a>
-                                                </template>
+                                                <td class="p-3 text-right">
+    <div class="flex items-center justify-end gap-1.5 font-sans">
+        <!-- Tombol Lampiran Indigo (Hanya muncul jika transaksi memiliki lampiranUrl) -->
+        <template x-if="tx.lampiranUrl">
+            <a :href="tx.lampiranUrl" target="_blank" class="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded text-[11px] font-medium flex items-center gap-1 transition" title="Lihat Lampiran PDF">
+                <i data-lucide="paperclip" class="w-3.5 h-3.5"></i> Lampiran
+            </a>
+        </template>
+        <button type="button" @click="editTransaction(tx)" class="text-slate-400 hover:text-indigo-400 p-1" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+        <button type="button" @click="deleteTransaction(tx)" class="text-slate-500 hover:text-rose-400 p-1" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+        <button type="button" @click="printBAST(tx)" class="bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 px-2 py-1 rounded text-[11px]" title="Cetak BAST"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
+    </div>
+</td>
                                                 <button type="button" @click="editTransaction(tx)" class="text-slate-400 hover:text-indigo-400 p-1" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
                                                 <button type="button" @click="deleteTransaction(tx)" class="text-slate-500 hover:text-rose-400 p-1" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                                 <button type="button" @click="printBAST(tx)" class="bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 px-2 py-1 rounded text-[11px]" title="Cetak BAST"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
@@ -925,11 +933,13 @@
                     this.$watch('transactions', val => localStorage.setItem('vortex_transactions', JSON.stringify(val)), { deep: true });
                     this.$watch('materialUsage', val => localStorage.setItem('vortex_materialUsage', JSON.stringify(val)), { deep: true });
 
+                    // Reset halaman saat filter berubah
                     this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; });
                     this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; });
                     this.$watch('searchNoTransaksi', () => { this.pageTx = 1; });
                 },
 
+                // Helper Paginasi
                 paginate(items, page, size) {
                     const start = (page - 1) * size;
                     return items.slice(start, start + size);
@@ -1330,62 +1340,35 @@
                 openInputTransaction() { this.switchTab('input-transaksi'); },
 
                 async resetInputTransaction() {
-    this.editingOriginalNo = null;
+                    this.editingOriginalNo = null;
     
-    // Kosongkan seluruh field, tabel item, dan lampiran
-    this.newTrans = {
-        tanggal: new Date().toISOString().split('T')[0],
-        noTransaksi: this.newTrans.noTransaksi, // Mempertahankan nomor transaksi agar nomor urut/sequence tidak bertambah saat reset
-        noReferensi: '', 
-        tipeTransaksi: 'Masuk',
-        gudangAsal: '', 
-        gudangTujuan: '', 
-        kodeProject: '', 
-        keterangan: '', 
-        lampiran: '', 
-        lampiranUrl: '',
-        staffGudang: this.currentUser || '',
-        projectManager: '',
-        namaPenerima: '',
-        items: [] // Mengosongkan seluruh baris pada tabel item material
-    };
+                    // Kosongkan seluruh field, tabel item, dan lampiran
+                    this.newTrans = {
+                        tanggal: new Date().toISOString().split('T')[0],
+                        noTransaksi: this.newTrans.noTransaksi, // Mempertahankan nomor transaksi agar nomor urut/sequence tidak bertambah saat reset
+                        noReferensi: '', 
+                        tipeTransaksi: 'Masuk',
+                        gudangAsal: '', 
+                        gudangTujuan: '', 
+                        kodeProject: '', 
+                        keterangan: '', 
+                        lampiran: '', 
+                        lampiranUrl: '',
+                        staffGudang: this.currentUser || '',
+                        projectManager: '',
+                        namaPenerima: '',
+                        items: [] // Mengosongkan seluruh baris pada tabel item material
+                    };
     
-    // Reset elemen input file HTML agar lampiran benar-benar bersih dari UI
-    const fileInput = document.getElementById('attachmentInput');
-    if (fileInput) {
-        fileInput.value = '';
-    }
-};
-
-                // Fungsi untuk menghapus file lampiran dari Supabase Storage Bucket
-                async deleteAttachmentFromStorage(lampiranUrl) {
-                    if (!supabaseClient || !lampiranUrl) return;
-                    try {
-                        let bucketFolderAndFile = '';
-                        if (lampiranUrl.includes('/attachments/')) {
-                            const parts = lampiranUrl.split('/attachments/');
-                            if (parts.length > 1) {
-                                bucketFolderAndFile = parts[1];
-                            }
-                        } else {
-                            bucketFolderAndFile = lampiranUrl;
-                        }
-
-                        if (bucketFolderAndFile) {
-                            const { error } = await supabaseClient.storage
-                                .from('attachments')
-                                .remove([bucketFolderAndFile]);
-                            if (error) {
-                                console.error('Gagal menghapus file dari Supabase Storage:', error.message);
-                            }
-                        }
-                    } catch (err) {
-                        console.error('Error deleting attachment from storage:', err);
+                    // Reset elemen input file HTML agar lampiran benar-benar bersih dari UI
+                    const fileInput = document.getElementById('attachmentInput');
+                    if (fileInput) {
+                    fileInput.value = '';
                     }
                 },
 
                 async deleteTransaction(tx) {
-                    if (!confirm(`Hapus transaksi ${tx.noTransaksi}?\nIni akan membatalkan (rollback) Stok Gudang, Drum Ledger, dan Material Usage secara otomatis, serta menghapus file lampiran terkait.`)) {
+                    if (!confirm(`Hapus transaksi ${tx.noTransaksi}?\nIni akan membatalkan (rollback) Stok Gudang, Drum Ledger, dan Material Usage secara otomatis.`)) {
                         return;
                     }
 
@@ -1481,12 +1464,7 @@
                             await this.syncStokAndDrumToSupabase();
                         }
 
-                        // Secara otomatis hapus file lampiran di dalam bucket Supabase Storage
-                        if (tx.lampiranUrl) {
-                            await this.deleteAttachmentFromStorage(tx.lampiranUrl);
-                        }
-
-                        this.showNotification('Transaksi dihapus, Stok berhasil di-rollback, dan file lampiran dihapus dari bucket!', 'success');
+                        this.showNotification('Transaksi dihapus dan Stok berhasil di-rollback!', 'success');
                         
                     } catch (error) {
                         console.error('Error saat menghapus transaksi:', error);
@@ -1589,19 +1567,22 @@
                     this.newTrans.lampiranUrl = URL.createObjectURL(file);
                 },
 
+                // Fungsi uploadAttachment yang digabungkan dan terintegrasi dengan Supabase Client
                 async uploadAttachment(fileInput, transactionId) {
                     const file = fileInput.files[0];
                     
                     if (!file) {
-                        return null;
+                        return null; // Lewati jika tidak ada file yang dilampirkan
                     }
 
+                    // 1. Validasi Ukuran File (Maksimal 5 MB)
                     const maxSizeInBytes = 5 * 1024 * 1024; 
                     if (file.size > maxSizeInBytes) {
                         alert('Ukuran file terlalu besar! Maksimal 5 MB.');
                         return null;
                     }
 
+                    // 2. Validasi Ekstensi File yang Diizinkan (PDF, JPG, PNG, DOCX)
                     const allowedTypes = [
                         'application/pdf', 
                         'image/jpeg', 
@@ -1613,10 +1594,12 @@
                         return null;
                     }
 
+                    // 3. Buat nama file unik untuk menghindari bentrok
                     const fileExt = file.name.split('.').pop();
                     const fileName = `tx_${transactionId}_${Date.now()}.${fileExt}`;
                     const filePath = `documents/${fileName}`;
 
+                    // 4. Proses Unggah ke Supabase Storage (Bucket: "attachments")
                     const { data, error } = await supabaseClient.storage
                         .from('attachments')
                         .upload(filePath, file);
@@ -1627,6 +1610,7 @@
                         return null;
                     }
 
+                    // 5. Dapatkan Public URL untuk disimpan ke kolom lampiran di tabel transaksi
                     const { data: publicUrlData } = supabaseClient.storage
                         .from('attachments')
                         .getPublicUrl(filePath);
@@ -1735,6 +1719,7 @@
                         return;
                     }
 
+                    // Proses unggah lampiran ke Supabase Storage jika ada file yang dipilih
                     const fileInput = document.getElementById('attachmentInput');
                     if (fileInput && fileInput.files.length > 0) {
                         const uploadedUrl = await this.uploadAttachment(fileInput, this.newTrans.noTransaksi);
