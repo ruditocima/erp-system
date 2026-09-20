@@ -1330,18 +1330,32 @@
                 openInputTransaction() { this.switchTab('input-transaksi'); },
 
                 async resetInputTransaction() {
-                    this.editingOriginalNo = null;
-                    this.newTrans = {
-                        tanggal: new Date().toISOString().split('T')[0],
-                        noTransaksi: '', noReferensi: '', tipeTransaksi: 'Masuk',
-                        gudangAsal: '', gudangTujuan: '', kodeProject: '', keterangan: '', lampiran: '', lampiranUrl: '',
-                        staffGudang: this.currentUser || '',
-                        projectManager: '',
-                        namaPenerima: '',
-                        items: [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1 }]
-                    };
-                    await this.generateNoTransaksi();
-                },
+    this.editingOriginalNo = null;
+    
+    // Kosongkan seluruh field, tabel item, dan lampiran
+    this.newTrans = {
+        tanggal: new Date().toISOString().split('T')[0],
+        noTransaksi: this.newTrans.noTransaksi, // Mempertahankan nomor transaksi agar nomor urut/sequence tidak bertambah saat reset
+        noReferensi: '', 
+        tipeTransaksi: 'Masuk',
+        gudangAsal: '', 
+        gudangTujuan: '', 
+        kodeProject: '', 
+        keterangan: '', 
+        lampiran: '', 
+        lampiranUrl: '',
+        staffGudang: this.currentUser || '',
+        projectManager: '',
+        namaPenerima: '',
+        items: [] // Mengosongkan seluruh baris pada tabel item material
+    };
+    
+    // Reset elemen input file HTML agar lampiran benar-benar bersih dari UI
+    const fileInput = document.getElementById('attachmentInput');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+}
 
                 // Fungsi untuk menghapus file lampiran dari Supabase Storage Bucket
                 async deleteAttachmentFromStorage(lampiranUrl) {
