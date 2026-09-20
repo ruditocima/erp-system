@@ -1746,6 +1746,7 @@
                     }
                 },
 
+                // FUNGSI SUBMIT TRANSAKSI MENGGUNAKAN ATOMIC RPC BACKEND SUPABASE
                 async submitTransaction() {
                     if (this.newTrans.gudangAsal && this.newTrans.gudangTujuan && 
                         this.newTrans.gudangAsal.trim().toLowerCase() === this.newTrans.gudangTujuan.trim().toLowerCase()) {
@@ -1769,8 +1770,8 @@
 
                     const tipe = this.newTrans.tipeTransaksi;
                     const gudangMasuk = this.newTrans.gudangTujuan; 
-                    const gudangKeluar = this.newTrans.gudangAsal; 
 
+                    // Alokasi otomatis Drum ID jika tipe Transaksi 'Masuk' dan kategori Cable
                     if (tipe === 'Masuk') {
                         let processedItems = [];
                         this.newTrans.items.forEach(item => {
@@ -1804,8 +1805,6 @@
 
                                     if (zeroDrum) {
                                         assignedDrumId = zeroDrum.drumId;
-                                        zeroDrum.initialLength = chunkQty;
-                                        zeroDrum.remainingLength = chunkQty;
                                     } else {
                                         const existingDrums = this.drumLedger.filter(d => 
                                             d.kodeBarang === item.kodeBarang && 
@@ -1825,30 +1824,64 @@
                                         let nextSeq = maxSeq + 1;
 
                                         assignedDrumId = `${whCode}-${threeCharBarang}-D${String(nextSeq).padStart(2, '0')}`;
-
-                                        this.drumLedger.push({
-                                            drumId: assignedDrumId,
-                                            kodeBarang: item.kodeBarang,
-                                            namaBarang: namaBrg,
-                                            gudang: gudangMasuk,
-                                            initialLength: chunkQty,
-                                            remainingLength: chunkQty
-                                        });
                                     }
 
                                     processedItems.push({
                                         ...item,
                                         drumId: assignedDrumId,
-                                        qty: chunkQty
+                                        qty: chunkQty,
+                                        namaBarang: namaBrg
                                     });
                                 }
                             } else {
-                                processedItems.push(item);
+                                processedItems.push({
+                                    ...item,
+                                    namaBarang: item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || ''
+                                });
                             }
                         });
                         this.newTrans.items = processedItems;
                     }
 
+                    // Eksekusi via Backend RPC Supabase (Atomic Transaction) jika terhubung
+                    if (supabaseClient) {
+                        try {
+                            this.isLoading = true;
+
+                            const { error } = await supabaseClient.rpc('process_warehouse_transaction', {
+                                p_no_transaksi: this.newTrans.noTransaksi,
+                                p_tanggal: this.newTrans.tanggal,
+                                p_no_referensi: this.newTrans.noReferensi,
+                                p_tipe_transaksi: this.newTrans.tipeTransaksi,
+                                p_gudang_asal: this.newTrans.gudangAsal || '',
+                                p_gudang_tujuan: this.newTrans.gudangTujuan || '',
+                                p_kode_project: this.newTrans.kodeProject || '',
+                                p_keterangan: this.newTrans.keterangan,
+                                p_staff_gudang: this.newTrans.staffGudang,
+                                p_project_manager: this.newTrans.projectManager || '',
+                                p_nama_penerima: this.newTrans.namaPenerima || '',
+                                p_lampiran_url: this.newTrans.lampiranUrl || '',
+                                p_items: this.newTrans.items
+                            });
+
+                            if (error) throw error;
+
+                            this.showNotification('Transaksi berhasil disimpan secara atomik!', 'success');
+                            await this.resetInputTransaction();
+                            this.switchTab('data-transaksi');
+                            await this.loadDataFromSupabase();
+                            return;
+
+                        } catch (err) {
+                            console.error('Gagal menjalankan transaksi atomik RPC:', err.message);
+                            this.showNotification('Gagal memproses transaksi: ' + err.message, 'error');
+                            return;
+                        } finally {
+                            this.isLoading = false;
+                        }
+                    }
+
+                    // Fallback Mode Lokal (jika offline tanpa Supabase)
                     this.newTrans.items.forEach(item => {
                         const qty = parseFloat(item.qty) || 0;
                         const kat = this.getCategoryByKode(item.kodeBarang);
@@ -1872,6 +1905,8 @@
                                 });
                             }
                         };
+
+                        const gudangKeluar = this.newTrans.gudangAsal;
 
                         if (tipe === 'Masuk') {
                             modifyStok(gudangMasuk, qty);
@@ -1935,52 +1970,7 @@
                         this.transactions.unshift(JSON.parse(JSON.stringify(this.newTrans)));
                     }
 
-                    if (supabaseClient) {
-                        try {
-                            this.isLoading = true;
-                            await supabaseClient.from('transactions').upsert({
-                                tanggal: this.newTrans.tanggal,
-                                no_transaksi: this.newTrans.noTransaksi,
-                                no_referensi: this.newTrans.noReferensi,
-                                tipe_transaksi: this.newTrans.tipeTransaksi,
-                                gudang_asal: this.newTrans.gudangAsal,
-                                gudang_tujuan: this.newTrans.gudangTujuan,
-                                kode_project: this.newTrans.kodeProject,
-                                keterangan: this.newTrans.keterangan,
-                                lampiran: this.newTrans.lampiran,
-                                lampiran_url: this.newTrans.lampiranUrl,
-                                staff_gudang: this.newTrans.staffGudang,
-                                project_manager: this.newTrans.projectManager,
-                                nama_penerima: this.newTrans.namaPenerima,
-                                items: this.newTrans.items
-                            }, { onConflict: 'no_transaksi' });
-
-                            await this.syncStokAndDrumToSupabase();
-
-                            if (this.newTrans.tipeTransaksi === 'Keluar' && this.newTrans.kodeProject) {
-                                for (let usage of this.materialUsage.filter(u => u.transactionNo === this.newTrans.noTransaksi)) {
-                                    await supabaseClient.from('material_usage').upsert({
-                                        id: usage.id,
-                                        transaction_no: usage.transactionNo,
-                                        kode_project: usage.kodeProject,
-                                        no_po: usage.noPO,
-                                        project_name: usage.projectName,
-                                        kode_barang: usage.kodeBarang,
-                                        nama_barang: usage.namaBarang,
-                                        drum_id: usage.drumId,
-                                        qty: usage.qty,
-                                        tanggal: usage.tanggal
-                                    }, { onConflict: 'id' });
-                                }
-                            }
-                        } catch (err) {
-                            console.warn('Gagal sync transaksi ke Supabase:', err);
-                        } finally {
-                            this.isLoading = false;
-                        }
-                    }
-
-                    this.showNotification('Transaksi berhasil disimpan!', 'success');
+                    this.showNotification('Transaksi berhasil disimpan (Lokal)!', 'success');
                     await this.resetInputTransaction();
                     this.switchTab('data-transaksi');
                 },
