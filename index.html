@@ -907,7 +907,7 @@
                 activeBast: {},
 
                 async init() {
-                    this.resetInputTransaction();
+                    await this.resetInputTransaction();
                     this.initProfileData();
                     await this.loadDataFromSupabase();
                     this.refreshIcons();
@@ -1176,11 +1176,11 @@
                     }
                 },
 
-                openModal(type) {
+                async openModal(type) {
                     this.modalType = type; this.isEdit = false; this.editIndex = null;
                     if (type === 'project') {
                         this.modalForm = { periode: new Date().toISOString().split('T')[0], region: '', kodeProject: '', type: 'Main Feeder', noPO: '', projectName: '' };
-                        this.generateKodeProject();
+                        await this.generateKodeProject();
                     } else if (type === 'barang') {
                         this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Pcs' };
                     } else if (type === 'gudang') {
@@ -1204,19 +1204,43 @@
                     return r.substring(0, 3);
                 },
 
-                generateKodeProject() {
+                async generateKodeProject() {
                     if (this.isEdit) return;
-                    const regCode = this.getRegionCode(this.modalForm.region);
-                    const year = new Date().getFullYear();
-                    const prefix = `${regCode}-${year}-`;
-                    let maxSeq = 0;
-                    this.masterProject.forEach(p => {
-                        if (p.kodeProject && p.kodeProject.startsWith(prefix)) {
-                            const num = parseInt(p.kodeProject.replace(prefix, ''), 10);
-                            if (!isNaN(num) && num > maxSeq) maxSeq = num;
-                        }
-                    });
-                    this.modalForm.kodeProject = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
+
+                    if (!supabaseClient) {
+                        const regCode = this.getRegionCode(this.modalForm.region);
+                        const year = new Date().getFullYear();
+                        const prefix = `${regCode}-${year}-`;
+                        let maxSeq = 0;
+                        this.masterProject.forEach(p => {
+                            if (p.kodeProject && p.kodeProject.startsWith(prefix)) {
+                                const num = parseInt(p.kodeProject.replace(prefix, ''), 10);
+                                if (!isNaN(num) && num > maxSeq) maxSeq = num;
+                            }
+                        });
+                        this.modalForm.kodeProject = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
+                        return;
+                    }
+
+                    try {
+                        const { data, error } = await supabaseClient.rpc('generate_kode_project');
+                        if (error) throw error;
+                        this.modalForm.kodeProject = data;
+                    } catch (err) {
+                        console.error('Gagal generate kode project dari database:', err.message);
+                        // Fallback client-side calculation
+                        const regCode = this.getRegionCode(this.modalForm.region);
+                        const year = new Date().getFullYear();
+                        const prefix = `${regCode}-${year}-`;
+                        let maxSeq = 0;
+                        this.masterProject.forEach(p => {
+                            if (p.kodeProject && p.kodeProject.startsWith(prefix)) {
+                                const num = parseInt(p.kodeProject.replace(prefix, ''), 10);
+                                if (!isNaN(num) && num > maxSeq) maxSeq = num;
+                            }
+                        });
+                        this.modalForm.kodeProject = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
+                    }
                 },
 
                 async saveModalData() {
@@ -1310,7 +1334,7 @@
 
                 openInputTransaction() { this.switchTab('input-transaksi'); },
 
-                resetInputTransaction() {
+                async resetInputTransaction() {
                     this.editingOriginalNo = null;
                     this.newTrans = {
                         tanggal: new Date().toISOString().split('T')[0],
@@ -1321,7 +1345,7 @@
                         namaPenerima: '',
                         items: [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1 }]
                     };
-                    this.generateNoTransaksi();
+                    await this.generateNoTransaksi();
                 },
 
                 async deleteTransaction(tx) {
@@ -1430,25 +1454,51 @@
                     }
                 },
                 
-                generateNoTransaksi() {
+                async generateNoTransaksi() {
                     if (this.editingOriginalNo) return;
-                    const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0,7).replace('-', '');
-                    const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-                    const prefix = `ACM-${typeCode}-${dateStr}-`;
 
-                    let maxSeq = 0;
-                    this.transactions.forEach(t => {
-                        if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
-                            const seqPart = t.noTransaksi.replace(prefix, '');
-                            const seqNum = parseInt(seqPart, 10);
-                            if (!isNaN(seqNum) && seqNum > maxSeq) {
-                                maxSeq = seqNum;
+                    if (!supabaseClient) {
+                        const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0,7).replace('-', '');
+                        const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
+                        const prefix = `ACM-${typeCode}-${dateStr}-`;
+
+                        let maxSeq = 0;
+                        this.transactions.forEach(t => {
+                            if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
+                                const seqPart = t.noTransaksi.replace(prefix, '');
+                                const seqNum = parseInt(seqPart, 10);
+                                if (!isNaN(seqNum) && seqNum > maxSeq) {
+                                    maxSeq = seqNum;
+                                }
                             }
-                        }
-                    });
+                        });
 
-                    const nextSeqStr = String(maxSeq + 1).padStart(2, '0');
-                    this.newTrans.noTransaksi = `${prefix}${nextSeqStr}`;
+                        const nextSeqStr = String(maxSeq + 1).padStart(2, '0');
+                        this.newTrans.noTransaksi = `${prefix}${nextSeqStr}`;
+                        return;
+                    }
+
+                    try {
+                        const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
+                        const { data, error } = await supabaseClient.rpc('generate_no_transaksi', { p_tipe: typeCode });
+                        if (error) throw error;
+                        this.newTrans.noTransaksi = data;
+                    } catch (err) {
+                        console.error('Gagal generate nomor transaksi dari database:', err.message);
+                        // Fallback client-side calculation
+                        const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0,7).replace('-', '');
+                        const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
+                        const prefix = `ACM-${typeCode}-${dateStr}-`;
+                        let maxSeq = 0;
+                        this.transactions.forEach(t => {
+                            if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
+                                const seqPart = t.noTransaksi.replace(prefix, '');
+                                const seqNum = parseInt(seqPart, 10);
+                                if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
+                            }
+                        });
+                        this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
+                    }
                 },
 
                 onTipeTransaksiChange() { this.newTrans.gudangAsal = ''; this.newTrans.gudangTujuan = ''; this.generateNoTransaksi(); },
@@ -1813,7 +1863,7 @@
                     }
 
                     this.showNotification('Transaksi berhasil disimpan!', 'success');
-                    this.resetInputTransaction();
+                    await this.resetInputTransaction();
                     this.switchTab('data-transaksi');
                 },
 
@@ -1915,7 +1965,7 @@
                     a.click();
                 },
 
-                exportTransactionCSV() {
+        exportTransactionCSV() {
                     let csv = 'Tanggal,No Transaksi,Tipe Transaksi,Gudang Asal,Gudang Tujuan,Keterangan\n';
                     this.getFilteredTransactions().forEach(t => {
                         csv += `"${t.tanggal}","${t.noTransaksi}","${t.tipeTransaksi}","${t.gudangAsal || ''}","${t.gudangTujuan || ''}","${t.keterangan}"\n`;
