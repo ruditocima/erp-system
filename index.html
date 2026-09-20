@@ -143,6 +143,11 @@
                     <h2 class="text-sm font-semibold text-white capitalize" x-text="currentTab.replace('-', ' ')"></h2>
                 </div>
                 <div class="flex items-center gap-3">
+                    <!-- Indikator Cakupan Region (RBAC Info) -->
+                    <div class="hidden sm:flex items-center gap-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 px-2.5 py-1 rounded-full text-[10px] font-medium">
+                        <span>Cakupan:</span>
+                        <strong class="text-indigo-400" x-text="isSuperAdmin ? 'Semua Region (Global)' : 'Region: ' + userRegion()"></strong>
+                    </div>
                     <!-- Indikator Loading Global -->
                     <div x-show="isLoading" class="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2.5 py-1 rounded-full text-[10px] font-medium" x-cloak>
                         <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping"></span>
@@ -176,8 +181,8 @@
                                 <div class="p-2 rounded-lg bg-violet-500/10 text-violet-400"><i data-lucide="warehouse" class="w-4 h-4"></i></div>
                             </div>
                             <div class="mt-3 flex items-baseline justify-between">
-                                <h3 class="text-xl font-bold text-white" x-text="masterGudang.length"></h3>
-                                <span class="text-[10px] text-slate-400 font-medium">Multi-location</span>
+                                <h3 class="text-xl font-bold text-white" x-text="getFilteredMasterGudang().length"></h3>
+                                <span class="text-[10px] text-slate-400 font-medium" x-text="isSuperAdmin ? 'Multi-location' : 'Regional WH'"></span>
                             </div>
                         </div>
                         <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm">
@@ -186,7 +191,7 @@
                                 <div class="p-2 rounded-lg bg-amber-500/10 text-amber-400"><i data-lucide="briefcase" class="w-4 h-4"></i></div>
                             </div>
                             <div class="mt-3 flex items-baseline justify-between">
-                                <h3 class="text-xl font-bold text-white" x-text="masterProject.length"></h3>
+                                <h3 class="text-xl font-bold text-white" x-text="getFilteredMasterProject().length"></h3>
                                 <span class="text-[10px] text-emerald-400 font-medium">On Track</span>
                             </div>
                         </div>
@@ -196,7 +201,7 @@
                                 <div class="p-2 rounded-lg bg-blue-500/10 text-blue-400"><i data-lucide="file-text" class="w-4 h-4"></i></div>
                             </div>
                             <div class="mt-3 flex items-baseline justify-between">
-                                <h3 class="text-xl font-bold text-white" x-text="transactions.length"></h3>
+                                <h3 class="text-xl font-bold text-white" x-text="getFilteredTransactions().length"></h3>
                                 <span class="text-[10px] text-indigo-400 font-medium">Updated Realtime</span>
                             </div>
                         </div>
@@ -206,8 +211,11 @@
                 <!-- 2. MASTER BARANG -->
                 <div x-show="currentTab === 'barang'" class="space-y-4" x-cloak>
                     <div class="flex items-center justify-between">
-                        <div><h3 class="text-sm font-semibold text-white">Daftar Master Barang</h3></div>
-                        <button type="button" @click="openModal('barang')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5">
+                        <div>
+                            <h3 class="text-sm font-semibold text-white">Daftar Master Barang</h3>
+                            <p class="text-[10px] text-slate-400" x-text="isSuperAdmin ? 'Full Control' : 'View Only (Akses Regional)'"></p>
+                        </div>
+                        <button type="button" x-show="isSuperAdmin" @click="openModal('barang')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5" x-cloak>
                             <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Barang
                         </button>
                     </div>
@@ -221,7 +229,7 @@
                                         <th class="p-3">Kode Barang</th>
                                         <th class="p-3">Nama Barang</th>
                                         <th class="p-3">Satuan</th>
-                                        <th class="p-3 text-right">Aksi</th>
+                                        <th class="p-3 text-right" x-show="isSuperAdmin">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
@@ -232,7 +240,7 @@
                                             <td class="p-3 text-indigo-400 text-[12px]" x-text="item.kodeBarang"></td>
                                             <td class="p-3 text-white font-medium" x-text="item.namaBarang"></td>
                                             <td class="p-3 text-slate-300" x-text="item.sat"></td>
-                                            <td class="p-3 text-right flex items-center justify-end gap-1">
+                                            <td class="p-3 text-right flex items-center justify-end gap-1" x-show="isSuperAdmin" x-cloak>
                                                 <button type="button" @click="openEditModal('barang', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
                                                 <button type="button" @click="deleteItem('barang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </td>
@@ -247,8 +255,11 @@
                 <!-- 3. MASTER GUDANG -->
                 <div x-show="currentTab === 'gudang'" class="space-y-4" x-cloak>
                     <div class="flex items-center justify-between">
-                        <div><h3 class="text-sm font-semibold text-white">Daftar Master Gudang</h3></div>
-                        <button type="button" @click="openModal('gudang')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5">
+                        <div>
+                            <h3 class="text-sm font-semibold text-white">Daftar Master Gudang</h3>
+                            <p class="text-[10px] text-slate-400" x-text="isSuperAdmin ? 'Semua Region' : 'Gudang Region: ' + userRegion()"></p>
+                        </div>
+                        <button type="button" x-show="isSuperAdmin" @click="openModal('gudang')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5" x-cloak>
                             <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Gudang
                         </button>
                     </div>
@@ -262,20 +273,20 @@
                                         <th class="p-3">Nama Gudang</th>
                                         <th class="p-3">Tipe Kepemilikan</th>
                                         <th class="p-3">Lokasi</th>
-                                        <th class="p-3 text-right">Aksi</th>
+                                        <th class="p-3 text-right" x-show="isSuperAdmin">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                    <template x-for="(item, index) in masterGudang" :key="item.kodeGudang || index">
+                                    <template x-for="(item, index) in getFilteredMasterGudang()" :key="item.kodeGudang || index">
                                         <tr class="hover:bg-slate-800/30 transition">
                                             <td class="p-3 text-slate-300" x-text="item.region"></td>
                                             <td class="p-3 text-indigo-400 text-[12px]" x-text="item.kodeGudang"></td>
                                             <td class="p-3 font-medium text-white" x-text="item.namaGudang"></td>
                                             <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[11px] font-medium" :class="item.tipeKepemilikan === 'Milik Sendiri' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'" x-text="item.tipeKepemilikan"></span></td>
                                             <td class="p-3 text-slate-300" x-text="item.lokasi"></td>
-                                            <td class="p-3 text-right flex items-center justify-end gap-1">
-                                                <button type="button" @click="openEditModal('gudang', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                                <button type="button" @click="deleteItem('gudang', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                            <td class="p-3 text-right flex items-center justify-end gap-1" x-show="isSuperAdmin" x-cloak>
+                                                <button type="button" @click="openEditModal('gudang', masterGudang.indexOf(item))" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                                <button type="button" @click="deleteItem('gudang', masterGudang.indexOf(item))" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                             </td>
                                         </tr>
                                     </template>
@@ -288,8 +299,11 @@
                 <!-- 4. MASTER PROJECT -->
                 <div x-show="currentTab === 'project'" class="space-y-4" x-cloak>
                     <div class="flex items-center justify-between">
-                        <div><h3 class="text-sm font-semibold text-white">Daftar Master Project</h3></div>
-                        <button type="button" @click="openModal('project')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5">
+                        <div>
+                            <h3 class="text-sm font-semibold text-white">Daftar Master Project</h3>
+                            <p class="text-[10px] text-slate-400" x-text="isSuperAdmin ? 'Semua Region' : 'Proyek Region: ' + userRegion()"></p>
+                        </div>
+                        <button type="button" x-show="isSuperAdmin" @click="openModal('project')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5" x-cloak>
                             <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Project
                         </button>
                     </div>
@@ -303,11 +317,11 @@
                                     <th class="p-3">Type</th>
                                     <th class="p-3">No PO</th>
                                     <th class="p-3">Project Name</th>
-                                    <th class="p-3 text-right">Aksi</th>
+                                    <th class="p-3 text-right" x-show="isSuperAdmin">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                <template x-for="(item, index) in masterProject" :key="item.kodeProject || index">
+                                <template x-for="(item, index) in getFilteredMasterProject()" :key="item.kodeProject || index">
                                     <tr class="hover:bg-slate-800/30 transition">
                                         <td class="p-3 text-slate-300" x-text="item.periode"></td>
                                         <td class="p-3 text-slate-300" x-text="item.region"></td>
@@ -315,9 +329,9 @@
                                         <td class="p-3 text-slate-300" x-text="item.type"></td>
                                         <td class="p-3 text-slate-200" x-text="item.noPO"></td>
                                         <td class="p-3 text-slate-200 font-medium" x-text="item.projectName"></td>
-                                        <td class="p-3 text-right flex items-center justify-end gap-1">
-                                            <button type="button" @click="openEditModal('project', index)" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                            <button type="button" @click="deleteItem('project', index)" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                        <td class="p-3 text-right flex items-center justify-end gap-1" x-show="isSuperAdmin" x-cloak>
+                                            <button type="button" @click="openEditModal('project', masterProject.indexOf(item))" class="text-slate-400 hover:text-indigo-400 p-1 transition" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                            <button type="button" @click="deleteItem('project', masterProject.indexOf(item))" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                         </td>
                                     </tr>
                                 </template>
@@ -330,7 +344,10 @@
                 <div x-show="currentTab === 'input-transaksi'" class="space-y-4" x-cloak>
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 md:p-6 shadow-sm">
                         <div class="border-b border-slate-800 pb-3 mb-4 flex items-center justify-between">
-                            <h3 class="text-sm font-semibold text-white" x-text="editingOriginalNo ? 'Edit Transaksi: ' + editingOriginalNo : 'Input Transaksi Baru'"></h3>
+                            <div>
+                                <h3 class="text-sm font-semibold text-white" x-text="editingOriginalNo ? 'Edit Transaksi: ' + editingOriginalNo : 'Input Transaksi Baru'"></h3>
+                                <p class="text-[10px] text-slate-400" x-text="isSuperAdmin ? 'Cakupan: Semua Region' : 'Cakupan: Region ' + userRegion()"></p>
+                            </div>
                             <button type="button" @click="resetInputTransaction()" class="text-[10px] text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg transition flex items-center gap-1">
                                 <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Reset Form
                             </button>
@@ -366,7 +383,7 @@
                                     <template x-if="newTrans.tipeTransaksi !== 'Masuk'">
                                         <select x-model="newTrans.gudangAsal" @change="resetItemsOnWarehouseChange(); generateNoTransaksi(); newTrans.kodeProject = ''; if(newTrans.gudangAsal === newTrans.gudangTujuan) newTrans.gudangTujuan = '';" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
                                             <option value="">Pilih Gudang Asal</option>
-                                            <template x-for="g in masterGudang" :key="g.kodeGudang"><option :value="g.namaGudang" x-text="g.namaGudang"></option></template>
+                                            <template x-for="g in getFilteredMasterGudang()" :key="g.kodeGudang"><option :value="g.namaGudang" x-text="g.namaGudang"></option></template>
                                         </select>
                                     </template>
                                 </div>
@@ -492,11 +509,14 @@
                 <div x-show="currentTab === 'stok'" class="space-y-6" x-cloak>
                     <div class="space-y-4">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-sm font-semibold text-white">Stok Gudang</h3>
+                            <div>
+                                <h3 class="text-sm font-semibold text-white">Stok Gudang</h3>
+                                <p class="text-[10px] text-slate-400" x-text="isSuperAdmin ? 'Cakupan: Semua Region' : 'Cakupan: Region ' + userRegion()"></p>
+                            </div>
                             <div class="flex items-center gap-2">
                                 <select x-model="filterStokGudang" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200">
                                     <option value="">Semua Gudang</option>
-                                    <template x-for="g in masterGudang" :key="g.kodeGudang"><option :value="g.namaGudang" x-text="g.namaGudang"></option></template>
+                                    <template x-for="g in getFilteredMasterGudang()" :key="g.kodeGudang"><option :value="g.namaGudang" x-text="g.namaGudang"></option></template>
                                 </select>
                                 <button type="button" @click="exportStokCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-2 rounded-lg transition flex items-center gap-1.5">
                                     <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
@@ -599,7 +619,10 @@
                 <!-- 7. MATERIAL USAGE -->
                 <div x-show="currentTab === 'usage'" class="space-y-4" x-cloak>
                     <div class="flex items-center justify-between">
-                        <h3 class="text-sm font-semibold text-white">Material Usage</h3>
+                        <div>
+                            <h3 class="text-sm font-semibold text-white">Material Usage (Analisis BoQ)</h3>
+                            <p class="text-[10px] text-slate-400" x-text="isSuperAdmin ? 'Cakupan: Semua Region' : 'Cakupan: Region ' + userRegion()"></p>
+                        </div>
                         <div class="flex gap-2">
                             <input type="text" x-model="searchMaterialUsageProject" placeholder="Cari Project..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200">
                             <button type="button" @click="exportUsageCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-1.5 rounded-lg transition">Export CSV</button>
@@ -653,7 +676,10 @@
                 <!-- 8. DATA TRANSAKSI & BAST -->
                 <div x-show="currentTab === 'data-transaksi'" class="space-y-4" x-cloak>
                     <div class="flex items-center justify-between">
-                        <h3 class="text-sm font-semibold text-white">Data Transaksi & BAST</h3>
+                        <div>
+                            <h3 class="text-sm font-semibold text-white">Data Transaksi & BAST</h3>
+                            <p class="text-[10px] text-slate-400" x-text="isSuperAdmin ? 'Full Control (Cetak, Input, Hapus)' : 'Cetak & Input (Tanpa Hak Hapus)'"></p>
+                        </div>
                         <div class="flex gap-2">
                             <input type="text" x-model="searchNoTransaksi" placeholder="Cari No Transaksi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200">
                             <button type="button" @click="exportTransactionCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-1.5 rounded-lg transition">Export CSV</button>
@@ -672,7 +698,7 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                <template x-for="tx in getPaginatedTransactions()" :key="tx.noTransaksi">
+                                <template x-for="tx in getFilteredTransactions()" :key="tx.noTransaksi">
                                     <tr class="hover:bg-slate-800/30 transition">
                                         <td class="p-3 text-slate-300" x-text="tx.tanggal"></td>
                                         <td class="p-3 text-indigo-400 font-semibold" x-text="tx.noTransaksi"></td>
@@ -681,14 +707,14 @@
                                         <td class="p-3 font-sans text-slate-300" x-text="tx.keterangan"></td>
                                         <td class="p-3 text-right">
                                             <div class="flex items-center justify-end gap-1.5 font-sans">
-                                                <!-- Tombol Lampiran Indigo (Hanya muncul jika transaksi memiliki lampiranUrl) -->
                                                 <template x-if="tx.lampiranUrl">
                                                     <a :href="tx.lampiranUrl" target="_blank" class="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded text-[11px] font-medium flex items-center gap-1 transition" title="Lihat Lampiran PDF">
                                                         <i data-lucide="paperclip" class="w-3.5 h-3.5"></i> Lampiran
                                                     </a>
                                                 </template>
                                                 <button type="button" @click="editTransaction(tx)" class="text-slate-400 hover:text-indigo-400 p-1" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                                <button type="button" @click="deleteTransaction(tx)" class="text-slate-500 hover:text-rose-400 p-1" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                                <!-- Tombol Hapus Transaksi dibatasi hanya untuk Super Admin -->
+                                                <button type="button" x-show="isSuperAdmin" @click="deleteTransaction(tx)" class="text-slate-500 hover:text-rose-400 p-1" title="Hapus" x-cloak><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                                 <button type="button" @click="printBAST(tx)" class="bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 px-2 py-1 rounded text-[11px]" title="Cetak BAST"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
                                             </div>
                                         </td>
@@ -883,7 +909,7 @@
             return {
                 isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
                 currentUser: localStorage.getItem('vortex_user') || 'Admin',
-                currentRole: localStorage.getItem('vortex_role') || 'Admin',
+                currentRole: localStorage.getItem('vortex_role') || 'Super Admin',
                 currentTab: 'dashboard',
                 loginForm: { email: '', password: '' },
                 profileForm: { namaLengkap: '', email: '', newPassword: '' },
@@ -911,6 +937,24 @@
                 transactions: safeLoadStorage('vortex_transactions', []),
                 newTrans: { tanggal: '', noTransaksi: '', noReferensi: '', tipeTransaksi: 'Masuk', gudangAsal: '', gudangTujuan: '', kodeProject: '', keterangan: '', lampiran: '', lampiranUrl: '', staffGudang: '', projectManager: '', namaPenerima: '', items: [] },
                 activeBast: {},
+
+                // RBAC Helper Getters
+                get isSuperAdmin() {
+                    return !this.currentRole || this.currentRole.toLowerCase().includes('super') || this.currentRole.toLowerCase() === 'admin';
+                },
+                userRegion() {
+                    return localStorage.getItem('vortex_region') || (this.isSuperAdmin ? 'Semua Region' : 'Aceh');
+                },
+                getFilteredMasterGudang() {
+                    if (this.isSuperAdmin) return this.masterGudang;
+                    const reg = this.userRegion().toLowerCase();
+                    return this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg);
+                },
+                getFilteredMasterProject() {
+                    if (this.isSuperAdmin) return this.masterProject;
+                    const reg = this.userRegion().toLowerCase();
+                    return this.masterProject.filter(p => (p.region || '').toLowerCase() === reg);
+                },
 
                 async init() {
                     await this.resetInputTransaction();
@@ -1089,7 +1133,7 @@
                     if (!supabaseClient) {
                         this.isLoggedIn = true;
                         this.currentUser = this.loginForm.email.split('@')[0] || 'User';
-                        this.currentRole = 'Staff Gudang';
+                        this.currentRole = 'Super Admin';
                         localStorage.setItem('vortex_logged_in', 'true');
                         localStorage.setItem('vortex_user', this.currentUser);
                         localStorage.setItem('vortex_role', this.currentRole);
@@ -1108,7 +1152,7 @@
                         const userId = authData.user.id;
                         const { data: profileData, error: profileError } = await supabaseClient
                             .from('profiles')
-                            .select('role, nama_lengkap')
+                            .select('role, nama_lengkap, region')
                             .eq('id', userId)
                             .single();
 
@@ -1119,6 +1163,9 @@
                         this.isLoggedIn = true;
                         this.currentUser = profileData.nama_lengkap || authData.user.email.split('@')[0];
                         this.currentRole = profileData.role;
+                        if (profileData.region) {
+                            localStorage.setItem('vortex_region', profileData.region);
+                        }
 
                         localStorage.setItem('vortex_logged_in', 'true');
                         localStorage.setItem('vortex_user', this.currentUser);
@@ -1335,7 +1382,6 @@
                 async resetInputTransaction() {
                     this.editingOriginalNo = null;
     
-                    // Kosongkan seluruh field, tabel item, dan lampiran
                     this.newTrans = {
                         tanggal: new Date().toISOString().split('T')[0],
                         noTransaksi: this.newTrans.noTransaksi,
@@ -1353,7 +1399,6 @@
                         items: [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '' }]
                     };
     
-                    // Reset elemen input file HTML agar lampiran benar-benar bersih dari UI
                     const fileInput = document.getElementById('attachmentInput');
                     if (fileInput) {
                         fileInput.value = '';
@@ -1361,6 +1406,11 @@
                 },
 
                 async deleteTransaction(tx) {
+                    if (!this.isSuperAdmin) {
+                        this.showNotification('Akses ditolak: Regional WH tidak memiliki kewenangan menghapus transaksi!', 'error');
+                        return;
+                    }
+
                     if (!confirm(`Hapus transaksi ${tx.noTransaksi}?\nIni akan membatalkan (rollback) Stok Gudang, Drum Ledger, dan Material Usage secara otomatis.`)) {
                         return;
                     }
@@ -1517,10 +1567,20 @@
                 resetItemsOnWarehouseChange() { this.newTrans.items.forEach(i => i.drumId = ''); },
                 
                 getGudangTujuanList() { 
-                    return this.masterGudang.filter(g => g.namaGudang !== this.newTrans.gudangAsal); 
+                    let list = this.masterGudang;
+                    if (!this.isSuperAdmin) {
+                        const reg = this.userRegion().toLowerCase();
+                        list = list.filter(g => (g.region || '').toLowerCase() === reg);
+                    }
+                    return list.filter(g => g.namaGudang !== this.newTrans.gudangAsal); 
                 },
 
-                getFilteredProjectsForAsal() { return this.masterProject; },
+                getFilteredProjectsForAsal() { 
+                    if (this.isSuperAdmin) return this.masterProject;
+                    const reg = this.userRegion().toLowerCase();
+                    return this.masterProject.filter(p => (p.region || '').toLowerCase() === reg);
+                },
+
                 addTransactionItem() { this.newTrans.items.push({ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '' }); },
                 removeTransactionItem(index) { if (this.newTrans.items.length > 1) this.newTrans.items.splice(index, 1); },
 
@@ -1560,22 +1620,16 @@
                     this.newTrans.lampiranUrl = URL.createObjectURL(file);
                 },
 
-                // Fungsi uploadAttachment yang digabungkan dan terintegrasi dengan Supabase Client
                 async uploadAttachment(fileInput, transactionId) {
                     const file = fileInput.files[0];
-                    
-                    if (!file) {
-                        return null; // Lewati jika tidak ada file yang dilampirkan
-                    }
+                    if (!file) return null;
 
-                    // 1. Validasi Ukuran File (Maksimal 5 MB)
                     const maxSizeInBytes = 5 * 1024 * 1024; 
                     if (file.size > maxSizeInBytes) {
                         alert('Ukuran file terlalu besar! Maksimal 5 MB.');
                         return null;
                     }
 
-                    // 2. Validasi Ekstensi File yang Diizinkan (PDF, JPG, PNG, DOCX)
                     const allowedTypes = [
                         'application/pdf', 
                         'image/jpeg', 
@@ -1587,12 +1641,10 @@
                         return null;
                     }
 
-                    // 3. Buat nama file unik untuk menghindari bentrok
                     const fileExt = file.name.split('.').pop();
                     const fileName = `tx_${transactionId}_${Date.now()}.${fileExt}`;
                     const filePath = `documents/${fileName}`;
 
-                    // 4. Proses Unggah ke Supabase Storage (Bucket: "attachments")
                     const { data, error } = await supabaseClient.storage
                         .from('attachments')
                         .upload(filePath, file);
@@ -1603,7 +1655,6 @@
                         return null;
                     }
 
-                    // 5. Dapatkan Public URL untuk disimpan ke kolom lampiran di tabel transaksi
                     const { data: publicUrlData } = supabaseClient.storage
                         .from('attachments')
                         .getPublicUrl(filePath);
@@ -1712,7 +1763,6 @@
                         return;
                     }
 
-                    // Proses unggah lampiran ke Supabase Storage jika ada file yang dipilih
                     const fileInput = document.getElementById('attachmentInput');
                     if (fileInput && fileInput.files.length > 0) {
                         const uploadedUrl = await this.uploadAttachment(fileInput, this.newTrans.noTransaksi);
@@ -1970,34 +2020,67 @@
                     return expanded;
                 },
 
+                // RBAC Filtered Getters for Tables & Reports
                 getFilteredStokGudang() {
-                    if (!this.filterStokGudang) return this.stokGudang;
-                    return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
+                    let list = this.stokGudang;
+                    if (!this.isSuperAdmin) {
+                        const reg = this.userRegion().toLowerCase();
+                        const regionalWhNames = this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg).map(g => g.namaGudang);
+                        list = list.filter(s => regionalWhNames.includes(s.gudang));
+                    }
+                    if (this.filterStokGudang) {
+                        list = list.filter(s => s.gudang === this.filterStokGudang);
+                    }
+                    return list;
                 },
 
                 getFilteredDrumLedger() {
-                    if (!this.filterStokGudang) return this.drumLedger;
-                    return this.drumLedger.filter(d => d.gudang === this.filterStokGudang);
+                    let list = this.drumLedger;
+                    if (!this.isSuperAdmin) {
+                        const reg = this.userRegion().toLowerCase();
+                        const regionalWhNames = this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg).map(g => g.namaGudang);
+                        list = list.filter(d => regionalWhNames.includes(d.gudang));
+                    }
+                    if (this.filterStokGudang) {
+                        list = list.filter(d => d.gudang === this.filterStokGudang);
+                    }
+                    return list;
                 },
 
                 getFilteredMaterialUsage() {
-                    if (!this.searchMaterialUsageProject) return this.materialUsage;
-                    const q = this.searchMaterialUsageProject.toLowerCase();
-                    return this.materialUsage.filter(u => 
-                        (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
-                        (u.projectName && u.projectName.toLowerCase().includes(q)) ||
-                        (u.noPO && u.noPO.toLowerCase().includes(q))
-                    );
+                    let list = this.materialUsage;
+                    if (!this.isSuperAdmin) {
+                        const reg = this.userRegion().toLowerCase();
+                        const regionalProjectCodes = this.masterProject.filter(p => (p.region || '').toLowerCase() === reg).map(p => p.kodeProject);
+                        list = list.filter(u => regionalProjectCodes.includes(u.kodeProject));
+                    }
+                    if (this.searchMaterialUsageProject) {
+                        const q = this.searchMaterialUsageProject.toLowerCase();
+                        list = list.filter(u => 
+                            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
+                            (u.projectName && u.projectName.toLowerCase().includes(q)) ||
+                            (u.noPO && u.noPO.toLowerCase().includes(q))
+                        );
+                    }
+                    return list;
                 },
 
                 getFilteredTransactions() {
-                    if (!this.searchNoTransaksi) return this.transactions;
-                    const q = this.searchNoTransaksi.toLowerCase();
-                    return this.transactions.filter(t => 
-                        t.noTransaksi.toLowerCase().includes(q) ||
-                        (t.noReferensi && t.noReferensi.toLowerCase().includes(q)) ||
-                        (t.keterangan && t.keterangan.toLowerCase().includes(q))
-                    );
+                    let list = this.transactions;
+                    if (!this.isSuperAdmin) {
+                        const reg = this.userRegion().toLowerCase();
+                        const regionalWhNames = this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg).map(g => g.namaGudang);
+                        list = list.filter(t => regionalWhNames.includes(t.gudangAsal) || regionalWhNames.includes(t.gudangTujuan));
+                    }
+                    if (this.searchNoTransaksi) {
+                        const q = this.searchNoTransaksi.toLowerCase();
+                        list = list.filter(t => 
+                            t.noTransaksi.toLowerCase().includes(q) ||
+                            (t.noReferensi && t.noReferensi.toLowerCase().includes(q)) ||
+                            (t.keterangan && t.keterangan.toLowerCase().includes(q))
+                        );
+                    }
+                    return list;
                 },
 
                 reuseDrum(drum, index) {
