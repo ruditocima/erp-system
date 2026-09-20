@@ -375,15 +375,12 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Gudang / Sumber Asal</label>
-                                    <template x-if="newTrans.tipeTransaksi === 'Masuk'">
-                                        <input type="text" x-model="newTrans.gudangAsal" @input="generateNoTransaksi()" placeholder="Vendor / Supplier" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                    </template>
-                                    <template x-if="newTrans.tipeTransaksi !== 'Masuk'">
-                                        <select x-model="newTrans.gudangAsal" @change="resetItemsOnWarehouseChange(); generateNoTransaksi(); newTrans.kodeProject = ''; if(newTrans.gudangAsal === newTrans.gudangTujuan) newTrans.gudangTujuan = '';" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
-                                            <option value="">Pilih Gudang Asal</option>
-                                            <template x-for="g in getFilteredMasterGudang()" :key="g.kodeGudang"><option :value="g.namaGudang" x-text="g.namaGudang"></option></template>
-                                        </select>
-                                    </template>
+                                    <input type="text" x-show="newTrans.tipeTransaksi === 'Masuk'" x-model="newTrans.gudangAsal" @input="generateNoTransaksi()" placeholder="Vendor / Supplier" :required="newTrans.tipeTransaksi === 'Masuk'" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none" x-cloak>
+    
+                                    <select x-show="newTrans.tipeTransaksi !== 'Masuk'" x-model="newTrans.gudangAsal" @change="resetItemsOnWarehouseChange(); generateNoTransaksi(); newTrans.kodeProject = ''; if(newTrans.gudangAsal === newTrans.gudangTujuan) newTrans.gudangTujuan = '';" :required="newTrans.tipeTransaksi !== 'Masuk'" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none" x-cloak>
+                                        <option value="">Pilih Gudang Asal</option>
+                                        <template x-for="g in getFilteredMasterGudang()" :key="g.kodeGudang"><option :value="g.namaGudang" x-text="g.namaGudang"></option></template>
+                                    </select>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Gudang / Tujuan</label>
@@ -1372,7 +1369,10 @@
                     }
                 },
 
-                openInputTransaction() { this.switchTab('input-transaksi'); },
+                openInputTransaction() { 
+                    this.resetInputTransaction();
+                    this.switchTab('input-transaksi'); 
+                },
 
                 async resetInputTransaction() {
                     this.editingOriginalNo = null;
