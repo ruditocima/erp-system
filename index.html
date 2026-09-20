@@ -1383,7 +1383,7 @@
                         tanggal: new Date().toISOString().split('T')[0],
                         noTransaksi: this.newTrans.noTransaksi,
                         noReferensi: '', 
-                        tipeTransaksi: '',
+                        tipeTransaksi: 'Masuk',
                         gudangAsal: '', 
                         gudangTujuan: '', 
                         kodeProject: '', 
@@ -1402,7 +1402,6 @@
                     }
                 },
 
-                // PERBAIKAN UTAMA: Blok deleteTransaction lengkap, aman, dan konsisten
                 async deleteTransaction(tx) {
                     if (!this.isSuperAdmin) {
                         this.showNotification('Akses ditolak: Regional WH tidak memiliki kewenangan menghapus transaksi!', 'error');
@@ -1753,7 +1752,6 @@
                     }
                 },
 
-                // FUNGSI SUBMIT TRANSAKSI MENGGUNAKAN ATOMIC RPC BACKEND SUPABASE
                 async submitTransaction() {
                     if (this.newTrans.gudangAsal && this.newTrans.gudangTujuan && 
                         this.newTrans.gudangAsal.trim().toLowerCase() === this.newTrans.gudangTujuan.trim().toLowerCase()) {
@@ -1778,7 +1776,6 @@
                     const tipe = this.newTrans.tipeTransaksi;
                     const gudangMasuk = this.newTrans.gudangTujuan; 
 
-                    // Alokasi otomatis Drum ID jika tipe Transaksi 'Masuk' dan kategori Cable
                     if (tipe === 'Masuk') {
                         let processedItems = [];
                         this.newTrans.items.forEach(item => {
@@ -1850,7 +1847,6 @@
                         this.newTrans.items = processedItems;
                     }
 
-                    // Eksekusi via Backend RPC Supabase (Atomic Transaction) jika terhubung
                     if (supabaseClient) {
                         try {
                             this.isLoading = true;
@@ -1888,7 +1884,7 @@
                         }
                     }
 
-                    // Fallback Mode Lokal (jika offline tanpa Supabase)
+                    // Fallback Mode Lokal
                     this.newTrans.items.forEach(item => {
                         const qty = parseFloat(item.qty) || 0;
                         const kat = this.getCategoryByKode(item.kodeBarang);
