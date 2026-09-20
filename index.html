@@ -958,6 +958,7 @@
 
                         if (projectError) throw projectError;
                         
+                        // Simpan ke state masterProject
                         if (projectData && projectData.length > 0) {
                             this.masterProject = projectData.map(p => ({
                                 periode: p.periode,
@@ -1227,6 +1228,7 @@
                         this.modalForm.kodeProject = data;
                     } catch (err) {
                         console.error('Gagal generate kode project dari database:', err.message);
+                        // Fallback client-side calculation
                         const regCode = this.getRegionCode(this.modalForm.region);
                         const year = new Date().getFullYear();
                         const prefix = `${regCode}-${year}-`;
@@ -1321,44 +1323,12 @@
                     }
                 },
 
-                async deleteItem(type, index) {
-                    if (!confirm('Hapus data ini dari sistem dan database cloud?')) return;
-
-                    if (!supabaseClient) {
+                deleteItem(type, index) {
+                    if (confirm('Hapus data ini?')) {
                         if (type === 'barang') this.masterBarang.splice(index, 1);
                         if (type === 'gudang') this.masterGudang.splice(index, 1);
                         if (type === 'project') this.masterProject.splice(index, 1);
-                        this.showNotification('Data dihapus (Lokal)!', 'success');
-                        return;
-                    }
-
-                    try {
-                        this.isLoading = true;
-                        let error = null;
-
-                        if (type === 'barang') {
-                            const item = this.masterBarang[index];
-                            const res = await supabaseClient.from('master_barang').delete().eq('kode_barang', item.kodeBarang);
-                            error = res.error;
-                            if (!error) this.masterBarang.splice(index, 1);
-                        } else if (type === 'gudang') {
-                            const item = this.masterGudang[index];
-                            const res = await supabaseClient.from('master_gudang').delete().eq('kode_gudang', item.kodeGudang);
-                            error = res.error;
-                            if (!error) this.masterGudang.splice(index, 1);
-                        } else if (type === 'project') {
-                            const item = this.masterProject[index];
-                            const res = await supabaseClient.from('master_project').delete().eq('kode_project', item.kodeProject);
-                            error = res.error;
-                            if (!error) this.masterProject.splice(index, 1);
-                        }
-
-                        if (error) throw error;
-                        this.showNotification('Data berhasil dihapus dari database cloud!', 'success');
-                    } catch (err) {
-                        this.showNotification('Gagal menghapus data dari cloud: ' + err.message, 'error');
-                    } finally {
-                        this.isLoading = false;
+                        this.showNotification('Data dihapus!', 'success');
                     }
                 },
 
@@ -1472,6 +1442,8 @@
                         if (supabaseClient) {
                             await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
                             await supabaseClient.from('material_usage').delete().eq('transaction_no', tx.noTransaksi);
+                            
+                            // ⚠️ Menjalankan sinkronisasi penghapusan/pembaruan stok & drum ke Supabase
                             await this.syncStokAndDrumToSupabase();
                         }
 
@@ -1516,6 +1488,7 @@
                         this.newTrans.noTransaksi = data;
                     } catch (err) {
                         console.error('Gagal generate nomor transaksi dari database:', err.message);
+                        // Fallback client-side calculation
                         const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0,7).replace('-', '');
                         const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
                         const prefix = `ACM-${typeCode}-${dateStr}-`;
