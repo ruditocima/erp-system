@@ -399,6 +399,22 @@
                                 </div>
                             </div>
 
+                            <!-- Input Penandatangan BAST -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-slate-800">
+                                <div>
+                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Staff Gudang (Penyerah)</label>
+                                    <input type="text" x-model="newTrans.staffGudang" required placeholder="Nama Staff Gudang..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Project Manager (Mengetahui)</label>
+                                    <input type="text" x-model="newTrans.projectManager" placeholder="Nama Project Manager..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Nama Penerima / Vendor</label>
+                                    <input type="text" x-model="newTrans.namaPenerima" placeholder="Nama Penerima / Vendor..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                                </div>
+                            </div>
+
                             <div class="pt-3 border-t border-slate-800">
                                 <div class="flex items-center justify-between mb-2.5">
                                     <h4 class="text-xs font-semibold text-white">Detail Material & Pelacakan Nomor Drum Kabel</h4>
@@ -819,10 +835,23 @@
                 </template>
             </tbody>
         </table>
+        <!-- Tanda Tangan BAST Dinamis -->
         <div class="grid grid-cols-3 gap-6 text-center pt-8 text-[11px]">
-            <div><p>Yang Menyerahkan,</p><div class="h-16"></div><p class="font-bold border-t border-slate-400 pt-1">( Staff Gudang )</p></div>
-            <div><p>Mengetahui,</p><div class="h-16"></div><p class="font-bold border-t border-slate-400 pt-1">( Project Manager )</p></div>
-            <div><p>Penerima,</p><div class="h-16"></div><p class="font-bold border-t border-slate-400 pt-1">( Vendor / Lapangan )</p></div>
+            <div>
+                <p>Yang Menyerahkan,</p>
+                <div class="h-16"></div>
+                <p class="font-bold border-t border-slate-400 pt-1" x-text="'(' + (activeBast.staffGudang || 'Staff Gudang') + ')'"></p>
+            </div>
+            <div>
+                <p>Mengetahui,</p>
+                <div class="h-16"></div>
+                <p class="font-bold border-t border-slate-400 pt-1" x-text="'(' + (activeBast.projectManager || 'Project Manager') + ')'"></p>
+            </div>
+            <div>
+                <p>Penerima,</p>
+                <div class="h-16"></div>
+                <p class="font-bold border-t border-slate-400 pt-1" x-text="'(' + (activeBast.namaPenerima || activeBast.gudangTujuan || 'Vendor / Lapangan') + ')'"></p>
+            </div>
         </div>
     </div>
 
@@ -874,7 +903,7 @@
                 drumLedger: safeLoadStorage('vortex_drumLedger', []),
                 materialUsage: safeLoadStorage('vortex_materialUsage', []),
                 transactions: safeLoadStorage('vortex_transactions', []),
-                newTrans: { tanggal: '', noTransaksi: '', noReferensi: '', tipeTransaksi: 'Masuk', gudangAsal: '', gudangTujuan: '', kodeProject: '', keterangan: '', lampiran: '', lampiranUrl: '', items: [] },
+                newTrans: { tanggal: '', noTransaksi: '', noReferensi: '', tipeTransaksi: 'Masuk', gudangAsal: '', gudangTujuan: '', kodeProject: '', keterangan: '', lampiran: '', lampiranUrl: '', staffGudang: '', projectManager: '', namaPenerima: '', items: [] },
                 activeBast: {},
 
                 async init() {
@@ -1009,6 +1038,9 @@
                                 keterangan: t.keterangan,
                                 lampiran: t.lampiran,
                                 lampiranUrl: t.lampiran_url || '',
+                                staffGudang: t.staff_gudang || this.currentUser,
+                                projectManager: t.project_manager || '',
+                                namaPenerima: t.nama_penerima || '',
                                 items: t.items || []
                             }));
                         }
@@ -1259,6 +1291,9 @@
                         tanggal: new Date().toISOString().split('T')[0],
                         noTransaksi: '', noReferensi: '', tipeTransaksi: 'Masuk',
                         gudangAsal: '', gudangTujuan: '', kodeProject: '', keterangan: '', lampiran: '', lampiranUrl: '',
+                        staffGudang: this.currentUser || '',
+                        projectManager: '',
+                        namaPenerima: '',
                         items: [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: 1 }]
                     };
                     this.generateNoTransaksi();
@@ -1617,6 +1652,9 @@
                                 keterangan: this.newTrans.keterangan,
                                 lampiran: this.newTrans.lampiran,
                                 lampiran_url: this.newTrans.lampiranUrl,
+                                staff_gudang: this.newTrans.staffGudang,
+                                project_manager: this.newTrans.projectManager,
+                                nama_penerima: this.newTrans.namaPenerima,
                                 items: this.newTrans.items
                             }, { onConflict: 'no_transaksi' });
 
@@ -1777,4 +1815,3 @@
     </script>
 </body>
 </html>
-```[cite: 1]
