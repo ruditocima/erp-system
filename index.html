@@ -395,7 +395,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Lampiran Dokumen</label>
-                                    <input type="file" @change="handleFileUpload($event)" accept="image/*,.pdf" class="w-full text-[10px] text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white">
+                                    <input type="file" id="attachmentInput" @change="handleFileUpload($event)" accept="image/*,.pdf,.docx" class="w-full text-[10px] text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-600 file:text-white">
                                 </div>
                             </div>
 
@@ -951,14 +951,12 @@
                     if (!supabaseClient) return;
                     this.isLoading = true;
                     try {
-                        // 1. Ambil data proyek dari tabel master
                         const { data: projectData, error: projectError } = await supabaseClient
                             .from('master_project')
                             .select('*');
 
                         if (projectError) throw projectError;
                         
-                        // Simpan ke state masterProject
                         if (projectData && projectData.length > 0) {
                             this.masterProject = projectData.map(p => ({
                                 periode: p.periode,
@@ -970,7 +968,6 @@
                             }));
                         }
 
-                        // 2. Ambil data ketersediaan stok
                         const { data: stockData, error: stockError } = await supabaseClient
                             .from('stok_gudang')
                             .select('*');
@@ -988,7 +985,6 @@
                             }));
                         }
 
-                        // 3. Ambil data riwayat transaksi
                         const { data: transactionData, error: transactionError } = await supabaseClient
                             .from('transactions')
                             .select('*')
@@ -1015,7 +1011,6 @@
                             }));
                         }
 
-                        // Memuat master barang, gudang, drum, dan material usage secara paralel
                         const { data: barangData } = await supabaseClient.from('master_barang').select('*');
                         if (barangData && barangData.length > 0) {
                             this.masterBarang = barangData.map(b => ({
@@ -1065,8 +1060,6 @@
                                 tanggal: u.tanggal
                             }));
                         }
-
-                        console.log('Semua data berhasil dimuat dari Supabase');
 
                     } catch (error) {
                         console.error('Gagal memuat data dari Supabase:', error.message);
@@ -1228,7 +1221,6 @@
                         this.modalForm.kodeProject = data;
                     } catch (err) {
                         console.error('Gagal generate kode project dari database:', err.message);
-                        // Fallback client-side calculation
                         const regCode = this.getRegionCode(this.modalForm.region);
                         const year = new Date().getFullYear();
                         const prefix = `${regCode}-${year}-`;
@@ -1442,8 +1434,6 @@
                         if (supabaseClient) {
                             await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
                             await supabaseClient.from('material_usage').delete().eq('transaction_no', tx.noTransaksi);
-                            
-                            // ⚠️ Menjalankan sinkronisasi penghapusan/pembaruan stok & drum ke Supabase
                             await this.syncStokAndDrumToSupabase();
                         }
 
@@ -1488,7 +1478,6 @@
                         this.newTrans.noTransaksi = data;
                     } catch (err) {
                         console.error('Gagal generate nomor transaksi dari database:', err.message);
-                        // Fallback client-side calculation
                         const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0,7).replace('-', '');
                         const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
                         const prefix = `ACM-${typeCode}-${dateStr}-`;
@@ -1549,6 +1538,57 @@
                     if (!file) return;
                     this.newTrans.lampiran = file.name;
                     this.newTrans.lampiranUrl = URL.createObjectURL(file);
+                },
+
+                // Fungsi uploadAttachment yang digabungkan dan terintegrasi dengan Supabase Client
+                async uploadAttachment(fileInput, transactionId) {
+                    const file = fileInput.files[0];
+                    
+                    if (!file) {
+                        return null; // Lewati jika tidak ada file yang dilampirkan
+                    }
+
+                    // 1. Validasi Ukuran File (Maksimal 5 MB)
+                    const maxSizeInBytes = 5 * 1024 * 1024; 
+                    if (file.size > maxSizeInBytes) {
+                        alert('Ukuran file terlalu besar! Maksimal 5 MB.');
+                        return null;
+                    }
+
+                    // 2. Validasi Ekstensi File yang Diizinkan (PDF, JPG, PNG, DOCX)
+                    const allowedTypes = [
+                        'application/pdf', 
+                        'image/jpeg', 
+                        'image/png', 
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    ];
+                    if (!allowedTypes.includes(file.type)) {
+                        alert('Format file tidak didukung! Harap unggah file PDF, JPG, PNG, atau DOCX.');
+                        return null;
+                    }
+
+                    // 3. Buat nama file unik untuk menghindari bentrok
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `tx_${transactionId}_${Date.now()}.${fileExt}`;
+                    const filePath = `documents/${fileName}`;
+
+                    // 4. Proses Unggah ke Supabase Storage (Bucket: "attachments")
+                    const { data, error } = await supabaseClient.storage
+                        .from('attachments')
+                        .upload(filePath, file);
+
+                    if (error) {
+                        console.error('Gagal mengunggah file:', error.message);
+                        alert('Gagal mengunggah lampiran ke server.');
+                        return null;
+                    }
+
+                    // 5. Dapatkan Public URL untuk disimpan ke kolom lampiran di tabel transaksi
+                    const { data: publicUrlData } = supabaseClient.storage
+                        .from('attachments')
+                        .getPublicUrl(filePath);
+
+                    return publicUrlData.publicUrl;
                 },
 
                 rollbackTransaction(tx) {
@@ -1650,6 +1690,16 @@
                     if (!this.newTrans.noReferensi || !this.newTrans.keterangan) {
                         this.showNotification('No Referensi dan Keterangan wajib diisi!', 'error');
                         return;
+                    }
+
+                    // Proses unggah lampiran ke Supabase Storage jika ada file yang dipilih
+                    const fileInput = document.getElementById('attachmentInput');
+                    if (fileInput && fileInput.files.length > 0) {
+                        const uploadedUrl = await this.uploadAttachment(fileInput, this.newTrans.noTransaksi);
+                        if (uploadedUrl) {
+                            this.newTrans.lampiranUrl = uploadedUrl;
+                            this.newTrans.lampiran = fileInput.files[0].name;
+                        }
                     }
 
                     const tipe = this.newTrans.tipeTransaksi;
