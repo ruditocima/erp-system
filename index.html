@@ -244,7 +244,7 @@
                     </div>
                 </div>
 
-                <!-- 3. MASTER GUDANG -->
+                <!-- 3. MASTER GUDANG (Dengan Kolom Region Sebelum Kode Gudang) -->
                 <div x-show="currentTab === 'gudang'" class="space-y-4" x-cloak>
                     <div class="flex items-center justify-between">
                         <div><h3 class="text-sm font-semibold text-white">Daftar Master Gudang</h3></div>
@@ -257,6 +257,7 @@
                             <table class="w-full text-left border-collapse">
                                 <thead>
                                     <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
+                                        <th class="p-3">Region</th>
                                         <th class="p-3">Kode Gudang</th>
                                         <th class="p-3">Nama Gudang</th>
                                         <th class="p-3">Tipe Kepemilikan</th>
@@ -267,6 +268,7 @@
                                 <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
                                     <template x-for="(item, index) in masterGudang" :key="item.kodeGudang || index">
                                         <tr class="hover:bg-slate-800/30 transition">
+                                            <td class="p-3 text-slate-300" x-text="item.region"></td>
                                             <td class="p-3 text-indigo-400 text-[12px]" x-text="item.kodeGudang"></td>
                                             <td class="p-3 font-medium text-white" x-text="item.namaGudang"></td>
                                             <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[11px] font-medium" :class="item.tipeKepemilikan === 'Milik Sendiri' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'" x-text="item.tipeKepemilikan"></span></td>
@@ -746,6 +748,7 @@
                 </template>
                 <template x-if="modalType === 'gudang'">
                     <div class="space-y-3">
+                        <div><label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Region</label><input type="text" x-model="modalForm.region" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white"></div>
                         <div><label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Kode Gudang</label><input type="text" x-model="modalForm.kodeGudang" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white"></div>
                         <div><label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Nama Gudang</label><input type="text" x-model="modalForm.namaGudang" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white"></div>
                         <div><label class="block text-[10px] font-medium text-slate-300 uppercase mb-1">Tipe Kepemilikan</label><select x-model="modalForm.tipeKepemilikan" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white"><option value="Milik Sendiri">Milik Sendiri</option><option value="Sewa / Vendor">Sewa / Vendor</option></select></div>
@@ -864,7 +867,7 @@
                     { kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core', sat: 'Meter' }
                 ]),
                 masterGudang: safeLoadStorage('vortex_masterGudang', [
-                    { kodeGudang: 'NPM-JKT-01', namaGudang: 'Gudang Utama Jakarta', tipeKepemilikan: 'Milik Sendiri', lokasi: 'Cakung' }
+                    { region: 'Jakarta', kodeGudang: 'NPM-JKT-01', namaGudang: 'Gudang Utama Jakarta', tipeKepemilikan: 'Milik Sendiri', lokasi: 'Cakung' }
                 ]),
                 masterProject: safeLoadStorage('vortex_masterProject', []),
                 stokGudang: safeLoadStorage('vortex_stokGudang', []),
@@ -933,6 +936,7 @@
                         const { data: gudangData } = await supabaseClient.from('master_gudang').select('*');
                         if (gudangData && gudangData.length > 0) {
                             this.masterGudang = gudangData.map(g => ({
+                                region: g.region || '',
                                 kodeGudang: g.kode_gudang,
                                 namaGudang: g.nama_gudang,
                                 tipeKepemilikan: g.tipe_kepemilikan,
@@ -1123,7 +1127,7 @@
                     } else if (type === 'barang') {
                         this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Pcs' };
                     } else if (type === 'gudang') {
-                        this.modalForm = { kodeGudang: '', namaGudang: '', tipeKepemilikan: 'Milik Sendiri', lokasi: '' };
+                        this.modalForm = { region: '', kodeGudang: '', namaGudang: '', tipeKepemilikan: 'Milik Sendiri', lokasi: '' };
                     }
                     this.showModal = true; this.refreshIcons();
                 },
@@ -1188,6 +1192,7 @@
                             }
                         } else if (this.modalType === 'gudang') {
                             const payload = {
+                                region: this.modalForm.region,
                                 kode_gudang: this.modalForm.kodeGudang,
                                 nama_gudang: this.modalForm.namaGudang,
                                 tipe_kepemilikan: this.modalForm.tipeKepemilikan,
@@ -1562,8 +1567,8 @@
                             }
                             if (this.newTrans.kodeProject) {
                                 const proj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
-                                this.materialUsage.unshift({
-                                    id: String(Date.now() + Math.random()),
+                                this.materialUsage.push({
+                                    id: 'USE-' + Date.now() + '-' + Math.floor(Math.random()*1000),
                                     transactionNo: this.newTrans.noTransaksi,
                                     kodeProject: this.newTrans.kodeProject,
                                     noPO: proj ? proj.noPO : '-',
@@ -1587,232 +1592,189 @@
                         }
                     });
 
-                    this.drumLedger = this.drumLedger.filter(d => d.remainingLength > 0);
-
-                    // Integrasi Pemanggilan RPC pada Supabase (Atomic Operation & Validasi Server)
-                    if (supabaseClient) {
-                        try {
-                            this.isLoading = true;
-                            const stokPayload = this.stokGudang.map(s => ({
-                                kode_barang: s.kodeBarang,
-                                nama_barang: s.namaBarang,
-                                kategori: s.kategori,
-                                gudang: s.gudang,
-                                qty: s.qty,
-                                sat: s.sat
-                            }));
-                            const drumPayload = this.drumLedger.map(d => ({
-                                drum_id: d.drumId,
-                                kode_barang: d.kodeBarang,
-                                nama_barang: d.namaBarang,
-                                gudang: d.gudang,
-                                initial_length: d.initialLength,
-                                remaining_length: d.remainingLength
-                            }));
-                            const usagePayload = this.materialUsage.map(u => ({
-                                id: String(u.id),
-                                transaction_no: u.transactionNo || '',
-                                kode_project: u.kodeProject || '',
-                                no_po: u.noPO || '',
-                                project_name: u.projectName || '',
-                                kode_barang: u.kodeBarang || '',
-                                nama_barang: u.namaBarang || '',
-                                drum_id: u.drumId || '',
-                                qty: u.qty || 0,
-                                tanggal: u.tanggal || new Date().toISOString().split('T')[0]
-                            }));
-
-                            const { data, error } = await supabaseClient.rpc('process_warehouse_transaction', {
-                                p_no_transaksi: this.newTrans.noTransaksi,
-                                p_tanggal: this.newTrans.tanggal,
-                                p_no_referensi: this.newTrans.noReferensi,
-                                p_tipe_transaksi: this.newTrans.tipeTransaksi,
-                                p_gudang_asal: this.newTrans.gudangAsal || null,
-                                p_gudang_tujuan: this.newTrans.gudangTujuan || null,
-                                p_kode_project: this.newTrans.kodeProject || null,
-                                p_keterangan: this.newTrans.keterangan,
-                                p_lampiran: this.newTrans.lampiran || null,
-                                p_lampiran_url: this.newTrans.lampiranUrl || null,
-                                p_items: this.newTrans.items,
-                                p_stok_updates: stokPayload,
-                                p_drum_updates: drumPayload,
-                                p_usage_records: usagePayload
-                            });
-
-                            if (error) throw error;
-                            if (data && !data.success) {
-                                throw new Error(data.message || 'Gagal memproses transaksi di server.');
-                            }
-                        } catch (err) {
-                            console.error('Gagal sinkronisasi transaksi via RPC Supabase:', err);
-                            this.showNotification('Gagal menyimpan ke database Supabase: ' + err.message, 'error');
-                            this.isLoading = false;
-                            return;
-                        } finally {
-                            this.isLoading = false;
-                        }
-                    }
+                    this.stokGudang = this.stokGudang.filter(s => s.qty > 0);
 
                     if (this.editingOriginalNo) {
                         const idx = this.transactions.findIndex(t => t.noTransaksi === this.editingOriginalNo);
                         if (idx !== -1) {
                             this.transactions[idx] = JSON.parse(JSON.stringify(this.newTrans));
-                        } else {
-                            this.transactions.unshift(JSON.parse(JSON.stringify(this.newTrans)));
                         }
                     } else {
                         this.transactions.unshift(JSON.parse(JSON.stringify(this.newTrans)));
                     }
 
-                    this.showNotification('Transaksi berhasil disimpan & tersinkronisasi ke Supabase (via RPC)!', 'success');
+                    if (supabaseClient) {
+                        try {
+                            this.isLoading = true;
+                            await supabaseClient.from('transactions').upsert({
+                                tanggal: this.newTrans.tanggal,
+                                no_transaksi: this.newTrans.noTransaksi,
+                                no_referensi: this.newTrans.noReferensi,
+                                tipe_transaksi: this.newTrans.tipeTransaksi,
+                                gudang_asal: this.newTrans.gudangAsal,
+                                gudang_tujuan: this.newTrans.gudangTujuan,
+                                kode_project: this.newTrans.kodeProject,
+                                keterangan: this.newTrans.keterangan,
+                                lampiran: this.newTrans.lampiran,
+                                lampiran_url: this.newTrans.lampiranUrl,
+                                items: this.newTrans.items
+                            }, { onConflict: 'no_transaksi' });
+
+                            await this.syncStokAndDrumToSupabase();
+
+                            if (this.newTrans.tipeTransaksi === 'Keluar' && this.newTrans.kodeProject) {
+                                for (let usage of this.materialUsage.filter(u => u.transactionNo === this.newTrans.noTransaksi)) {
+                                    await supabaseClient.from('material_usage').upsert({
+                                        id: usage.id,
+                                        transaction_no: usage.transactionNo,
+                                        kode_project: usage.kodeProject,
+                                        no_po: usage.noPO,
+                                        project_name: usage.projectName,
+                                        kode_barang: usage.kodeBarang,
+                                        nama_barang: usage.namaBarang,
+                                        drum_id: usage.drumId,
+                                        qty: usage.qty,
+                                        tanggal: usage.tanggal
+                                    }, { onConflict: 'id' });
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('Gagal sync transaksi ke Supabase:', err);
+                        } finally {
+                            this.isLoading = false;
+                        }
+                    }
+
+                    this.showNotification('Transaksi berhasil disimpan!', 'success');
                     this.resetInputTransaction();
                     this.switchTab('data-transaksi');
                 },
 
-                getFilteredStokGudang() { return this.filterStokGudang ? this.stokGudang.filter(s => s.gudang === this.filterStokGudang) : this.stokGudang; },
-                getFilteredDrumLedger() { return this.filterStokGudang ? this.drumLedger.filter(d => d.gudang === this.filterStokGudang) : this.drumLedger; },
-                getFilteredMaterialUsage() { 
-                    if (!this.searchMaterialUsageProject) return this.materialUsage;
-                    const q = this.searchMaterialUsageProject.toLowerCase();
-                    return this.materialUsage.filter(u => (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) || (u.projectName && u.projectName.toLowerCase().includes(q)));
-                },
-                getFilteredTransactions() { 
-                    if (!this.searchNoTransaksi) return this.transactions;
-                    const q = this.searchNoTransaksi.toLowerCase();
-                    return this.transactions.filter(t => t.noTransaksi && t.noTransaksi.toLowerCase().includes(q));
-                },
-
-                reuseDrum(drum, index) {
-                    if (confirm(`Hapus drum ${drum.drumId} dari ledger?`)) {
-                        this.drumLedger.splice(index, 1);
-                        this.showNotification('Drum berhasil dibersihkan!', 'success');
-                    }
-                },
-
                 editTransaction(tx) {
-                    this.rollbackTransaction(tx);
                     this.editingOriginalNo = tx.noTransaksi;
                     this.newTrans = JSON.parse(JSON.stringify(tx));
+                    this.rollbackTransaction(tx);
+                    this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
                     this.switchTab('input-transaksi');
                 },
 
-                async deleteTransaction(tx) {
-                    if (!confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}? Stok dan pelacakan drum terkait akan dikembalikan (rollback).`)) return;
-
-                    const drumsBefore = this.drumLedger.map(d => d.drumId);
-                    const stokBefore = this.stokGudang.map(s => s.kodeBarang + '_' + s.gudang);
-
-                    this.rollbackTransaction(tx);
-
-                    const drumsAfter = this.drumLedger.map(d => d.drumId);
-                    const deletedDrums = drumsBefore.filter(id => !drumsAfter.includes(id));
-                    
-                    const stokAfter = this.stokGudang.map(s => s.kodeBarang + '_' + s.gudang);
-                    const deletedStok = stokBefore.filter(id => !stokAfter.includes(id));
-
-                    this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-
-                    if (supabaseClient) {
-                        try {
-                            this.isLoading = true;
-                            
-                            await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
-                            
-                            if (tx.kodeProject) {
-                                await supabaseClient.from('material_usage').delete().eq('transaction_no', tx.noTransaksi);
-                            }
-
-                            if (tx.tipeTransaksi === 'Masuk') {
-                                for (let item of tx.items) {
-                                    if (item.drumId) {
-                                        await supabaseClient.from('drum_ledger').delete().eq('drum_id', item.drumId);
-                                    }
-                                }
-                            }
-
-                            await this.syncStokAndDrumToSupabase();
-
-                            if (deletedDrums.length > 0) {
-                                for (let dId of deletedDrums) {
-                                    await supabaseClient.from('drum_ledger').delete().eq('drum_id', dId);
-                                }
-                            }
-
-                            if (deletedStok.length > 0) {
-                                for (let sId of deletedStok) {
-                                    const [kb, gd] = sId.split('_');
-                                    await supabaseClient.from('stok_gudang').delete().eq('kode_barang', kb).eq('gudang', gd);
-                                }
-                            }
-
-                            this.showNotification('Transaksi dihapus dan stok/drum berhasil ikut terhapus di database!', 'success');
-                        } catch (err) {
-                            console.error('Gagal memperbarui Supabase saat delete:', err);
-                            this.showNotification('Gagal sinkronisasi rollback ke Supabase: ' + err.message, 'error');
-                        } finally {
-                            this.isLoading = false;
+                deleteTransaction(tx) {
+                    if (confirm('Hapus transaksi ini dan lakukan rollback stok?')) {
+                        this.rollbackTransaction(tx);
+                        this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+                        this.materialUsage = this.materialUsage.filter(u => u.transactionNo !== tx.noTransaksi);
+                        if (supabaseClient) {
+                            supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi).then(() => {});
                         }
-                    } else {
-                        this.showNotification('Transaksi berhasil dihapus dan stok/drum dikembalikan (Mode Lokal)!', 'success');
+                        this.showNotification('Transaksi dihapus dan stok dikembalikan!', 'success');
                     }
                 },
 
-                // Fungsi Cetak BAST via Windows Print Dialog
                 printBAST(tx) {
-                    this.activeBast = JSON.parse(JSON.stringify(tx));
+                    this.activeBast = tx;
                     this.refreshIcons();
-                    setTimeout(() => window.print(), 300);
+                    setTimeout(() => { window.print(); }, 300);
                 },
 
                 getExpandedBastItems() {
-                    return (this.activeBast.items || []).map((i, idx) => ({ no: idx + 1, ...i }));
-                },
-
-                shouldShowSummary() { return false; },
-                getBastSummaryTotals() { return []; },
-
-                exportStokCSV() { this.downloadCSV('Kode,Nama,Qty\n', 'stok.csv'); },
-                exportUsageCSV() { this.downloadCSV('Project,Barang,Qty\n', 'usage.csv'); },
-                
-                exportTransactionCSV() {
-                    let csvContent = "Tanggal,No Transaksi,No Referensi,Tipe Transaksi,Gudang Asal,Gudang Tujuan,Kode Project,Nama Project,Kode Barang,Nama Barang,Drum ID,Qty,Keterangan\n";
-                    
-                    this.transactions.forEach(tx => {
-                        const projName = this.masterProject.find(p => p.kodeProject === tx.kodeProject)?.projectName || '';
-                        const items = tx.items && tx.items.length > 0 ? tx.items : [{ kodeBarang: '', namaBarang: '', drumId: '', qty: 0 }];
-                        
-                        items.forEach(item => {
-                            const row = [
-                                `"${tx.tanggal || ''}"`,
-                                `"${tx.noTransaksi || ''}"`,
-                                `"${tx.noReferensi || ''}"`,
-                                `"${tx.tipeTransaksi || ''}"`,
-                                `"${tx.gudangAsal || ''}"`,
-                                `"${tx.gudangTujuan || ''}"`,
-                                `"${tx.kodeProject || ''}"`,
-                                `"${projName}"`,
-                                `"${item.kodeBarang || ''}"`,
-                                `"${item.namaBarang || ''}"`,
-                                `"${item.drumId || ''}"`,
-                                `"${item.qty || 0}"`,
-                                `"${(tx.keterangan || '').replace(/"/g, '""')}"`
-                            ];
-                            csvContent += row.join(",") + "\n";
+                    let expanded = [];
+                    if (!this.activeBast || !this.activeBast.items) return expanded;
+                    let counter = 1;
+                    this.activeBast.items.forEach(item => {
+                        expanded.push({
+                            no: counter++,
+                            kodeBarang: item.kodeBarang,
+                            namaBarang: item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '',
+                            drumId: item.drumId,
+                            qty: item.qty
                         });
                     });
-                    
-                    this.downloadCSV(csvContent, 'laporan_transaksi_detail.csv');
+                    return expanded;
                 },
 
-                downloadCSV(content, filename) {
-                    const blob = new Blob([content], { type: 'text/csv' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = filename;
-                    link.click();
+                getFilteredStokGudang() {
+                    if (!this.filterStokGudang) return this.stokGudang;
+                    return this.stokGudang.filter(s => s.gudang === this.filterStokGudang);
+                },
+
+                getFilteredDrumLedger() {
+                    if (!this.filterStokGudang) return this.drumLedger;
+                    return this.drumLedger.filter(d => d.gudang === this.filterStokGudang);
+                },
+
+                getFilteredMaterialUsage() {
+                    if (!this.searchMaterialUsageProject) return this.materialUsage;
+                    const q = this.searchMaterialUsageProject.toLowerCase();
+                    return this.materialUsage.filter(u => 
+                        (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) ||
+                        (u.projectName && u.projectName.toLowerCase().includes(q)) ||
+                        (u.noPO && u.noPO.toLowerCase().includes(q))
+                    );
+                },
+
+                getFilteredTransactions() {
+                    if (!this.searchNoTransaksi) return this.transactions;
+                    const q = this.searchNoTransaksi.toLowerCase();
+                    return this.transactions.filter(t => 
+                        t.noTransaksi.toLowerCase().includes(q) ||
+                        (t.noReferensi && t.noReferensi.toLowerCase().includes(q)) ||
+                        (t.keterangan && t.keterangan.toLowerCase().includes(q))
+                    );
+                },
+
+                reuseDrum(drum, index) {
+                    const scrapQty = prompt(`Masukkan jumlah kuantitas/panjang yang di-reuse atau scrap dari drum ${drum.drumId} (Sisa: ${drum.remainingLength}m):`, drum.remainingLength);
+                    if (scrapQty === null) return;
+                    const qtyVal = parseInt(scrapQty, 10);
+                    if (isNaN(qtyVal) || qtyVal <= 0 || qtyVal > drum.remainingLength) {
+                        this.showNotification('Jumlah tidak valid!', 'error');
+                        return;
+                    }
+                    drum.remainingLength -= qtyVal;
+                    this.showNotification(`Drum ${drum.drumId} berhasil diproses. Sisa panjang: ${drum.remainingLength}m`, 'success');
+                },
+
+                exportStokCSV() {
+                    let csv = 'Kode Barang,Nama Barang,Kategori,Gudang,Total Stok,Satuan\n';
+                    this.getFilteredStokGudang().forEach(s => {
+                        csv += `"${s.kodeBarang}","${s.namaBarang}","${s.kategori}","${s.gudang}",${s.qty},"${s.sat}"\n`;
+                    });
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'stok_gudang.csv';
+                    a.click();
+                },
+
+                exportUsageCSV() {
+                    let csv = 'Kode Project,No PO,Project Name,Nama Barang,Drum ID,Qty Pakai,Tanggal\n';
+                    this.getFilteredMaterialUsage().forEach(u => {
+                        csv += `"${u.kodeProject}","${u.noPO}","${u.projectName}","${u.namaBarang}","${u.drumId}",${u.qty},"${u.tanggal}"\n`;
+                    });
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'material_usage.csv';
+                    a.click();
+                },
+
+                exportTransactionCSV() {
+                    let csv = 'Tanggal,No Transaksi,Tipe Transaksi,Gudang Asal,Gudang Tujuan,Keterangan\n';
+                    this.getFilteredTransactions().forEach(t => {
+                        csv += `"${t.tanggal}","${t.noTransaksi}","${t.tipeTransaksi}","${t.gudangAsal || ''}","${t.gudangTujuan || ''}","${t.keterangan}"\n`;
+                    });
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'data_transaksi.csv';
+                    a.click();
                 }
             }
         }
     </script>
 </body>
 </html>
+```[cite: 1]
