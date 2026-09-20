@@ -1105,7 +1105,7 @@
 
                     } catch (error) {
                         console.error('Gagal memuat data dari Supabase:', error.message);
-                        this.showNotification('Gagal memuat data dari database: ' + error.message, 'error');
+                        this.showNotification('Gagal memuat data dari database: ' + (error.message || error), 'error');
                     } finally {
                         this.isLoading = false;
                     }
@@ -1165,7 +1165,7 @@
                         this.initProfileData();
                         this.showNotification('Berhasil masuk ke sistem!', 'success');
                     } catch (err) {
-                        this.showNotification('Gagal Masuk: ' + err.message, 'error');
+                        this.showNotification('Gagal Masuk: ' + (err.message || err), 'error');
                     } finally {
                         this.isLoading = false;
                     }
@@ -1197,18 +1197,20 @@
                     try {
                         this.isLoading = true;
                         if (this.profileForm.newPassword) {
-                            await supabaseClient.auth.updateUser({ password: this.profileForm.newPassword });
+                            const { error: pwdErr } = await supabaseClient.auth.updateUser({ password: this.profileForm.newPassword });
+                            if (pwdErr) throw pwdErr;
                         }
                         const { data: { user } } = await supabaseClient.auth.getUser();
                         if (user) {
-                            await supabaseClient.from('profiles').update({ nama_lengkap: this.profileForm.namaLengkap }).eq('id', user.id);
+                            const { error: profErr } = await supabaseClient.from('profiles').update({ nama_lengkap: this.profileForm.namaLengkap }).eq('id', user.id);
+                            if (profErr) throw profErr;
                         }
                         this.currentUser = this.profileForm.namaLengkap;
                         localStorage.setItem('vortex_user', this.currentUser);
                         this.profileForm.newPassword = '';
                         this.showNotification('Profil berhasil diperbarui!', 'success');
                     } catch (err) {
-                        this.showNotification('Gagal update profil: ' + err.message, 'error');
+                        this.showNotification('Gagal update profil: ' + (err.message || err), 'error');
                     } finally {
                         this.isLoading = false;
                     }
@@ -1354,7 +1356,7 @@
                         this.showModal = false;
                         this.showNotification('Data berhasil disimpan ke Supabase!', 'success');
                     } catch (err) {
-                        this.showNotification('Gagal menyimpan ke database: ' + err.message, 'error');
+                        this.showNotification('Gagal menyimpan ke database: ' + (err.message || err), 'error');
                     } finally {
                         this.isLoading = false;
                     }
@@ -1381,7 +1383,7 @@
                         tanggal: new Date().toISOString().split('T')[0],
                         noTransaksi: this.newTrans.noTransaksi,
                         noReferensi: '', 
-                        tipeTransaksi: 'Masuk',
+                        tipeTransaksi: '',
                         gudangAsal: '', 
                         gudangTujuan: '', 
                         kodeProject: '', 
@@ -1400,6 +1402,7 @@
                     }
                 },
 
+                // PERBAIKAN UTAMA: Blok deleteTransaction lengkap, aman, dan konsisten
                 async deleteTransaction(tx) {
                     if (!this.isSuperAdmin) {
                         this.showNotification('Akses ditolak: Regional WH tidak memiliki kewenangan menghapus transaksi!', 'error');
@@ -1497,8 +1500,12 @@
                         }
 
                         if (supabaseClient) {
-                            await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
-                            await supabaseClient.from('material_usage').delete().eq('transaction_no', tx.noTransaksi);
+                            const { error: delTxErr } = await supabaseClient.from('transactions').delete().eq('no_transaksi', tx.noTransaksi);
+                            if (delTxErr) throw delTxErr;
+
+                            const { error: delUseErr } = await supabaseClient.from('material_usage').delete().eq('transaction_no', tx.noTransaksi);
+                            if (delUseErr) throw delUseErr;
+
                             await this.syncStokAndDrumToSupabase();
                         }
 
@@ -1506,7 +1513,7 @@
                         
                     } catch (error) {
                         console.error('Error saat menghapus transaksi:', error);
-                        this.showNotification('Gagal menghapus transaksi: ' + error.message, 'error');
+                        this.showNotification('Gagal menghapus transaksi: ' + (error.message || error), 'error');
                     } finally {
                         this.isLoading = false;
                     }
@@ -1874,7 +1881,7 @@
 
                         } catch (err) {
                             console.error('Gagal menjalankan transaksi atomik RPC:', err.message);
-                            this.showNotification('Gagal memproses transaksi: ' + err.message, 'error');
+                            this.showNotification('Gagal memproses transaksi: ' + (err.message || err), 'error');
                             return;
                         } finally {
                             this.isLoading = false;
