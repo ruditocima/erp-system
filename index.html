@@ -880,45 +880,6 @@
         </div>
     </div>
 
-    <!-- 
-    ========================================================================
-    STORED PROCEDURE SQL SUPABASE (JALANKAN DI SUPABASE SQL EDITOR)
-    ========================================================================
-    CREATE OR REPLACE FUNCTION potong_stok_kabel(
-        p_drum_id VARCHAR,
-        p_panjang_dipakai DECIMAL
-    )
-    RETURNS JSON AS $$
-    DECLARE
-        v_stok_sekarang DECIMAL;
-        v_stok_sisa DECIMAL;
-    BEGIN
-        -- Lock baris secara atomik (Row-level FOR UPDATE) untuk mencegah race condition
-        SELECT remaining_length INTO v_stok_sekarang
-        FROM drum_ledger
-        WHERE drum_id = p_drum_id
-        FOR UPDATE;
-
-        IF NOT FOUND THEN
-            RETURN json_build_object('status', 'error', 'message', 'Drum ID tidak ditemukan di gudang');
-        END IF;
-
-        IF v_stok_sekarang < p_panjang_dipakai THEN
-            RETURN json_build_object('status', 'error', 'message', 'Sisa panjang kabel pada Drum ID tidak mencukupi');
-        END IF;
-
-        v_stok_sisa := ROUND((v_stok_sekarang - p_panjang_dipakai)::numeric, 2);
-
-        UPDATE drum_ledger
-        SET remaining_length = v_stok_sisa
-        WHERE drum_id = p_drum_id;
-
-        RETURN json_build_object('status', 'success', 'sisa_stok', v_stok_sisa);
-    END;
-    $$ LANGUAGE plpgsql;
-    ========================================================================
-    -->
-
     <!-- SCRIPT UTAMA -->
     <script>
         const SUPABASE_URL = 'https://mwcdgumytjwhewkbbwge.supabase.co';
@@ -1003,13 +964,11 @@
                     this.$watch('transactions', val => localStorage.setItem('vortex_transactions', JSON.stringify(val)), { deep: true });
                     this.$watch('materialUsage', val => localStorage.setItem('vortex_materialUsage', JSON.stringify(val)), { deep: true });
 
-                    // Reset halaman saat filter berubah
                     this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; });
                     this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; });
                     this.$watch('searchNoTransaksi', () => { this.pageTx = 1; });
                 },
 
-                // Realtime Subscription Listener
                 inisialisasiRealtimeStok() {
                     if (!supabaseClient) return;
 
@@ -1045,7 +1004,6 @@
                         });
                 },
 
-                // Memanggil Atomic Stored Procedure / RPC di Supabase
                 async catatPenggunaanKabel(drumId, panjangDipakai) {
                     if (!supabaseClient) {
                         let drum = this.drumLedger.find(d => d.drumId === drumId);
@@ -1084,7 +1042,6 @@
                     }
                 },
 
-                // Helper Paginasi
                 paginate(items, page, size) {
                     const start = (page - 1) * size;
                     return items.slice(start, start + size);
@@ -1743,7 +1700,7 @@
 
                     const maxSizeInBytes = 5 * 1024 * 1024; 
                     if (file.size > maxSizeInBytes) {
-                        alert('Ukuran file terlalu besar! Maksimal 5 MB.');
+                        this.showNotification('Ukuran file terlalu besar! Maksimal 5 MB.', 'error');
                         return null;
                     }
 
@@ -1754,7 +1711,7 @@
                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                     ];
                     if (!allowedTypes.includes(file.type)) {
-                        alert('Format file tidak didukung! Harap unggah file PDF, JPG, PNG, atau DOCX.');
+                        this.showNotification('Format file tidak didukung! Unggah file PDF, JPG, PNG, atau DOCX.', 'error');
                         return null;
                     }
 
@@ -1768,7 +1725,7 @@
 
                     if (error) {
                         console.error('Gagal mengunggah file:', error.message);
-                        alert('Gagal mengunggah lampiran ke server.');
+                        this.showNotification('Gagal mengunggah lampiran ke server.', 'error');
                         return null;
                     }
 
@@ -2124,7 +2081,6 @@
                     return expanded;
                 },
 
-                // RBAC Filtered Getters for Tables & Reports
                 getFilteredStokGudang() {
                     let list = this.stokGudang;
                     if (!this.isSuperAdmin) {
