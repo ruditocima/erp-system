@@ -21,13 +21,23 @@
         [x-cloak] { display: none !important; }
 
         @media print {
-            body { background: white !important; color: black !important; }
+            @page {
+                margin: 0;
+                size: auto;
+            }
+            body { 
+                background: white !important; 
+                color: black !important; 
+                margin: 0 !important;
+                padding: 0 !important;
+            }
             .print\:hidden, aside, header, nav, .no-print { display: none !important; }
             #printable-bast {
                 display: block !important;
                 position: static !important;
                 width: 100% !important;
                 visibility: visible !important;
+                padding: 12mm 15mm !important;
             }
             #printable-bast * { visibility: visible !important; }
             tr { page-break-inside: avoid; }
@@ -826,18 +836,24 @@
             <h1 class="text-lg font-bold uppercase tracking-wider text-[#505050]">BERITA ACARA SERAH TERIMA (BAST)</h1>
             <p class="text-xs text-[#505050]">PT. ACERO CETHA METALINDO</p>
         </div>
+        
+        <!-- Info Header Transaksi BAST -->
         <div class="grid grid-cols-2 gap-3 mb-4 text-xs text-[#505050]">
             <div>
-                <p><strong>No Transaksi:</strong> <span x-text="activeBast.noTransaksi"></span></p>
                 <p><strong>Tanggal:</strong> <span x-text="activeBast.tanggal"></span></p>
+                <p><strong>No Transaksi:</strong> <span x-text="activeBast.noTransaksi"></span></p>
                 <p><strong>No Referensi:</strong> <span x-text="activeBast.noReferensi || '-'"></span></p>
+                <p><strong>Nama Project:</strong> <span x-text="getBastProjectName(activeBast.kodeProject)"></span></p>
             </div>
             <div>
                 <p><strong>Tipe:</strong> <span x-text="activeBast.tipeTransaksi"></span></p>
                 <p><strong>Gudang Asal:</strong> <span x-text="activeBast.gudangAsal || '-'"></span></p>
                 <p><strong>Gudang Tujuan:</strong> <span x-text="activeBast.gudangTujuan || '-'"></span></p>
+                <p><strong>Keterangan:</strong> <span x-text="activeBast.keterangan || '-'"></span></p>
             </div>
         </div>
+
+        <!-- Tabel Utama Detail Barang -->
         <table class="w-full border-collapse border border-slate-400 mb-4 text-[11px] text-[#505050]">
             <thead>
                 <tr class="bg-slate-100">
@@ -860,6 +876,32 @@
                 </template>
             </tbody>
         </table>
+
+        <!-- Tabel Summary Total Barang (Tampil jika ada Nama Barang yang sama lebih dari >1 di tabel) -->
+        <template x-if="getBastSummaryItems().length > 0">
+            <div class="mb-4">
+                <p class="text-xs font-bold text-[#505050] mb-1">Summary Total Barang:</p>
+                <table class="w-full border-collapse border border-slate-400 mb-4 text-[11px] text-[#505050]">
+                    <thead>
+                        <tr class="bg-slate-100">
+                            <th class="border border-slate-400 p-1.5 w-10 text-center">No</th>
+                            <th class="border border-slate-400 p-1.5">Nama Barang</th>
+                            <th class="border border-slate-400 p-1.5 w-24 text-center">Total Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="s in getBastSummaryItems()" :key="s.no">
+                            <tr>
+                                <td class="border border-slate-400 p-1.5 text-center" x-text="s.no"></td>
+                                <td class="border border-slate-400 p-1.5" x-text="s.namaBarang"></td>
+                                <td class="border border-slate-400 p-1.5 text-center font-bold" x-text="s.totalQty"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+
         <!-- Tanda Tangan BAST Dinamis -->
         <div class="grid grid-cols-3 gap-6 text-center pt-8 text-[11px]">
             <div>
@@ -2121,6 +2163,47 @@
                         });
                     });
                     return expanded;
+                },
+
+                getBastProjectName(kodeProject) {
+                    if (!kodeProject) return '-';
+                    const proj = this.masterProject.find(p => p.kodeProject === kodeProject);
+                    return proj ? proj.projectName : kodeProject;
+                },
+
+                getBastSummaryItems() {
+                    let expanded = this.getExpandedBastItems();
+                    if (!expanded || expanded.length === 0) return [];
+
+                    let nameCounts = {};
+                    expanded.forEach(item => {
+                        let name = item.namaBarang || '-';
+                        nameCounts[name] = (nameCounts[name] || 0) + 1;
+                    });
+
+                    let hasMoreThanOne = Object.values(nameCounts).some(c => c > 1);
+                    if (!hasMoreThanOne) return [];
+
+                    let summaryMap = {};
+                    expanded.forEach(item => {
+                        let name = item.namaBarang || '-';
+                        let qty = parseFloat(item.qty) || 0;
+                        if (!summaryMap[name]) {
+                            summaryMap[name] = 0;
+                        }
+                        summaryMap[name] += qty;
+                    });
+
+                    let result = [];
+                    let counter = 1;
+                    for (let name in summaryMap) {
+                        result.push({
+                            no: counter++,
+                            namaBarang: name,
+                            totalQty: summaryMap[name]
+                        });
+                    }
+                    return result;
                 },
 
                 getFilteredStokGudang() {
