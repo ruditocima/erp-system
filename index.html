@@ -30,6 +30,7 @@
                 visibility: visible !important;
             }
             #printable-bast * { visibility: visible !important; }
+            tr { page-break-inside: avoid; }
         }
     </style>
 </head>
@@ -577,13 +578,13 @@
                                 </thead>
                                 <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
                                     <template x-for="(drum, index) in getPaginatedDrumLedger()" :key="drum.drumId">
-                                        <tr class="hover:bg-slate-800/30 transition">
+                                        <tr class="hover:bg-slate-800/30 transition" :id="'row-' + drum.drumId">
                                             <td class="p-3 text-indigo-400 font-semibold" x-text="drum.drumId"></td>
                                             <td class="p-3 text-slate-300" x-text="drum.kodeBarang"></td>
                                             <td class="p-3 font-sans text-white" x-text="drum.namaBarang"></td>
                                             <td class="p-3 font-sans text-slate-300" x-text="drum.gudang"></td>
                                             <td class="p-3" x-text="drum.initialLength + ' m'"></td>
-                                            <td class="p-3 font-bold text-amber-400" x-text="drum.remainingLength + ' m'"></td>
+                                            <td class="p-3 font-bold text-amber-400 stok-cell transition-colors duration-500" x-text="drum.remainingLength + ' m'"></td>
                                             <td class="p-3 text-right">
                                                 <button type="button" @click="reuseDrum(drum, index)" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded text-[10px] font-medium transition ml-auto">Re-use / Scrap</button>
                                             </td>
@@ -879,6 +880,45 @@
         </div>
     </div>
 
+    <!-- 
+    ========================================================================
+    STORED PROCEDURE SQL SUPABASE (JALANKAN DI SUPABASE SQL EDITOR)
+    ========================================================================
+    CREATE OR REPLACE FUNCTION potong_stok_kabel(
+        p_drum_id VARCHAR,
+        p_panjang_dipakai DECIMAL
+    )
+    RETURNS JSON AS $$
+    DECLARE
+        v_stok_sekarang DECIMAL;
+        v_stok_sisa DECIMAL;
+    BEGIN
+        -- Lock baris secara atomik (Row-level FOR UPDATE) untuk mencegah race condition
+        SELECT remaining_length INTO v_stok_sekarang
+        FROM drum_ledger
+        WHERE drum_id = p_drum_id
+        FOR UPDATE;
+
+        IF NOT FOUND THEN
+            RETURN json_build_object('status', 'error', 'message', 'Drum ID tidak ditemukan di gudang');
+        END IF;
+
+        IF v_stok_sekarang < p_panjang_dipakai THEN
+            RETURN json_build_object('status', 'error', 'message', 'Sisa panjang kabel pada Drum ID tidak mencukupi');
+        END IF;
+
+        v_stok_sisa := ROUND((v_stok_sekarang - p_panjang_dipakai)::numeric, 2);
+
+        UPDATE drum_ledger
+        SET remaining_length = v_stok_sisa
+        WHERE drum_id = p_drum_id;
+
+        RETURN json_build_object('status', 'success', 'sisa_stok', v_stok_sisa);
+    END;
+    $$ LANGUAGE plpgsql;
+    ========================================================================
+    -->
+
     <!-- SCRIPT UTAMA -->
     <script>
         const SUPABASE_URL = 'https://mwcdgumytjwhewkbbwge.supabase.co';
@@ -952,6 +992,7 @@
                     await this.resetInputTransaction();
                     this.initProfileData();
                     await this.loadDataFromSupabase();
+                    this.inisialisasiRealtimeStok();
                     this.refreshIcons();
 
                     this.$watch('masterBarang', val => localStorage.setItem('vortex_masterBarang', JSON.stringify(val)), { deep: true });
@@ -966,6 +1007,81 @@
                     this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; });
                     this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; });
                     this.$watch('searchNoTransaksi', () => { this.pageTx = 1; });
+                },
+
+                // Realtime Subscription Listener
+                inisialisasiRealtimeStok() {
+                    if (!supabaseClient) return;
+
+                    supabaseClient.channel('pantau-stok-wms')
+                        .on(
+                            'postgres_changes',
+                            { event: '*', schema: 'public', table: 'stok_gudang' },
+                            () => { this.loadDataFromSupabase(); }
+                        )
+                        .on(
+                            'postgres_changes',
+                            { event: '*', schema: 'public', table: 'drum_ledger' },
+                            (payload) => {
+                                if (payload.new && payload.new.drum_id) {
+                                    const cellRow = document.getElementById('row-' + payload.new.drum_id);
+                                    if (cellRow) {
+                                        cellRow.classList.add('bg-amber-500/20');
+                                        setTimeout(() => cellRow.classList.remove('bg-amber-500/20'), 1500);
+                                    }
+                                }
+                                this.loadDataFromSupabase();
+                            }
+                        )
+                        .on(
+                            'postgres_changes',
+                            { event: '*', schema: 'public', table: 'transactions' },
+                            () => { this.loadDataFromSupabase(); }
+                        )
+                        .subscribe((status) => {
+                            if (status === 'SUBSCRIBED') {
+                                console.log('Koneksi sinkronisasi stok real-time aktif.');
+                            }
+                        });
+                },
+
+                // Memanggil Atomic Stored Procedure / RPC di Supabase
+                async catatPenggunaanKabel(drumId, panjangDipakai) {
+                    if (!supabaseClient) {
+                        let drum = this.drumLedger.find(d => d.drumId === drumId);
+                        if (!drum) {
+                            this.showNotification('Drum ID tidak ditemukan!', 'error');
+                            return false;
+                        }
+                        if (drum.remainingLength < panjangDipakai) {
+                            this.showNotification('Sisa panjang kabel tidak mencukupi!', 'error');
+                            return false;
+                        }
+                        drum.remainingLength = Math.round((drum.remainingLength - panjangDipakai) * 100) / 100;
+                        return true;
+                    }
+
+                    try {
+                        const { data, error } = await supabaseClient.rpc('potong_stok_kabel', {
+                            p_drum_id: drumId,
+                            p_panjang_dipakai: parseFloat(panjangDipakai)
+                        });
+
+                        if (error) throw error;
+
+                        if (data && data.status === 'error') {
+                            this.showNotification(`Gagal: ${data.message}`, 'error');
+                            return false;
+                        }
+
+                        this.showNotification(`Transaksi berhasil. Sisa stok drum: ${data ? data.sisa_stok : '-'}m`, 'success');
+                        await this.loadDataFromSupabase();
+                        return true;
+                    } catch (err) {
+                        console.error('Gagal eksekusi RPC potong_stok_kabel:', err.message);
+                        this.showNotification('Gagal memotong stok: ' + (err.message || err), 'error');
+                        return false;
+                    }
                 },
 
                 // Helper Paginasi
@@ -2071,7 +2187,7 @@
                     return list;
                 },
 
-                reuseDrum(drum, index) {
+                async reuseDrum(drum, index) {
                     const scrapQty = prompt(`Masukkan jumlah kuantitas/panjang yang di-reuse atau scrap dari drum ${drum.drumId} (Sisa: ${drum.remainingLength}m):`, drum.remainingLength);
                     if (scrapQty === null) return;
                     const qtyVal = parseFloat(scrapQty);
@@ -2079,8 +2195,12 @@
                         this.showNotification('Jumlah tidak valid!', 'error');
                         return;
                     }
-                    drum.remainingLength -= qtyVal;
-                    this.showNotification(`Drum ${drum.drumId} berhasil diproses. Sisa panjang: ${drum.remainingLength}m`, 'success');
+
+                    const isSuccess = await this.catatPenggunaanKabel(drum.drumId, qtyVal);
+                    if (isSuccess && !supabaseClient) {
+                        drum.remainingLength = Math.round((drum.remainingLength - qtyVal) * 100) / 100;
+                        this.showNotification(`Drum ${drum.drumId} berhasil diproses. Sisa panjang: ${drum.remainingLength}m`, 'success');
+                    }
                 },
 
                 exportStokCSV() {
