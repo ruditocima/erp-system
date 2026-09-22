@@ -1982,11 +1982,14 @@
                     if (tipe === 'Masuk') {
                         let processedItems = [];
                         this.newTrans.items.forEach(item => {
-                            const kat = this.getCategoryByKode(item.kodeBarang);
+                            // Ambil kategori dari pilihan form ATAU dari masterBarang, lalu ubah ke huruf kecil
+                            const katRaw = item.kategori || this.getCategoryByKode(item.kodeBarang) || '';
+                            const kat = katRaw.trim().toLowerCase();
                             let totalQty = parseFloat(item.qty) || 0;
                             const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
                             
-                            if (kat === 'Cable' && totalQty > 0) {
+                            // Pengecekan aman terhadap variasi tulisan 'cable' / 'kabel'
+                            if ((kat === 'cable' || kat === 'kabel') && totalQty > 0) {
                                 const whObj = this.masterGudang.find(g => g.namaGudang === gudangMasuk);
                                 let whCode = 'PLB';
                                 if (whObj && whObj.kodeGudang) {
