@@ -1904,7 +1904,7 @@
                     }
                 },
 
-                // UTAMA: SUBMIT TRANSAKSI DENGAN AUTO-SPLITTING KABEL MASUK
+                // UTAMA: SUBMIT TRANSAKSI DENGAN AUTO-SPLITTING KABEL MASUK (UPDATED)
                 async submitTransaction() {
                     if (this.newTrans.gudangAsal && this.newTrans.gudangTujuan && 
                         this.newTrans.gudangAsal.trim().toLowerCase() === this.newTrans.gudangTujuan.trim().toLowerCase()) {
@@ -1947,6 +1947,7 @@
                                 const threeCharBarang = item.kodeBarang ? item.kodeBarang.split('-').pop() : '036';
 
                                 let remainingToAllocate = totalQty;
+                                let temporaryAssignedDrums = []; // Pelacakan drum baru dalam batch transaksi yang sama
 
                                 while (remainingToAllocate > 0) {
                                     let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
@@ -1955,13 +1956,15 @@
                                     let zeroDrum = this.drumLedger.find(d => 
                                         d.kodeBarang === item.kodeBarang && 
                                         d.gudang === gudangMasuk && 
-                                        d.remainingLength === 0
+                                        d.remainingLength === 0 &&
+                                        !temporaryAssignedDrums.includes(d.drumId)
                                     );
 
                                     let assignedDrumId = '';
 
                                     if (zeroDrum) {
                                         assignedDrumId = zeroDrum.drumId;
+                                        temporaryAssignedDrums.push(assignedDrumId);
                                     } else {
                                         const existingDrums = this.drumLedger.filter(d => 
                                             d.kodeBarang === item.kodeBarang && 
@@ -1978,9 +1981,21 @@
                                                 }
                                             }
                                         });
-                                        let nextSeq = maxSeq + 1;
 
+                                        // Periksa juga sequence dari drum yang baru saja dialokasikan di iterasi sebelumnya
+                                        temporaryAssignedDrums.forEach(drumId => {
+                                            const parts = drumId.split('-D');
+                                            if (parts.length > 1) {
+                                                const seqNum = parseInt(parts[parts.length - 1], 10);
+                                                if (!isNaN(seqNum) && seqNum > maxSeq) {
+                                                    maxSeq = seqNum;
+                                                }
+                                            }
+                                        });
+
+                                        let nextSeq = maxSeq + 1;
                                         assignedDrumId = `${whCode}-${threeCharBarang}-D${String(nextSeq).padStart(2, '0')}`;
+                                        temporaryAssignedDrums.push(assignedDrumId);
                                     }
 
                                     processedItems.push({
