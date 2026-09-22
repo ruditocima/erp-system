@@ -1518,129 +1518,68 @@
                     }
                 },
 
-                // Fungsi deleteTransaction dengan Rollback terintegrasi (Diperbarui)
-                async deleteTransaction(idOrTx) {
-                    if (!this.isSuperAdmin) {
-                        this.showNotification('Akses ditolak: Regional WH tidak memiliki kewenangan menghapus transaksi!', 'error');
-                        return;
-                    }
+                // Fungsi deleteTransaction yang diperbarui dan digabungkan
+async deleteTransaction(tx) {
+    if (!confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?`)) return;
+    this.isLoading = true;
 
-                    if (!confirm('Apakah Anda yakin ingin menghapus transaksi ini? Stok gudang dan status drum akan dikembalikan (rollback) dan dihapus jika kosong.')) {
-                        return;
-                    }
+    try {
+        if (supabaseClient) {
+            // 1. Penanganan tabel drum_ledger
+            if (tx.items && tx.items.length > 0) {
+                for (const item of tx.items) {
+                    if (item.drumId) {
+                        if (tx.tipeTransaksi === 'Masuk') {
+                            // Hapus record drum dari drum_ledger jika transaksi masuk dibatalkan
+                            await supabaseClient
+                                .from('drum_ledger')
+                                .delete()
+                                .eq('drum_id', item.drumId);
+                        } else if (tx.tipeTransaksi === 'Keluar' || tx.tipeTransaksi === 'Transfer') {
+                            // Kembalikan sisa panjang kabel jika transaksi keluar/transfer dibatalkan
+                            const { data: drum } = await supabaseClient
+                                .from('drum_ledger')
+                                .select('remaining_length')
+                                .eq('drum_id', item.drumId)
+                                .single();
 
-                    try {
-                        this.isLoading = true; // Aktifkan loading spinner
-                        const supabase = supabaseClient;
-                        const targetId = (typeof idOrTx === 'object' && idOrTx !== null) ? (idOrTx.id || idOrTx.noTransaksi) : idOrTx;
-                        
-                        const transactionToDelete = this.transactions.find(t => t.id === targetId || t.noTransaksi === targetId);
-                        if (!transactionToDelete) {
-                            alert('Transaksi tidak ditemukan di state lokal.');
-                            this.isLoading = false;
-                            return;
-                        }
-
-                        if (transactionToDelete.items && transactionToDelete.items.length > 0) {
-                            // Eksekusi iterasi item
-                            for (let item of transactionToDelete.items) {
-                                const tipe = transactionToDelete.tipeTransaksi || transactionToDelete.tipe;
-                                const gudangAsal = transactionToDelete.gudangAsal;
-                                const gudangTujuan = transactionToDelete.gudangTujuan;
-                                const jumlah = parseFloat(item.qty) || 0;
-                                const drumId = item.drumId;
-                                const kodeBarang = item.kodeBarang;
-
-                                if (tipe === 'Masuk') {
-                                    // Rollback Masuk: Kurangi stok tujuan. Jika 0, HAPUS secara permanen.
-                                    if (supabase) {
-                                        const { data: currentStock } = await supabase.from('stok_gudang').select('qty').eq('kode_barang', kodeBarang).eq('gudang', gudangTujuan).single();
-                                        if (currentStock) {
-                                            const newQty = Math.max(0, currentStock.qty - jumlah);
-                                            if (newQty === 0) {
-                                                await supabase.from('stok_gudang').delete().eq('kode_barang', kodeBarang).eq('gudang', gudangTujuan);
-                                            } else {
-                                                await supabase.from('stok_gudang').update({ qty: newQty }).eq('kode_barang', kodeBarang).eq('gudang', gudangTujuan);
-                                            }
-                                        }
-                                        if (drumId) {
-                                            await supabase.from('drum_ledger').delete().eq('drum_id', drumId);
-                                        }
-                                    }
-                                } else if (tipe === 'Keluar') {
-                                    // Rollback Keluar: Kembalikan stok ke gudang asal (ditambahkan)
-                                    if (supabase) {
-                                        const { data: currentStock } = await supabase.from('stok_gudang').select('qty').eq('kode_barang', kodeBarang).eq('gudang', gudangAsal).single();
-                                        if (currentStock) {
-                                            await supabase.from('stok_gudang').update({ qty: currentStock.qty + jumlah }).eq('kode_barang', kodeBarang).eq('gudang', gudangAsal);
-                                        } else {
-                                            const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === kodeBarang)?.namaBarang || '';
-                                            await supabase.from('stok_gudang').insert([{
-                                                kode_barang: kodeBarang, nama_barang: namaBrg, kategori: item.kategori || 'Cable', gudang: gudangAsal, qty: jumlah, sat: item.sat || 'Pcs'
-                                            }]);
-                                        }
-                                        if (drumId) {
-                                            const { data: drum } = await supabase.from('drum_ledger').select('remaining_length').eq('drum_id', drumId).single();
-                                            if (drum) {
-                                                await supabase.from('drum_ledger').update({ remaining_length: drum.remaining_length + jumlah }).eq('drum_id', drumId);
-                                            }
-                                        }
-                                        // Hapus riwayat usage/pemakaian material
-                                        await supabase.from('material_usage').delete().eq('transaction_no', transactionToDelete.noTransaksi);
-                                    }
-                                } else if (tipe === 'Transfer') {
-                                    // Rollback Transfer: Kembalikan stok ke Asal, kurangi di Tujuan
-                                    if (supabase) {
-                                        // 1. Tambah di asal
-                                        const { data: sourceStock } = await supabase.from('stok_gudang').select('qty').eq('kode_barang', kodeBarang).eq('gudang', gudangAsal).single();
-                                        if (sourceStock) {
-                                            await supabase.from('stok_gudang').update({ qty: sourceStock.qty + jumlah }).eq('kode_barang', kodeBarang).eq('gudang', gudangAsal);
-                                        }
-                                        
-                                        // 2. Kurangi di tujuan, hapus jika habis
-                                        const { data: destStock } = await supabase.from('stok_gudang').select('qty').eq('kode_barang', kodeBarang).eq('gudang', gudangTujuan).single();
-                                        if (destStock) {
-                                            const newQty = Math.max(0, destStock.qty - jumlah);
-                                            if (newQty === 0) {
-                                                await supabase.from('stok_gudang').delete().eq('kode_barang', kodeBarang).eq('gudang', gudangTujuan);
-                                            } else {
-                                                await supabase.from('stok_gudang').update({ qty: newQty }).eq('kode_barang', kodeBarang).eq('gudang', gudangTujuan);
-                                            }
-                                        }
-                                        
-                                        // 3. Pindahkan lokasi drum kembali ke gudang asal
-                                        if (drumId) {
-                                            await supabase.from('drum_ledger').update({ gudang: gudangAsal }).eq('drum_id', drumId);
-                                        }
-                                    }
-                                }
+                            if (drum) {
+                                const restoredLength = Number(drum.remaining_length) + Number(item.qty);
+                                await supabaseClient
+                                    .from('drum_ledger')
+                                    .update({ remaining_length: restoredLength })
+                                    .eq('drum_id', item.drumId);
                             }
                         }
-
-                        // Menghapus data transaksi utama dari Database
-                        if (supabase) {
-                            const { error: deleteError } = await supabase
-                                .from('transactions')
-                                .delete()
-                                .or(`id.eq.${targetId},no_transaksi.eq.${targetId}`);
-
-                            if (deleteError) throw deleteError;
-                        }
-
-                        this.showNotification('Transaksi dan riwayat stok terkait berhasil dihapus.', 'success');
-                        
-                        // Menarik ulang (Fetch) keseluruhan data terbaru dari database
-                        if (typeof this.loadDataFromSupabase === 'function') {
-                            await this.loadDataFromSupabase();
-                        }
-
-                    } catch (err) {
-                        console.error('Gagal memproses penghapusan transaksi:', err);
-                        this.showNotification('Terjadi kesalahan sistem: ' + err.message, 'error');
-                    } finally {
-                        this.isLoading = false; // Matikan loading spinner
                     }
-                },                
+                }
+            }
+
+            // 2. Hapus data stok gudang terkait (jika tidak menggunakan trigger database)
+            await supabaseClient
+                .from('stok_gudang')
+                .delete()
+                .eq('no_transaksi', tx.noTransaksi);
+
+            // 3. Hapus data transaksi utama
+            const { error } = await supabaseClient
+                .from('transactions')
+                .delete()
+                .eq('no_transaksi', tx.noTransaksi);
+
+            if (error) throw error;
+        }
+
+        // Sinkronisasi status lokal
+        this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+        this.showNotification('Transaksi dan relasi drum_ledger berhasil diperbarui', 'success');
+    } catch (err) {
+        this.showNotification('Gagal menghapus transaksi: ' + err.message, 'error');
+    } finally {
+        this.isLoading = false;
+        await this.loadDataFromSupabase();
+    }
+}                
                 async generateNoTransaksi() {
                     if (this.editingOriginalNo) return;
 
