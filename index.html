@@ -1961,6 +1961,19 @@
                         try {
                             this.isLoading = true;
 
+                            // Jika dalam mode edit, bersihkan data lama di database terlebih dahulu agar stok tidak terakumulasi ganda
+                            if (this.editingOriginalNo) {
+                                await supabaseClient
+                                    .from('transactions')
+                                    .delete()
+                                    .eq('no_transaksi', this.editingOriginalNo);
+
+                                await supabaseClient
+                                    .from('material_usage')
+                                    .delete()
+                                    .eq('transaction_no', this.editingOriginalNo);
+                            }
+
                             const { error } = await supabaseClient.rpc('process_warehouse_transaction', {
                                 p_no_transaksi: this.newTrans.noTransaksi,
                                 p_tanggal: this.newTrans.tanggal,
