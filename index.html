@@ -7,13 +7,11 @@
     <!-- Tailwind CSS (CDN Stable) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
     <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@0.454.0"></script>
     <!-- Supabase JS Client v2 -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- html2pdf.js for direct PDF download -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
     <!-- Google Fonts: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -43,6 +41,7 @@
             tr { page-break-inside: avoid; }
         }
     </style>
+<base target="_blank">
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
 
@@ -693,7 +692,7 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-                                <template x-for="tx in getFilteredTransactions()" :key="tx.noTransaksi">
+                                <template x-for="tx in getPaginatedTransactions()" :key="tx.noTransaksi">
                                     <tr class="hover:bg-slate-800/30 transition">
                                         <td class="p-3 text-slate-300" x-text="tx.tanggal"></td>
                                         <td class="p-3 text-indigo-400 font-semibold" x-text="tx.noTransaksi"></td>
@@ -943,6 +942,7 @@
                 pageDrum: 1, pageSizeDrum: 10,
                 pageUsage: 1, pageSizeUsage: 10,
                 pageTx: 1, pageSizeTx: 10,
+                _reloadTimer: null,
 
                 masterBarang: safeLoadStorage('vortex_masterBarang', [
                     { kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core', sat: 'Meter' }
@@ -975,9 +975,73 @@
                     return this.masterProject.filter(p => (p.region || '').toLowerCase() === reg);
                 },
 
+                todayWIB() {
+                    // WIB = UTC+7 (tanpa DST)
+                    return new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
+                },
+
+                scheduleReload() {
+                    if (this._reloadTimer) clearTimeout(this._reloadTimer);
+                    this._reloadTimer = setTimeout(() => { this.loadDataFromSupabase(); }, 800);
+                },
+
+                buildRpcParams(tx) {
+                    return {
+                        p_no_transaksi: tx.noTransaksi,
+                        p_tanggal: tx.tanggal,
+                        p_no_referensi: tx.noReferensi || '',
+                        p_tipe_transaksi: tx.tipeTransaksi,
+                        p_gudang_asal: tx.gudangAsal || '',
+                        p_gudang_tujuan: tx.gudangTujuan || '',
+                        p_kode_project: tx.kodeProject || '',
+                        p_keterangan: tx.keterangan || '',
+                        p_staff_gudang: tx.staffGudang || '',
+                        p_project_manager: tx.projectManager || '',
+                        p_nama_penerima: tx.namaPenerima || '',
+                        p_lampiran_url: tx.lampiranUrl || '',
+                        p_items: tx.items || []
+                    };
+                },
+
+                async logAudit(action, details) {
+                    // Audit trail bersifat best-effort: kegagalan tidak mengganggu fitur utama.
+                    try {
+                        if (!supabaseClient) return;
+                        await supabaseClient.from('audit_log').insert({
+                            user_name: this.currentUser || 'unknown',
+                            user_role: this.currentRole || '',
+                            action: action,
+                            details: JSON.stringify(details || {}),
+                            created_at: new Date().toISOString()
+                        });
+                    } catch (e) { /* abaikan */ }
+                },
+
+                async validateSession() {
+                    if (!supabaseClient) return;
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (this.isLoggedIn && !session) { this.logout(); return; }
+                    if (session && session.user) {
+                        // Validasi ulang role dari database (anti-tamper localStorage)
+                        const { data: prof } = await supabaseClient.from('profiles')
+                            .select('role, nama_lengkap, region').eq('id', session.user.id).single();
+                        if (prof) {
+                            this.currentRole = prof.role || this.currentRole;
+                            this.currentUser = prof.nama_lengkap || this.currentUser;
+                            if (prof.region) localStorage.setItem('vortex_region', prof.region);
+                            localStorage.setItem('vortex_role', this.currentRole);
+                            localStorage.setItem('vortex_user', this.currentUser);
+                        }
+                        supabaseClient.auth.onAuthStateChange((event) => {
+                            if (event === 'SIGNED_OUT') this.logout();
+                        });
+                    }
+                },
+
                 async init() {
                     await this.resetInputTransaction();
                     this.initProfileData();
+                    await this.validateSession();
                     await this.loadDataFromSupabase();
                     this.inisialisasiRealtimeStok();
                     this.refreshIcons();
@@ -1002,7 +1066,7 @@
                         .on(
                             'postgres_changes',
                             { event: '*', schema: 'public', table: 'stok_gudang' },
-                            () => { this.loadDataFromSupabase(); }
+                            () => { this.scheduleReload(); }
                         )
                         .on(
                             'postgres_changes',
@@ -1015,13 +1079,13 @@
                                         setTimeout(() => cellRow.classList.remove('bg-amber-500/20'), 1500);
                                     }
                                 }
-                                this.loadDataFromSupabase();
+                                this.scheduleReload();
                             }
                         )
                         .on(
                             'postgres_changes',
                             { event: '*', schema: 'public', table: 'transactions' },
-                            () => { this.loadDataFromSupabase(); }
+                            () => { this.scheduleReload(); }
                         )
                         .subscribe((status) => {
                             if (status === 'SUBSCRIBED') {
@@ -1098,7 +1162,7 @@
 
                         if (projectError) throw projectError;
                         
-                        if (projectData && projectData.length > 0) {
+                        if (projectData) {
                             this.masterProject = projectData.map(p => ({
                                 periode: p.periode,
                                 region: p.region,
@@ -1115,7 +1179,7 @@
 
                         if (stockError) throw stockError;
                         
-                        if (stockData && stockData.length > 0) {
+                        if (stockData) {
                             this.stokGudang = stockData.map(s => ({
                                 kodeBarang: s.kode_barang,
                                 namaBarang: s.nama_barang,
@@ -1133,7 +1197,7 @@
 
                         if (transactionError) throw transactionError;
                         
-                        if (transactionData && transactionData.length > 0) {
+                        if (transactionData) {
                             this.transactions = transactionData.map(t => ({
                                 id: t.id,
                                 tanggal: t.tanggal,
@@ -1154,7 +1218,7 @@
                         }
 
                         const { data: barangData } = await supabaseClient.from('master_barang').select('*');
-                        if (barangData && barangData.length > 0) {
+                        if (barangData) {
                             this.masterBarang = barangData.map(b => ({
                                 kategori: b.kategori,
                                 jenis: b.jenis,
@@ -1165,7 +1229,7 @@
                         }
 
                         const { data: gudangData } = await supabaseClient.from('master_gudang').select('*');
-                        if (gudangData && gudangData.length > 0) {
+                        if (gudangData) {
                             this.masterGudang = gudangData.map(g => ({
                                 region: g.region || '',
                                 kodeGudang: g.kode_gudang,
@@ -1176,7 +1240,7 @@
                         }
 
                         const { data: drumData } = await supabaseClient.from('drum_ledger').select('*');
-                        if (drumData && drumData.length > 0) {
+                        if (drumData) {
                             this.drumLedger = drumData.map(d => ({
                                 drumId: d.drum_id,
                                 kodeBarang: d.kode_barang,
@@ -1188,7 +1252,7 @@
                         }
 
                         const { data: usageData } = await supabaseClient.from('material_usage').select('*');
-                        if (usageData && usageData.length > 0) {
+                        if (usageData) {
                             this.materialUsage = usageData.map(u => ({
                                 id: u.id,
                                 transactionNo: u.transaction_no || '',
@@ -1205,6 +1269,11 @@
 
                     } catch (error) {
                         console.error('Gagal memuat data dari Supabase:', error.message);
+                        if (error && /jwt|session|401|expired/i.test(error.message || String(error))) {
+                            this.showNotification('Sesi berakhir. Silakan masuk kembali.', 'error');
+                            this.logout();
+                            return;
+                        }
                         this.showNotification('Gagal memuat data dari database: ' + (error.message || error), 'error');
                     } finally {
                         this.isLoading = false;
@@ -1222,14 +1291,20 @@
                 },
 
                 async login() {
-                    if (!supabaseClient) {
+                    // Mode demo lokal hanya aktif jika URL mengandung ?demo=1 (TANPA hak admin).
+                    const demoMode = new URLSearchParams(window.location.search).get('demo') === '1';
+                    if (!supabaseClient && demoMode) {
                         this.isLoggedIn = true;
-                        this.currentUser = this.loginForm.email.split('@')[0] || 'User';
-                        this.currentRole = 'Super Admin';
+                        this.currentUser = 'Demo User';
+                        this.currentRole = 'Regional WH';
                         localStorage.setItem('vortex_logged_in', 'true');
                         localStorage.setItem('vortex_user', this.currentUser);
                         localStorage.setItem('vortex_role', this.currentRole);
-                        this.showNotification('Berhasil masuk (Mode Offline / Lokal)!', 'success');
+                        this.showNotification('Masuk mode demo lokal (tanpa hak admin).', 'success');
+                        return;
+                    }
+                    if (!supabaseClient) {
+                        this.showNotification('Koneksi database tidak tersedia. Periksa internet lalu muat ulang, atau gunakan ?demo=1.', 'error');
                         return;
                     }
 
@@ -1263,6 +1338,7 @@
                         localStorage.setItem('vortex_user', this.currentUser);
                         localStorage.setItem('vortex_role', this.currentRole);
                         this.initProfileData();
+                        this.logAudit('login', { user: this.currentUser, role: this.currentRole });
                         this.showNotification('Berhasil masuk ke sistem!', 'success');
                     } catch (err) {
                         this.showNotification('Gagal Masuk: ' + (err.message || err), 'error');
@@ -1272,6 +1348,7 @@
                 },
 
                 logout() {
+                    this.logAudit('logout', { user: this.currentUser });
                     this.isLoggedIn = false;
                     localStorage.removeItem('vortex_logged_in');
                     this.showNotification('Anda telah keluar.', 'success');
@@ -1319,7 +1396,7 @@
                 async openModal(type) {
                     this.modalType = type; this.isEdit = false; this.editIndex = null;
                     if (type === 'project') {
-                        this.modalForm = { periode: new Date().toISOString().split('T')[0], region: '', kodeProject: '', type: 'Main Feeder', noPO: '', projectName: '' };
+                        this.modalForm = { periode: this.todayWIB(), region: '', kodeProject: '', type: 'Main Feeder', noPO: '', projectName: '' };
                         await this.generateKodeProject();
                     } else if (type === 'barang') {
                         this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Pcs' };
@@ -1453,6 +1530,7 @@
                             }
                         }
 
+                        this.logAudit('master_save', { type: this.modalType, data: this.modalForm });
                         this.showModal = false;
                         this.showNotification('Data berhasil disimpan ke Supabase!', 'success');
                     } catch (err) {
@@ -1467,6 +1545,7 @@
                         if (type === 'barang') this.masterBarang.splice(index, 1);
                         if (type === 'gudang') this.masterGudang.splice(index, 1);
                         if (type === 'project') this.masterProject.splice(index, 1);
+                        this.logAudit('master_delete', { type: type, index: index });
                         this.showNotification('Data dihapus!', 'success');
                     }
                 },
@@ -1480,7 +1559,7 @@
                     this.editingOriginalNo = null;
     
                     this.newTrans = {
-                        tanggal: new Date().toISOString().split('T')[0],
+                        tanggal: this.todayWIB(),
                         noTransaksi: '',
                         noReferensi: '', 
                         tipeTransaksi: 'Masuk',
@@ -1525,15 +1604,27 @@
                         }
 
                         if (supabaseClient) {
-                            const { error: deleteError } = await supabaseClient
-                                .from('transactions')
-                                .delete()
-                                .or(`id.eq.${targetId},no_transaksi.eq.${targetId}`);
+                            // Prioritas: RPC atomik di server (rollback stok + hapus dalam 1 transaksi).
+                            let rpcErr = null;
+                            try {
+                                const targetNo = (targetTx && targetTx.noTransaksi) ? targetTx.noTransaksi : targetId;
+                                const res = await supabaseClient.rpc('delete_warehouse_transaction', { p_no_transaksi: targetNo });
+                                if (res.error) rpcErr = res.error;
+                            } catch (e) { rpcErr = e; }
 
-                            if (deleteError) throw deleteError;
+                            if (rpcErr) {
+                                // Fallback manual (rollback stok sudah dilakukan di memori via revertTransactionStock).
+                                let query = supabaseClient.from('transactions').delete().eq('no_transaksi', targetId);
+                                if (targetTx && targetTx.id) {
+                                    query = supabaseClient.from('transactions').delete().or(`id.eq.${targetTx.id},no_transaksi.eq.${targetTx.noTransaksi || targetId}`);
+                                }
+                                const { error: deleteError } = await query;
+                                if (deleteError) throw deleteError;
+                            }
                             await this.loadDataFromSupabase();
                         }
 
+                        this.logAudit('transaction_delete', { no: (targetTx && targetTx.noTransaksi) || targetId });
                         this.showNotification('Transaksi dan riwayat stok terkait berhasil dihapus.', 'success');
 
                     } catch (err) {
@@ -1548,7 +1639,7 @@
                     if (this.editingOriginalNo) return;
 
                     if (!supabaseClient) {
-                        const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0,7).replace('-', '');
+                        const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7).replace('-', '');
                         const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
                         const prefix = `ACM-${typeCode}-${dateStr}-`;
 
@@ -1575,7 +1666,7 @@
                         this.newTrans.noTransaksi = data;
                     } catch (err) {
                         console.error('Gagal generate nomor transaksi dari database:', err.message);
-                        const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date().toISOString().slice(0,7).replace('-', '');
+                        const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7).replace('-', '');
                         const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
                         const prefix = `ACM-${typeCode}-${dateStr}-`;
                         let maxSeq = 0;
@@ -1961,37 +2052,29 @@
                         try {
                             this.isLoading = true;
 
-                            // Jika dalam mode edit, bersihkan data lama di database terlebih dahulu agar stok tidak terakumulasi ganda
+                            // Mode edit: CADANGKAN transaksi lama dulu, baru hapus.
+                            // Jika RPC gagal setelah penghapusan, transaksi lama dikembalikan (restore).
+                            let editBackup = null;
                             if (this.editingOriginalNo) {
-                                await supabaseClient
-                                    .from('transactions')
-                                    .delete()
-                                    .eq('no_transaksi', this.editingOriginalNo);
-
-                                await supabaseClient
-                                    .from('material_usage')
-                                    .delete()
-                                    .eq('transaction_no', this.editingOriginalNo);
+                                editBackup = this.transactions.find(t => t.noTransaksi === this.editingOriginalNo) || null;
+                                await supabaseClient.from('transactions').delete().eq('no_transaksi', this.editingOriginalNo);
+                                await supabaseClient.from('material_usage').delete().eq('transaction_no', this.editingOriginalNo);
                             }
 
-                            const { error } = await supabaseClient.rpc('process_warehouse_transaction', {
-                                p_no_transaksi: this.newTrans.noTransaksi,
-                                p_tanggal: this.newTrans.tanggal,
-                                p_no_referensi: this.newTrans.noReferensi,
-                                p_tipe_transaksi: this.newTrans.tipeTransaksi,
-                                p_gudang_asal: this.newTrans.gudangAsal || '',
-                                p_gudang_tujuan: this.newTrans.gudangTujuan || '',
-                                p_kode_project: this.newTrans.kodeProject || '',
-                                p_keterangan: this.newTrans.keterangan,
-                                p_staff_gudang: this.newTrans.staffGudang,
-                                p_project_manager: this.newTrans.projectManager || '',
-                                p_nama_penerima: this.newTrans.namaPenerima || '',
-                                p_lampiran_url: this.newTrans.lampiranUrl || '',
-                                p_items: this.newTrans.items
-                            });
+                            const { error } = await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(this.newTrans));
 
-                            if (error) throw error;
+                            if (error) {
+                                if (editBackup) {
+                                    try {
+                                        await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(editBackup));
+                                    } catch (restoreErr) {
+                                        console.error('Gagal mengembalikan transaksi lama:', restoreErr.message);
+                                    }
+                                }
+                                throw error;
+                            }
 
+                            this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi, tipe: this.newTrans.tipeTransaksi });
                             this.showNotification('Transaksi berhasil disimpan secara atomik!', 'success');
                             await this.resetInputTransaction();
                             this.switchTab('data-transaksi');
@@ -2020,6 +2103,7 @@
                         this.transactions.push(JSON.parse(JSON.stringify(this.newTrans)));
                     }
 
+                    this.logAudit('transaction_save_local', { no: this.newTrans.noTransaksi, tipe: this.newTrans.tipeTransaksi });
                     this.showNotification('Transaksi berhasil disimpan (Lokal)!', 'success');
                     await this.resetInputTransaction();
                     this.switchTab('data-transaksi');
