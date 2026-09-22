@@ -877,7 +877,7 @@
             </tbody>
         </table>
 
-        <!-- Tabel Summary Total Barang (Tampil jika ada Nama Barang yang sama lebih dari >1 di tabel) -->
+        <!-- Tabel Summary Total Barang -->
         <template x-if="getBastSummaryItems().length > 0">
             <div class="mb-4">
                 <p class="text-xs font-bold text-[#505050] mb-1">Summary Total Barang:</p>
@@ -1518,7 +1518,7 @@
                     }
                 },
 
-                // Fungsi deleteTransaction yang digabungkan dan disesuaikan
+                // Fungsi deleteTransaction dengan Rollback terintegrasi
                 async deleteTransaction(idOrTx) {
                     if (!this.isSuperAdmin) {
                         this.showNotification('Akses ditolak: Regional WH tidak memiliki kewenangan menghapus transaksi!', 'error');
@@ -1533,14 +1533,12 @@
                         const supabase = supabaseClient;
                         const targetId = (typeof idOrTx === 'object' && idOrTx !== null) ? (idOrTx.id || idOrTx.noTransaksi) : idOrTx;
                         
-                        // 1. Temukan data transaksi yang akan dihapus berdasarkan ID atau No Transaksi
                         const transactionToDelete = this.transactions.find(t => t.id === targetId || t.noTransaksi === targetId);
                         if (!transactionToDelete) {
                             alert('Transaksi tidak ditemukan di state lokal.');
                             return;
                         }
 
-                        // Jika transaksi memiliki items (multi-item), lakukan rollback untuk setiap item
                         if (transactionToDelete.items && transactionToDelete.items.length > 0) {
                             for (let item of transactionToDelete.items) {
                                 const tipe = transactionToDelete.tipeTransaksi || transactionToDelete.tipe;
@@ -1650,7 +1648,6 @@
                             }
                         }
 
-                        // 3. Hapus baris transaksi dari tabel Supabase
                         if (supabase) {
                             const { error: deleteError } = await supabase
                                 .from('transactions')
@@ -1660,9 +1657,7 @@
                             if (deleteError) throw deleteError;
                         }
 
-                        // 4. Hapus data dari state lokal Alpine.js
                         this.transactions = this.transactions.filter(t => t.id !== targetId && t.noTransaksi !== targetId);
-
                         this.showNotification('Transaksi berhasil dihapus dan sistem telah melakukan rollback stok secara otomatis.', 'success');
                         
                         if (typeof this.loadDataFromSupabase === 'function') {
@@ -1909,6 +1904,7 @@
                     }
                 },
 
+                // UTAMA: SUBMIT TRANSAKSI DENGAN AUTO-SPLITTING KABEL MASUK
                 async submitTransaction() {
                     if (this.newTrans.gudangAsal && this.newTrans.gudangTujuan && 
                         this.newTrans.gudangAsal.trim().toLowerCase() === this.newTrans.gudangTujuan.trim().toLowerCase()) {
