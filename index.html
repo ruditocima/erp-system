@@ -1427,24 +1427,34 @@
                 async logout() {
                     this.isLoading = true;
                     try {
-                        this.logAudit('logout', { user: this.currentUser });
-                        if (this._reloadTimer) clearTimeout(this._reloadTimer);
-                        if (this._draftTimer) clearTimeout(this._draftTimer);
                         if (supabaseClient) {
-                            await supabaseClient.removeAllChannels();
-                            await supabaseClient.auth.signOut();
+                            // Batasi waktu tunggu (timeout) maksimal 2 detik agar tidak macet jika jaringan lambat/offline
+                            const timeoutPromise = new Promise((_, reject) => 
+                                setTimeout(() => reject(new Error('Timeout logout')), 2000)
+                            );
+                            await Promise.race([
+                                supabaseClient.auth.signOut(),
+                                timeoutPromise
+                            ]).catch(err => console.warn('Supabase signOut warning:', err));
                         }
                     } catch (e) {
-                        console.error('Kendala saat proses keluar:', e);
+                        console.error('Kesalahan saat logout:', e);
                     } finally {
+                        // Bersihkan penyimpanan sesi lokal dengan cepat
                         localStorage.removeItem('vortex_logged_in');
-                        localStorage.removeItem('vortex_region');
                         localStorage.removeItem('vortex_user');
                         localStorage.removeItem('vortex_role');
+                        localStorage.removeItem('vortex_region');
+                        localStorage.removeItem('vortex_draft_transaksi');
+
+                        // Reset state aplikasi ke layar login
                         this.isLoggedIn = false;
+                        this.currentUser = '';
+                        this.currentRole = '';
                         this.isLoading = false;
-                        this.showNotification('Anda telah keluar.', 'success');
-                        window.location.reload();
+                        this.loginForm = { email: '', password: '' };
+                        
+                        this.showNotification('Berhasil keluar dari sistem.', 'success');
                     }
                 },
 
