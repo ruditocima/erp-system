@@ -977,7 +977,6 @@
                 },
 
                 todayWIB() {
-                    // WIB = UTC+7 (tanpa DST)
                     return new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
                 },
 
@@ -986,7 +985,6 @@
                     this._reloadTimer = setTimeout(() => { this.loadDataFromSupabase(); }, 800);
                 },
 
-                // --- MANAJEMEN DRAF FORMULIR TRANSAKSI ---
                 saveFormDraft(formData) {
                     try {
                         if (formData) {
@@ -1068,26 +1066,23 @@
 
                 async init() {
                     await this.resetInputTransaction();
-                    this.loadFormDraft(); // Memuat draf formulir jika ada yang tersimpan secara lokal
+                    this.loadFormDraft();
                     this.initProfileData();
                     await this.validateSession();
                     await this.loadDataFromSupabase();
                     this.inisialisasiRealtimeStok();
                     this.refreshIcons();
 
-                    // Watcher fallback penyimpanan data master lokal
                     this.$watch('masterBarang', val => localStorage.setItem('vortex_masterBarang', JSON.stringify(val)), { deep: true });
                     this.$watch('masterGudang', val => localStorage.setItem('vortex_masterGudang', JSON.stringify(val)), { deep: true });
                     this.$watch('masterProject', val => localStorage.setItem('vortex_masterProject', JSON.stringify(val)), { deep: true });
 
-                    // Watcher otomatis simpan draf transaksi saat input berubah
                     this.$watch('newTrans', val => {
                         if (val && (val.noReferensi || val.keterangan || (val.items && val.items.some(i => i.kodeBarang || i.qty)))) {
                             this.saveFormDraft(val);
                         }
                     }, { deep: true });
 
-                    // Watcher pencarian & paginasi untuk pemuatan ulang dari server
                     this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
                     this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; if(supabaseClient) this.loadDataFromSupabase(); });
                     this.$watch('searchNoTransaksi', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
@@ -1225,12 +1220,10 @@
                     return this.paginate(this.getFilteredTransactions(), this.pageTx, this.pageSizeTx);
                 },
 
-                // --- PEMUATAN DATA DENGAN PAGINASI SISI SERVER (SUPABASE RANGE QUERY) ---
                 async loadDataFromSupabase() {
                     if (!supabaseClient) return;
                     this.isLoading = true;
                     try {
-                        // 1. Master Project
                         const { data: projectData, error: projectError } = await supabaseClient
                             .from('master_project')
                             .select('*');
@@ -1246,7 +1239,6 @@
                             }));
                         }
 
-                        // 2. Master Barang & Gudang
                         const { data: barangData } = await supabaseClient.from('master_barang').select('*');
                         if (barangData) {
                             this.masterBarang = barangData.map(b => ({
@@ -1269,7 +1261,6 @@
                             }));
                         }
 
-                        // 3. Stok Gudang (Server-side Range Pagination)
                         let stockQuery = supabaseClient.from('stok_gudang').select('*', { count: 'exact' });
                         if (this.filterStokGudang) {
                             stockQuery = stockQuery.eq('gudang', this.filterStokGudang);
@@ -1297,7 +1288,6 @@
                             this.totalStokCount = countStok !== null ? countStok : stockData.length;
                         }
 
-                        // 4. Drum Ledger (Server-side Range Pagination)
                         let drumQuery = supabaseClient.from('drum_ledger').select('*', { count: 'exact' });
                         if (this.filterStokGudang) {
                             drumQuery = drumQuery.eq('gudang', this.filterStokGudang);
@@ -1325,7 +1315,6 @@
                             this.totalDrumCount = countDrum !== null ? countDrum : drumData.length;
                         }
 
-                        // 5. Material Usage (Server-side Range Pagination)
                         let usageQuery = supabaseClient.from('material_usage').select('*', { count: 'exact' });
                         if (this.searchMaterialUsageProject) {
                             const q = this.searchMaterialUsageProject.trim();
@@ -1358,7 +1347,6 @@
                             this.totalUsageCount = countUsage !== null ? countUsage : usageData.length;
                         }
 
-                        // 6. Transaksi & BAST (Server-side Range Pagination)
                         let txQuery = supabaseClient.from('transactions').select('*', { count: 'exact' });
                         if (this.searchNoTransaksi) {
                             const q = this.searchNoTransaksi.trim();
@@ -1478,18 +1466,30 @@
                     }
                 },
 
+                // ==========================================================
+                // FUNGSI LOGOUT YANG DIOPTIMALKAN (ANTI NOT-RESPONDING)
+                // ==========================================================
                 async logout() {
-                    this.logAudit('logout', { user: this.currentUser });
-                    if (supabaseClient) {
-                        try {
+                    this.isLoading = true;
+                    try {
+                        this.logAudit('logout', { user: this.currentUser });
+                        if (this._reloadTimer) clearTimeout(this._reloadTimer);
+                        if (supabaseClient) {
                             await supabaseClient.removeAllChannels();
                             await supabaseClient.auth.signOut();
-                        } catch (e) { /* abaikan */ }
+                        }
+                    } catch (e) {
+                        console.error('Kendala saat proses keluar:', e);
+                    } finally {
+                        localStorage.removeItem('vortex_logged_in');
+                        localStorage.removeItem('vortex_region');
+                        localStorage.removeItem('vortex_user');
+                        localStorage.removeItem('vortex_role');
+                        this.isLoggedIn = false;
+                        this.isLoading = false;
+                        this.showNotification('Anda telah keluar.', 'success');
+                        window.location.reload();
                     }
-                    this.isLoggedIn = false;
-                    localStorage.removeItem('vortex_logged_in');
-                    localStorage.removeItem('vortex_region');
-                    this.showNotification('Anda telah keluar.', 'success');
                 },
 
                 switchTab(tabName) {
