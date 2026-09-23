@@ -42,7 +42,6 @@
         }
     </style>
 <base target="_blank">
-<base target="_blank">
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
 
@@ -944,6 +943,7 @@
                 pageUsage: 1, pageSizeUsage: 10, totalUsageCount: 0,
                 pageTx: 1, pageSizeTx: 10, totalTxCount: 0,
                 _reloadTimer: null,
+                _draftTimer: null,
 
                 masterBarang: safeLoadStorage('vortex_masterBarang', [
                     { kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core', sat: 'Meter' }
@@ -982,15 +982,18 @@
 
                 scheduleReload() {
                     if (this._reloadTimer) clearTimeout(this._reloadTimer);
-                    this._reloadTimer = setTimeout(() => { this.loadDataFromSupabase(); }, 800);
+                    this._reloadTimer = setTimeout(() => { this.loadDataFromSupabase(); }, 1200);
                 },
 
                 saveFormDraft(formData) {
-                    try {
-                        if (formData) {
-                            localStorage.setItem('vortex_draft_transaksi', JSON.stringify(formData));
-                        }
-                    } catch (e) { /* abaikan error kuota storage */ }
+                    if (this._draftTimer) clearTimeout(this._draftTimer);
+                    this._draftTimer = setTimeout(() => {
+                        try {
+                            if (formData) {
+                                localStorage.setItem('vortex_draft_transaksi', JSON.stringify(formData));
+                            }
+                        } catch (e) { /* abaikan error kuota storage */ }
+                    }, 500);
                 },
 
                 loadFormDraft() {
@@ -1100,56 +1103,11 @@
                 inisialisasiRealtimeStok() {
                     if (!supabaseClient) return;
 
-                    supabaseClient.channel('pantau-stok-wms')
-                        .on(
-                            'postgres_changes',
-                            { event: '*', schema: 'public', table: 'stok_gudang' },
-                            () => { this.scheduleReload(); }
-                        )
-                        .on(
-                            'postgres_changes',
-                            { event: '*', schema: 'public', table: 'drum_ledger' },
-                            (payload) => {
-                                if (payload.new && payload.new.drum_id) {
-                                    const cellRow = document.getElementById('row-' + payload.new.drum_id);
-                                    if (cellRow) {
-                                        cellRow.classList.add('bg-amber-500/20');
-                                        setTimeout(() => cellRow.classList.remove('bg-amber-500/20'), 1500);
-                                    }
-                                }
-                                this.scheduleReload();
-                            }
-                        )
-                        .on(
-                            'postgres_changes',
-                            { event: '*', schema: 'public', table: 'transactions' },
-                            () => { this.scheduleReload(); }
-                        )
-                        .on(
-                            'postgres_changes',
-                            { event: '*', schema: 'public', table: 'material_usage' },
-                            () => { this.scheduleReload(); }
-                        )
-                        .on(
-                            'postgres_changes',
-                            { event: '*', schema: 'public', table: 'master_barang' },
-                            () => { this.scheduleReload(); }
-                        )
-                        .on(
-                            'postgres_changes',
-                            { event: '*', schema: 'public', table: 'master_gudang' },
-                            () => { this.scheduleReload(); }
-                        )
-                        .on(
-                            'postgres_changes',
-                            { event: '*', schema: 'public', table: 'master_project' },
-                            () => { this.scheduleReload(); }
-                        )
-                        .subscribe((status) => {
-                            if (status === 'SUBSCRIBED') {
-                                console.log('Koneksi sinkronisasi stok real-time aktif.');
-                            }
-                        });
+                    supabaseClient.channel('pantau-stok-wms-optimized')
+                        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+                            this.scheduleReload();
+                        })
+                        .subscribe();
                 },
 
                 async catatPenggunaanKabel(drumId, panjangDipakai) {
@@ -1466,14 +1424,12 @@
                     }
                 },
 
-                // ==========================================================
-                // FUNGSI LOGOUT YANG DIOPTIMALKAN (ANTI NOT-RESPONDING)
-                // ==========================================================
                 async logout() {
                     this.isLoading = true;
                     try {
                         this.logAudit('logout', { user: this.currentUser });
                         if (this._reloadTimer) clearTimeout(this._reloadTimer);
+                        if (this._draftTimer) clearTimeout(this._draftTimer);
                         if (supabaseClient) {
                             await supabaseClient.removeAllChannels();
                             await supabaseClient.auth.signOut();
