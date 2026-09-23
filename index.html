@@ -939,10 +939,10 @@
                 isLoading: false, notification: { show: false, message: '', type: 'error' },
                 filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', editingOriginalNo: null,
 
-                pageStok: 1, pageSizeStok: 10,
-                pageDrum: 1, pageSizeDrum: 10,
-                pageUsage: 1, pageSizeUsage: 10,
-                pageTx: 1, pageSizeTx: 10,
+                pageStok: 1, pageSizeStok: 10, totalStokCount: 0,
+                pageDrum: 1, pageSizeDrum: 10, totalDrumCount: 0,
+                pageUsage: 1, pageSizeUsage: 10, totalUsageCount: 0,
+                pageTx: 1, pageSizeTx: 10, totalTxCount: 0,
                 _reloadTimer: null,
 
                 masterBarang: safeLoadStorage('vortex_masterBarang', [
@@ -986,6 +986,35 @@
                     this._reloadTimer = setTimeout(() => { this.loadDataFromSupabase(); }, 800);
                 },
 
+                // --- MANAJEMEN DRAF FORMULIR TRANSAKSI ---
+                saveFormDraft(formData) {
+                    try {
+                        if (formData) {
+                            localStorage.setItem('vortex_draft_transaksi', JSON.stringify(formData));
+                        }
+                    } catch (e) { /* abaikan error kuota storage */ }
+                },
+
+                loadFormDraft() {
+                    try {
+                        const savedDraft = localStorage.getItem('vortex_draft_transaksi');
+                        if (savedDraft) {
+                            const parsed = JSON.parse(savedDraft);
+                            if (parsed && typeof parsed === 'object' && (parsed.noReferensi || parsed.keterangan || (parsed.items && parsed.items.some(i => i.kodeBarang || i.qty)))) {
+                                this.newTrans = parsed;
+                                return true;
+                            }
+                        }
+                    } catch (e) { /* abaikan error parse */ }
+                    return false;
+                },
+
+                clearFormDraft() {
+                    try {
+                        localStorage.removeItem('vortex_draft_transaksi');
+                    } catch (e) { /* abaikan */ }
+                },
+
                 buildRpcParams(tx) {
                     return {
                         p_no_transaksi: tx.noTransaksi,
@@ -1005,7 +1034,6 @@
                 },
 
                 async logAudit(action, details) {
-                    // Audit trail bersifat best-effort: kegagalan tidak mengganggu fitur utama.
                     try {
                         if (!supabaseClient) return;
                         await supabaseClient.from('audit_log').insert({
@@ -1023,7 +1051,6 @@
                     const { data: { session } } = await supabaseClient.auth.getSession();
                     if (this.isLoggedIn && !session) { this.logout(); return; }
                     if (session && session.user) {
-                        // Validasi ulang role dari database (anti-tamper localStorage)
                         const { data: prof } = await supabaseClient.from('profiles')
                             .select('role, nama_lengkap, region').eq('id', session.user.id).single();
                         if (prof) {
@@ -1041,23 +1068,38 @@
 
                 async init() {
                     await this.resetInputTransaction();
+                    this.loadFormDraft(); // Memuat draf formulir jika ada yang tersimpan secara lokal
                     this.initProfileData();
                     await this.validateSession();
                     await this.loadDataFromSupabase();
                     this.inisialisasiRealtimeStok();
                     this.refreshIcons();
 
+                    // Watcher fallback penyimpanan data master lokal
                     this.$watch('masterBarang', val => localStorage.setItem('vortex_masterBarang', JSON.stringify(val)), { deep: true });
                     this.$watch('masterGudang', val => localStorage.setItem('vortex_masterGudang', JSON.stringify(val)), { deep: true });
                     this.$watch('masterProject', val => localStorage.setItem('vortex_masterProject', JSON.stringify(val)), { deep: true });
-                    this.$watch('stokGudang', val => localStorage.setItem('vortex_stokGudang', JSON.stringify(val)), { deep: true });
-                    this.$watch('drumLedger', val => localStorage.setItem('vortex_drumLedger', JSON.stringify(val)), { deep: true });
-                    this.$watch('transactions', val => localStorage.setItem('vortex_transactions', JSON.stringify(val)), { deep: true });
-                    this.$watch('materialUsage', val => localStorage.setItem('vortex_materialUsage', JSON.stringify(val)), { deep: true });
 
-                    this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; });
-                    this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; });
-                    this.$watch('searchNoTransaksi', () => { this.pageTx = 1; });
+                    // Watcher otomatis simpan draf transaksi saat input berubah
+                    this.$watch('newTrans', val => {
+                        if (val && (val.noReferensi || val.keterangan || (val.items && val.items.some(i => i.kodeBarang || i.qty)))) {
+                            this.saveFormDraft(val);
+                        }
+                    }, { deep: true });
+
+                    // Watcher pencarian & paginasi untuk pemuatan ulang dari server
+                    this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+                    this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+                    this.$watch('searchNoTransaksi', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+
+                    this.$watch('pageStok', () => { if(supabaseClient) this.loadDataFromSupabase(); });
+                    this.$watch('pageSizeStok', () => { this.pageStok = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+                    this.$watch('pageDrum', () => { if(supabaseClient) this.loadDataFromSupabase(); });
+                    this.$watch('pageSizeDrum', () => { this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+                    this.$watch('pageUsage', () => { if(supabaseClient) this.loadDataFromSupabase(); });
+                    this.$watch('pageSizeUsage', () => { this.pageUsage = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+                    this.$watch('pageTx', () => { if(supabaseClient) this.loadDataFromSupabase(); });
+                    this.$watch('pageSizeTx', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
                 },
 
                 inisialisasiRealtimeStok() {
@@ -1165,29 +1207,34 @@
                 totalPages(items, size) {
                     return Math.ceil(items.length / size) || 1;
                 },
+
                 getPaginatedStokGudang() {
+                    if (supabaseClient) return this.stokGudang;
                     return this.paginate(this.getFilteredStokGudang(), this.pageStok, this.pageSizeStok);
                 },
                 getPaginatedDrumLedger() {
+                    if (supabaseClient) return this.drumLedger;
                     return this.paginate(this.getFilteredDrumLedger(), this.pageDrum, this.pageSizeDrum);
                 },
                 getPaginatedMaterialUsage() {
+                    if (supabaseClient) return this.materialUsage;
                     return this.paginate(this.getFilteredMaterialUsage(), this.pageUsage, this.pageSizeUsage);
                 },
                 getPaginatedTransactions() {
+                    if (supabaseClient) return this.transactions;
                     return this.paginate(this.getFilteredTransactions(), this.pageTx, this.pageSizeTx);
                 },
 
+                // --- PEMUATAN DATA DENGAN PAGINASI SISI SERVER (SUPABASE RANGE QUERY) ---
                 async loadDataFromSupabase() {
                     if (!supabaseClient) return;
                     this.isLoading = true;
                     try {
+                        // 1. Master Project
                         const { data: projectData, error: projectError } = await supabaseClient
                             .from('master_project')
                             .select('*');
-
                         if (projectError) throw projectError;
-                        
                         if (projectData) {
                             this.masterProject = projectData.map(p => ({
                                 periode: p.periode,
@@ -1199,50 +1246,7 @@
                             }));
                         }
 
-                        const { data: stockData, error: stockError } = await supabaseClient
-                            .from('stok_gudang')
-                            .select('*');
-
-                        if (stockError) throw stockError;
-                        
-                        if (stockData) {
-                            this.stokGudang = stockData.map(s => ({
-                                kodeBarang: s.kode_barang,
-                                namaBarang: s.nama_barang,
-                                kategori: s.kategori,
-                                gudang: s.gudang,
-                                qty: parseFloat(s.qty) || 0,
-                                sat: s.sat
-                            }));
-                        }
-
-                        const { data: transactionData, error: transactionError } = await supabaseClient
-                            .from('transactions')
-                            .select('*')
-                            .order('tanggal', { ascending: false });
-
-                        if (transactionError) throw transactionError;
-                        
-                        if (transactionData) {
-                            this.transactions = transactionData.map(t => ({
-                                id: t.id,
-                                tanggal: t.tanggal,
-                                noTransaksi: t.no_transaksi,
-                                noReferensi: t.no_referensi,
-                                tipeTransaksi: t.tipe_transaksi,
-                                gudangAsal: t.gudang_asal,
-                                gudangTujuan: t.gudang_tujuan,
-                                kodeProject: t.kode_project,
-                                keterangan: t.keterangan,
-                                lampiran: t.lampiran,
-                                lampiranUrl: t.lampiran_url || '',
-                                staffGudang: t.staff_gudang || this.currentUser,
-                                projectManager: t.project_manager || '',
-                                namaPenerima: t.nama_penerima || '',
-                                items: t.items || []
-                            }));
-                        }
-
+                        // 2. Master Barang & Gudang
                         const { data: barangData } = await supabaseClient.from('master_barang').select('*');
                         if (barangData) {
                             this.masterBarang = barangData.map(b => ({
@@ -1265,7 +1269,50 @@
                             }));
                         }
 
-                        const { data: drumData } = await supabaseClient.from('drum_ledger').select('*');
+                        // 3. Stok Gudang (Server-side Range Pagination)
+                        let stockQuery = supabaseClient.from('stok_gudang').select('*', { count: 'exact' });
+                        if (this.filterStokGudang) {
+                            stockQuery = stockQuery.eq('gudang', this.filterStokGudang);
+                        } else if (!this.isSuperAdmin) {
+                            const reg = this.userRegion().toLowerCase();
+                            const regionalWhNames = this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg).map(g => g.namaGudang);
+                            if (regionalWhNames.length > 0) stockQuery = stockQuery.in('gudang', regionalWhNames);
+                        }
+                        const fromStok = (this.pageStok - 1) * this.pageSizeStok;
+                        const toStok = fromStok + this.pageSizeStok - 1;
+                        const { data: stockData, count: countStok, error: stockError } = await stockQuery
+                            .order('kode_barang', { ascending: true })
+                            .range(fromStok, toStok);
+
+                        if (stockError) throw stockError;
+                        if (stockData) {
+                            this.stokGudang = stockData.map(s => ({
+                                kodeBarang: s.kode_barang,
+                                namaBarang: s.nama_barang,
+                                kategori: s.kategori,
+                                gudang: s.gudang,
+                                qty: parseFloat(s.qty) || 0,
+                                sat: s.sat
+                            }));
+                            this.totalStokCount = countStok !== null ? countStok : stockData.length;
+                        }
+
+                        // 4. Drum Ledger (Server-side Range Pagination)
+                        let drumQuery = supabaseClient.from('drum_ledger').select('*', { count: 'exact' });
+                        if (this.filterStokGudang) {
+                            drumQuery = drumQuery.eq('gudang', this.filterStokGudang);
+                        } else if (!this.isSuperAdmin) {
+                            const reg = this.userRegion().toLowerCase();
+                            const regionalWhNames = this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg).map(g => g.namaGudang);
+                            if (regionalWhNames.length > 0) drumQuery = drumQuery.in('gudang', regionalWhNames);
+                        }
+                        const fromDrum = (this.pageDrum - 1) * this.pageSizeDrum;
+                        const toDrum = fromDrum + this.pageSizeDrum - 1;
+                        const { data: drumData, count: countDrum, error: drumError } = await drumQuery
+                            .order('drum_id', { ascending: true })
+                            .range(fromDrum, toDrum);
+
+                        if (drumError) throw drumError;
                         if (drumData) {
                             this.drumLedger = drumData.map(d => ({
                                 drumId: d.drum_id,
@@ -1275,9 +1322,26 @@
                                 initialLength: parseFloat(d.initial_length) || 0,
                                 remainingLength: parseFloat(d.remaining_length) || 0
                             }));
+                            this.totalDrumCount = countDrum !== null ? countDrum : drumData.length;
                         }
 
-                        const { data: usageData } = await supabaseClient.from('material_usage').select('*');
+                        // 5. Material Usage (Server-side Range Pagination)
+                        let usageQuery = supabaseClient.from('material_usage').select('*', { count: 'exact' });
+                        if (this.searchMaterialUsageProject) {
+                            const q = this.searchMaterialUsageProject.trim();
+                            usageQuery = usageQuery.or(`kode_project.ilike.%${q}%,project_name.ilike.%${q}%,no_po.ilike.%${q}%`);
+                        } else if (!this.isSuperAdmin) {
+                            const reg = this.userRegion().toLowerCase();
+                            const regionalProjectCodes = this.masterProject.filter(p => (p.region || '').toLowerCase() === reg).map(p => p.kodeProject);
+                            if (regionalProjectCodes.length > 0) usageQuery = usageQuery.in('kode_project', regionalProjectCodes);
+                        }
+                        const fromUsage = (this.pageUsage - 1) * this.pageSizeUsage;
+                        const toUsage = fromUsage + this.pageSizeUsage - 1;
+                        const { data: usageData, count: countUsage, error: usageError } = await usageQuery
+                            .order('tanggal', { ascending: false })
+                            .range(fromUsage, toUsage);
+
+                        if (usageError) throw usageError;
                         if (usageData) {
                             this.materialUsage = usageData.map(u => ({
                                 id: u.id,
@@ -1291,6 +1355,48 @@
                                 qty: parseFloat(u.qty) || 0,
                                 tanggal: u.tanggal
                             }));
+                            this.totalUsageCount = countUsage !== null ? countUsage : usageData.length;
+                        }
+
+                        // 6. Transaksi & BAST (Server-side Range Pagination)
+                        let txQuery = supabaseClient.from('transactions').select('*', { count: 'exact' });
+                        if (this.searchNoTransaksi) {
+                            const q = this.searchNoTransaksi.trim();
+                            txQuery = txQuery.or(`no_transaksi.ilike.%${q}%,no_referensi.ilike.%${q}%,keterangan.ilike.%${q}%`);
+                        } else if (!this.isSuperAdmin) {
+                            const reg = this.userRegion().toLowerCase();
+                            const regionalWhNames = this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg).map(g => g.namaGudang);
+                            if (regionalWhNames.length > 0) {
+                                const whConds = regionalWhNames.map(w => `gudang_asal.eq."${w}",gudang_tujuan.eq."${w}"`).join(',');
+                                txQuery = txQuery.or(whConds);
+                            }
+                        }
+                        const fromTx = (this.pageTx - 1) * this.pageSizeTx;
+                        const toTx = fromTx + this.pageSizeTx - 1;
+                        const { data: transactionData, count: countTx, error: transactionError } = await txQuery
+                            .order('tanggal', { ascending: false })
+                            .range(fromTx, toTx);
+
+                        if (transactionError) throw transactionError;
+                        if (transactionData) {
+                            this.transactions = transactionData.map(t => ({
+                                id: t.id,
+                                tanggal: t.tanggal,
+                                noTransaksi: t.no_transaksi,
+                                noReferensi: t.no_referensi,
+                                tipeTransaksi: t.tipe_transaksi,
+                                gudangAsal: t.gudang_asal,
+                                gudangTujuan: t.gudang_tujuan,
+                                kodeProject: t.kode_project,
+                                keterangan: t.keterangan,
+                                lampiran: t.lampiran,
+                                lampiranUrl: t.lampiran_url || '',
+                                staffGudang: t.staff_gudang || this.currentUser,
+                                projectManager: t.project_manager || '',
+                                namaPenerima: t.nama_penerima || '',
+                                items: t.items || []
+                            }));
+                            this.totalTxCount = countTx !== null ? countTx : transactionData.length;
                         }
 
                     } catch (error) {
@@ -1606,6 +1712,7 @@
 
                 openInputTransaction() { 
                     this.resetInputTransaction();
+                    this.loadFormDraft();
                     this.switchTab('input-transaksi'); 
                 },
 
@@ -1630,6 +1737,7 @@
                     };
 
                     await this.generateNoTransaksi();
+                    this.clearFormDraft();
     
                     const fileInput = document.getElementById('attachmentInput');
                     if (fileInput) {
@@ -2165,6 +2273,7 @@
 
                             this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi, tipe: this.newTrans.tipeTransaksi });
                             this.showNotification('Transaksi berhasil disimpan secara atomik!', 'success');
+                            this.clearFormDraft();
                             await this.resetInputTransaction();
                             this.switchTab('data-transaksi');
                             await this.loadDataFromSupabase();
@@ -2197,6 +2306,7 @@
 
                     this.logAudit('transaction_save_local', { no: this.newTrans.noTransaksi, tipe: this.newTrans.tipeTransaksi });
                     this.showNotification('Transaksi berhasil disimpan (Lokal)!', 'success');
+                    this.clearFormDraft();
                     await this.resetInputTransaction();
                     this.switchTab('data-transaksi');
                 },
@@ -2273,6 +2383,14 @@
                 },
 
                 getFilteredStokGudang() {
+                    if (supabaseClient) {
+                        const dummy = new Array(this.totalStokCount || this.stokGudang.length);
+                        const start = (this.pageStok - 1) * this.pageSizeStok;
+                        for (let i = 0; i < this.stokGudang.length; i++) {
+                            dummy[start + i] = this.stokGudang[i];
+                        }
+                        return dummy;
+                    }
                     let list = this.stokGudang;
                     if (!this.isSuperAdmin) {
                         const reg = this.userRegion().toLowerCase();
@@ -2286,6 +2404,14 @@
                 },
 
                 getFilteredDrumLedger() {
+                    if (supabaseClient) {
+                        const dummy = new Array(this.totalDrumCount || this.drumLedger.length);
+                        const start = (this.pageDrum - 1) * this.pageSizeDrum;
+                        for (let i = 0; i < this.drumLedger.length; i++) {
+                            dummy[start + i] = this.drumLedger[i];
+                        }
+                        return dummy;
+                    }
                     let list = this.drumLedger;
                     if (!this.isSuperAdmin) {
                         const reg = this.userRegion().toLowerCase();
@@ -2299,6 +2425,14 @@
                 },
 
                 getFilteredMaterialUsage() {
+                    if (supabaseClient) {
+                        const dummy = new Array(this.totalUsageCount || this.materialUsage.length);
+                        const start = (this.pageUsage - 1) * this.pageSizeUsage;
+                        for (let i = 0; i < this.materialUsage.length; i++) {
+                            dummy[start + i] = this.materialUsage[i];
+                        }
+                        return dummy;
+                    }
                     let list = this.materialUsage;
                     if (!this.isSuperAdmin) {
                         const reg = this.userRegion().toLowerCase();
@@ -2317,6 +2451,14 @@
                 },
 
                 getFilteredTransactions() {
+                    if (supabaseClient) {
+                        const dummy = new Array(this.totalTxCount || this.transactions.length);
+                        const start = (this.pageTx - 1) * this.pageSizeTx;
+                        for (let i = 0; i < this.transactions.length; i++) {
+                            dummy[start + i] = this.transactions[i];
+                        }
+                        return dummy;
+                    }
                     let list = this.transactions;
                     if (!this.isSuperAdmin) {
                         const reg = this.userRegion().toLowerCase();
@@ -2350,10 +2492,19 @@
                     }
                 },
 
-                exportStokCSV() {
+                async exportStokCSV() {
+                    let items = [];
+                    if (supabaseClient) {
+                        let q = supabaseClient.from('stok_gudang').select('*');
+                        if (this.filterStokGudang) q = q.eq('gudang', this.filterStokGudang);
+                        const { data } = await q;
+                        if (data) items = data.map(s => ({ kodeBarang: s.kode_barang, namaBarang: s.nama_barang, kategori: s.kategori, gudang: s.gudang, qty: s.qty, sat: s.sat }));
+                    } else {
+                        items = this.getFilteredStokGudang();
+                    }
                     let csv = 'Kode Barang,Nama Barang,Kategori,Gudang,Total Stok,Satuan\n';
-                    this.getFilteredStokGudang().forEach(s => {
-                        csv += `"${s.kodeBarang}","${s.namaBarang}","${s.kategori}","${s.gudang}",${s.qty},"${s.sat}"\n`;
+                    items.forEach(s => {
+                        csv += `"${s.kodeBarang || ''}","${s.namaBarang || ''}","${s.kategori || ''}","${s.gudang || ''}",${s.qty || 0},"${s.sat || ''}"\n`;
                     });
                     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                     const url = URL.createObjectURL(blob);
@@ -2363,10 +2514,22 @@
                     a.click();
                 },
 
-                exportUsageCSV() {
+                async exportUsageCSV() {
+                    let items = [];
+                    if (supabaseClient) {
+                        let q = supabaseClient.from('material_usage').select('*');
+                        if (this.searchMaterialUsageProject) {
+                            const search = this.searchMaterialUsageProject.trim();
+                            q = q.or(`kode_project.ilike.%${search}%,project_name.ilike.%${search}%,no_po.ilike.%${search}%`);
+                        }
+                        const { data } = await q;
+                        if (data) items = data.map(u => ({ kodeProject: u.kode_project, noPO: u.no_po, projectName: u.project_name, namaBarang: u.nama_barang, drumId: u.drum_id, qty: u.qty, tanggal: u.tanggal }));
+                    } else {
+                        items = this.getFilteredMaterialUsage();
+                    }
                     let csv = 'Kode Project,No PO,Project Name,Nama Barang,Drum ID,Qty Pakai,Tanggal\n';
-                    this.getFilteredMaterialUsage().forEach(u => {
-                        csv += `"${u.kodeProject}","${u.noPO}","${u.projectName}","${u.namaBarang}","${u.drumId}",${u.qty},"${u.tanggal}"\n`;
+                    items.forEach(u => {
+                        csv += `"${u.kodeProject || ''}","${u.noPO || ''}","${u.projectName || ''}","${u.namaBarang || ''}","${u.drumId || ''}",${u.qty || 0},"${u.tanggal || ''}"\n`;
                     });
                     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                     const url = URL.createObjectURL(blob);
@@ -2376,10 +2539,22 @@
                     a.click();
                 },
 
-                exportTransactionCSV() {
+                async exportTransactionCSV() {
+                    let items = [];
+                    if (supabaseClient) {
+                        let q = supabaseClient.from('transactions').select('*');
+                        if (this.searchNoTransaksi) {
+                            const search = this.searchNoTransaksi.trim();
+                            q = q.or(`no_transaksi.ilike.%${search}%,no_referensi.ilike.%${search}%,keterangan.ilike.%${search}%`);
+                        }
+                        const { data } = await q;
+                        if (data) items = data.map(t => ({ tanggal: t.tanggal, noTransaksi: t.no_transaksi, tipeTransaksi: t.tipe_transaksi, gudangAsal: t.gudang_asal, gudangTujuan: t.gudang_tujuan, keterangan: t.keterangan }));
+                    } else {
+                        items = this.getFilteredTransactions();
+                    }
                     let csv = 'Tanggal,No Transaksi,Tipe Transaksi,Gudang Asal,Gudang Tujuan,Keterangan\n';
-                    this.getFilteredTransactions().forEach(t => {
-                        csv += `"${t.tanggal}","${t.noTransaksi}","${t.tipeTransaksi}","${t.gudangAsal || ''}","${t.gudangTujuan || ''}","${t.keterangan}"\n`;
+                    items.forEach(t => {
+                        csv += `"${t.tanggal || ''}","${t.noTransaksi || ''}","${t.tipeTransaksi || ''}","${t.gudangAsal || ''}","${t.gudangTujuan || ''}","${t.keterangan || ''}"\n`;
                     });
                     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                     const url = URL.createObjectURL(blob);
