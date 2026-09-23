@@ -42,6 +42,7 @@
         }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
 
@@ -858,7 +859,7 @@
                         <td class="border border-slate-400 p-1.5 font-mono" x-text="item.kodeBarang"></td>
                         <td class="border border-slate-400 p-1.5" x-text="item.namaBarang"></td>
                         <td class="border border-slate-400 p-1.5 font-mono" x-text="item.drumId || '-'"></td>
-                        <td class="border border-slate-400 p-1.5 text-center font-bold" x-text="item.qty"></td>
+                        <td class="border border-slate-400 p-1.5 text-center font-bold" x-text="formatQty(item.qty)"></td>
                     </tr>
                 </template>
             </tbody>
@@ -880,7 +881,7 @@
                             <tr>
                                 <td class="border border-slate-400 p-1.5 text-center" x-text="s.no"></td>
                                 <td class="border border-slate-400 p-1.5" x-text="s.namaBarang"></td>
-                                <td class="border border-slate-400 p-1.5 text-center font-bold" x-text="s.totalQty"></td>
+                                <td class="border border-slate-400 p-1.5 text-center font-bold" x-text="formatQty(s.totalQty)"></td>
                             </tr>
                         </template>
                     </tbody>
@@ -1087,6 +1088,28 @@
                             { event: '*', schema: 'public', table: 'transactions' },
                             () => { this.scheduleReload(); }
                         )
+                        // Sempurnaan: pantau juga material_usage & tabel master agar seluruh
+                        // tampilan selalu sinkron antar pengguna, bukan hanya stok/transaksi.
+                        .on(
+                            'postgres_changes',
+                            { event: '*', schema: 'public', table: 'material_usage' },
+                            () => { this.scheduleReload(); }
+                        )
+                        .on(
+                            'postgres_changes',
+                            { event: '*', schema: 'public', table: 'master_barang' },
+                            () => { this.scheduleReload(); }
+                        )
+                        .on(
+                            'postgres_changes',
+                            { event: '*', schema: 'public', table: 'master_gudang' },
+                            () => { this.scheduleReload(); }
+                        )
+                        .on(
+                            'postgres_changes',
+                            { event: '*', schema: 'public', table: 'master_project' },
+                            () => { this.scheduleReload(); }
+                        )
                         .subscribe((status) => {
                             if (status === 'SUBSCRIBED') {
                                 console.log('Koneksi sinkronisasi stok real-time aktif.');
@@ -1130,6 +1153,12 @@
                         this.showNotification('Gagal memotong stok: ' + (err.message || err), 'error');
                         return false;
                     }
+                },
+
+                // Sempurnaan: pemformat angka konsisten (maks. 2 desimal, pemisah ribuan id-ID).
+                formatQty(val) {
+                    const n = parseFloat(val) || 0;
+                    return n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
                 },
 
                 paginate(items, page, size) {
@@ -1347,10 +1376,15 @@
                     }
                 },
 
-                logout() {
+                async logout() {
                     this.logAudit('logout', { user: this.currentUser });
+                    // Sempurnaan: putuskan sesi Supabase agar token tidak tersisa di browser.
+                    if (supabaseClient) {
+                        try { await supabaseClient.auth.signOut(); } catch (e) { /* abaikan */ }
+                    }
                     this.isLoggedIn = false;
                     localStorage.removeItem('vortex_logged_in');
+                    localStorage.removeItem('vortex_region');
                     this.showNotification('Anda telah keluar.', 'success');
                 },
 
@@ -1540,13 +1574,37 @@
                     }
                 },
 
-                deleteItem(type, index) {
-                    if (confirm('Hapus data ini?')) {
-                        if (type === 'barang') this.masterBarang.splice(index, 1);
-                        if (type === 'gudang') this.masterGudang.splice(index, 1);
-                        if (type === 'project') this.masterProject.splice(index, 1);
-                        this.logAudit('master_delete', { type: type, index: index });
+                async deleteItem(type, index) {
+                    if (!confirm('Hapus data ini?')) return;
+
+                    const tableMap  = { barang: 'master_barang', gudang: 'master_gudang', project: 'master_project' };
+                    const keyMap    = { barang: 'kode_barang',   gudang: 'kode_gudang',   project: 'kode_project' };
+                    const localKey  = { barang: 'kodeBarang',    gudang: 'kodeGudang',    project: 'kodeProject' };
+                    const arrName   = { barang: 'masterBarang',  gudang: 'masterGudang',  project: 'masterProject' };
+
+                    const arr = this[arrName[type]];
+                    const item = arr ? arr[index] : null;
+                    if (!item) return;
+
+                    try {
+                        this.isLoading = true;
+                        // Sempurnaan: hapus juga di Supabase (sebelumnya hanya terhapus di memori
+                        // sehingga data "kembali" lagi saat halaman dimuat ulang).
+                        if (supabaseClient) {
+                            const { error } = await supabaseClient
+                                .from(tableMap[type])
+                                .delete()
+                                .eq(keyMap[type], item[localKey[type]]);
+                            if (error) throw error;
+                        }
+                        arr.splice(index, 1);
+                        this.logAudit('master_delete', { type: type, key: item[localKey[type]] });
                         this.showNotification('Data dihapus!', 'success');
+                        if (supabaseClient) await this.loadDataFromSupabase();
+                    } catch (err) {
+                        this.showNotification('Gagal menghapus dari database: ' + (err.message || err), 'error');
+                    } finally {
+                        this.isLoading = false;
                     }
                 },
 
@@ -1639,7 +1697,7 @@
                     if (this.editingOriginalNo) return;
 
                     if (!supabaseClient) {
-                        const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7).replace('-', '');
+                        const dateStr = (this.newTrans.tanggal || this.todayWIB()).replace(/-/g, '').substring(0, 6);
                         const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
                         const prefix = `ACM-${typeCode}-${dateStr}-`;
 
@@ -1666,7 +1724,7 @@
                         this.newTrans.noTransaksi = data;
                     } catch (err) {
                         console.error('Gagal generate nomor transaksi dari database:', err.message);
-                        const dateStr = this.newTrans.tanggal ? this.newTrans.tanggal.replace(/-/g, '').substring(0, 6) : new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7).replace('-', '');
+                        const dateStr = (this.newTrans.tanggal || this.todayWIB()).replace(/-/g, '').substring(0, 6);
                         const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
                         const prefix = `ACM-${typeCode}-${dateStr}-`;
                         let maxSeq = 0;
@@ -1734,6 +1792,27 @@
                 async handleFileUpload(e) {
                     const file = e.target.files[0];
                     if (!file) return;
+                    // Sempurnaan: validasi ukuran & tipe lebih awal (sebelum proses simpan).
+                    const maxSizeInBytes = 5 * 1024 * 1024;
+                    const allowedTypes = [
+                        'application/pdf',
+                        'image/jpeg',
+                        'image/png',
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    ];
+                    if (file.size > maxSizeInBytes) {
+                        this.showNotification('Ukuran file terlalu besar! Maksimal 5 MB.', 'error');
+                        e.target.value = '';
+                        return;
+                    }
+                    if (!allowedTypes.includes(file.type)) {
+                        this.showNotification('Format file tidak didukung! Unggah file PDF, JPG, PNG, atau DOCX.', 'error');
+                        e.target.value = '';
+                        return;
+                    }
+                    if (this.newTrans.lampiranUrl && String(this.newTrans.lampiranUrl).startsWith('blob:')) {
+                        URL.revokeObjectURL(this.newTrans.lampiranUrl);
+                    }
                     this.newTrans.lampiran = file.name;
                     this.newTrans.lampiranUrl = URL.createObjectURL(file);
                 },
@@ -1925,6 +2004,9 @@
                 },
 
                 async submitTransaction() {
+                    // Sempurnaan: cegah pengiriman ganda saat tombol ditekan berulang.
+                    if (this.isLoading) return;
+
                     if (this.newTrans.gudangAsal && this.newTrans.gudangTujuan && 
                         this.newTrans.gudangAsal.trim().toLowerCase() === this.newTrans.gudangTujuan.trim().toLowerCase()) {
                         this.showNotification('Gudang Asal dan Gudang Tujuan tidak boleh sama!', 'error');
@@ -1936,10 +2018,27 @@
                         return;
                     }
 
+                    // Sempurnaan: buang baris item yang benar-benar kosong.
+                    this.newTrans.items = this.newTrans.items.filter(i =>
+                        i.kategori || i.jenis || i.kodeBarang || i.drumId || (parseFloat(i.qty) > 0)
+                    );
+                    if (this.newTrans.items.length === 0) {
+                        this.showNotification('Minimal satu item material wajib diisi!', 'error');
+                        return;
+                    }
+                    if (this.newTrans.items.some(i => !i.kodeBarang || !(parseFloat(i.qty) > 0))) {
+                        this.showNotification('Setiap item wajib memiliki Kode Barang dan Qty lebih dari 0!', 'error');
+                        return;
+                    }
+
                     const fileInput = document.getElementById('attachmentInput');
                     if (fileInput && fileInput.files.length > 0) {
                         const uploadedUrl = await this.uploadAttachment(fileInput, this.newTrans.noTransaksi);
                         if (uploadedUrl) {
+                            // Sempurnaan: lepaskan URL blob lokal agar tidak bocor memori.
+                            if (this.newTrans.lampiranUrl && String(this.newTrans.lampiranUrl).startsWith('blob:')) {
+                                URL.revokeObjectURL(this.newTrans.lampiranUrl);
+                            }
                             this.newTrans.lampiranUrl = uploadedUrl;
                             this.newTrans.lampiran = fileInput.files[0].name;
                         }
@@ -1949,6 +2048,10 @@
                     this.newTrans.items.forEach(item => {
                         item.qty = parseFloat(item.qty) || 0;
                     });
+                    if (this.newTrans.items.some(item => !(item.qty > 0))) {
+                        this.showNotification('Qty setiap item harus lebih dari 0!', 'error');
+                        return;
+                    }
 
                     const tipe = this.newTrans.tipeTransaksi;
                     const gudangMasuk = this.newTrans.gudangTujuan; 
@@ -2083,6 +2186,12 @@
 
                         } catch (err) {
                             console.error('Gagal menjalankan transaksi atomik RPC:', err.message);
+                            // Sempurnaan: jika mode edit gagal, kembalikan transaksi lama ke memori
+                            // (stok & daftar transaksi lokal) agar tampilan tidak kehilangan data.
+                            if (editBackup) {
+                                this.transactions.unshift(JSON.parse(JSON.stringify(editBackup)));
+                                this.applyTransactionStock(editBackup);
+                            }
                             this.showNotification('Gagal memproses transaksi di Supabase: ' + (err.message || err), 'error');
                         } finally {
                             this.isLoading = false;
