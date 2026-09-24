@@ -581,7 +581,7 @@ export default function warehouseApp() {
         async openModal(type) {
             this.modalType = type; this.isEdit = false; this.editIndex = null;
             if (type === 'project') {
-                this.modalForm = { periode: this.todayWIB(), region: '', kodeProject: '', type: 'Main Feeder', noPO: '', projectName: '' };
+                this.modalForm = { periode: this.todayWIB(), region: '', kodeProject: '(Otomatis dari Sistem)', type: 'Main Feeder', noPO: '', projectName: '' };
                 await this.generateKodeProject();
             } else if (type === 'barang') {
                 this.modalForm = { kategori: '', jenis: '', kodeBarang: '', namaBarang: '', sat: 'Pcs' };
@@ -609,38 +609,42 @@ export default function warehouseApp() {
         async generateKodeProject() {
             if (this.isEdit) return;
 
-            if (!supabaseClient) {
-                const regCode = this.getRegionCode(this.modalForm.region);
-                const year = new Date().getFullYear();
-                const prefix = `${regCode}-${year}-`;
-                let maxSeq = 0;
-                this.masterProject.forEach(p => {
-                    if (p.kodeProject && p.kodeProject.startsWith(prefix)) {
-                        const num = parseInt(p.kodeProject.replace(prefix, ''), 10);
-                        if (!isNaN(num) && num > maxSeq) maxSeq = num;
-                    }
-                });
-                this.modalForm.kodeProject = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
-                return;
-            }
+            // Hapus atau komentari kode pemanggilan RPC lama:
+            /*
+            const { data, error } = await supabaseClient.rpc('generate_kode_project');
+            if (error) console.error('Gagal generate kode project:', error.message);
+            */
 
-            try {
-                const { data, error } = await supabaseClient.rpc('generate_kode_project');
-                if (error) throw error;
-                this.modalForm.kodeProject = data;
-            } catch (err) {
-                console.error('Gagal generate kode project:', err.message);
-                const regCode = this.getRegionCode(this.modalForm.region);
-                const year = new Date().getFullYear();
-                const prefix = `${regCode}-${year}-`;
-                let maxSeq = 0;
-                this.masterProject.forEach(p => {
-                    if (p.kodeProject && p.kodeProject.startsWith(prefix)) {
-                        const num = parseInt(p.kodeProject.replace(prefix, ''), 10);
-                        if (!isNaN(num) && num > maxSeq) maxSeq = num;
-                    }
-                });
-                this.modalForm.kodeProject = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
+            // Ganti input form kode_project dengan teks placeholder (karena di-generate otomatis oleh database)
+            const kodeInputEl = document.getElementById('kodeProjectInput') || document.getElementById('kode_project');
+            if (kodeInputEl) {
+                kodeInputEl.value = '(Otomatis dari Sistem)';
+                kodeInputEl.disabled = true; // Kunci input agar tidak bisa diubah pengguna
+            }
+            this.modalForm.kodeProject = '(Otomatis dari Sistem)';
+        },
+
+        async simpanMasterProject() {
+            const regionEl = document.getElementById('projectRegionInput');
+            const periodeEl = document.getElementById('projectPeriodeInput');
+            const projectNameEl = document.getElementById('projectNameInput');
+
+            const payload = {
+                region: regionEl ? regionEl.value : this.modalForm.region,
+                periode: periodeEl ? periodeEl.value : this.modalForm.periode,
+                project_name: projectNameEl ? projectNameEl.value : this.modalForm.projectName
+            };
+
+            // Kirim data ke Supabase tanpa membawa variabel kode_project
+            const { data, error } = await supabaseClient
+                .from('master_project')
+                .insert([payload])
+                .select();
+
+            if (error) {
+                alert('Gagal menyimpan project: ' + error.message);
+            } else {
+                alert(`Project berhasil disimpan dengan kode: ${data[0].kode_project}`);
             }
         },
 
@@ -685,19 +689,35 @@ export default function warehouseApp() {
                     }
                     localStorage.setItem('vortex_masterGudang', JSON.stringify(this.masterGudang));
                 } else if (this.modalType === 'project') {
-                    const payload = {
-                        periode: this.modalForm.periode,
-                        region: this.modalForm.region,
-                        kode_project: this.modalForm.kodeProject,
-                        type: this.modalForm.type,
-                        no_po: this.modalForm.noPO,
-                        project_name: this.modalForm.projectName
-                    };
-                    const { error } = await supabaseClient.from('master_project').upsert(payload, { onConflict: 'kode_project' });
-                    if (error) throw error;
                     if (this.isEdit) {
+                        const payload = {
+                            periode: this.modalForm.periode,
+                            region: this.modalForm.region,
+                            kode_project: this.modalForm.kodeProject,
+                            type: this.modalForm.type,
+                            no_po: this.modalForm.noPO,
+                            project_name: this.modalForm.projectName
+                        };
+                        const { error } = await supabaseClient.from('master_project').upsert(payload, { onConflict: 'kode_project' });
+                        if (error) throw error;
                         this.masterProject[this.editIndex] = { ...this.modalForm };
                     } else {
+                        // Kirim data ke Supabase tanpa membawa variabel kode_project
+                        const payload = {
+                            periode: this.modalForm.periode,
+                            region: this.modalForm.region,
+                            type: this.modalForm.type,
+                            no_po: this.modalForm.noPO,
+                            project_name: this.modalForm.projectName
+                        };
+                        const { data, error } = await supabaseClient
+                            .from('master_project')
+                            .insert([payload])
+                            .select();
+                        if (error) throw error;
+                        if (data && data.length > 0) {
+                            this.modalForm.kodeProject = data[0].kode_project;
+                        }
                         this.masterProject.push({ ...this.modalForm });
                     }
                     localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
@@ -1128,7 +1148,6 @@ export default function warehouseApp() {
                     let totalQty = parseFloat(item.qty) || 0;
                     const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
         
-                    // Tentukan satuan: jika kategori Cable, gunakan 'Meter', selain itu ikuti default (misal: 'Pcs')
                     const satuanItem = (kat === 'Cable') ? 'Meter' : (item.satuan || 'Pcs');
 
                     if (kat === 'Cable' && totalQty > 0) {
@@ -1142,7 +1161,6 @@ export default function warehouseApp() {
                             let remainingToAllocate = totalQty;
                             let temporaryAssignedDrums = [];
 
-                            // Hitung maxSeq awal SEBELUM masuk ke loop while
                             const existingDrums = this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk);
                             let currentMaxSeq = 0;
                             existingDrums.forEach(d => {
