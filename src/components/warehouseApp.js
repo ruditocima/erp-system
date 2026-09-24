@@ -179,7 +179,6 @@ export default function warehouseApp() {
                 }
             }, { deep: true });
 
-            // Watcher untuk tipeTransaksi: Jika Keluar, set staffGudang default ke currentUser
             this.$watch('newTrans.tipeTransaksi', val => {
                 if (val === 'Keluar') {
                     this.newTrans.staffGudang = this.currentUser || '';
