@@ -1122,58 +1122,59 @@ export default function warehouseApp() {
             const gudangMasuk = this.newTrans.gudangTujuan; 
 
             if (tipe === 'Masuk') {
-                let processedItems = [];
-                this.newTrans.items.forEach(item => {
-                    const kat = this.getCategoryByKode(item.kodeBarang);
-                    let totalQty = parseFloat(item.qty) || 0;
-                    const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
-                    
-                    if (kat === 'Cable' && totalQty > 0) {
-                        const whObj = this.masterGudang.find(g => g.namaGudang === gudangMasuk);
-                        let whCode = whObj && whObj.kodeGudang ? whObj.kodeGudang.split('-')[0].toUpperCase() : 'PLB';
-                        const threeCharBarang = item.kodeBarang ? item.kodeBarang.split('-').pop() : '036';
+    let processedItems = [];
+    this.newTrans.items.forEach(item => {
+        const kat = this.getCategoryByKode(item.kodeBarang);
+        let totalQty = parseFloat(item.qty) || 0;
+        const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
+        
+        if (kat === 'Cable' && totalQty > 0) {
+            const whObj = this.masterGudang.find(g => g.namaGudang === gudangMasuk);
+            let whCode = whObj && whObj.kodeGudang ? whObj.kodeGudang.split('-')[0].toUpperCase() : 'PLB';
+            const threeCharBarang = item.kodeBarang ? item.kodeBarang.split('-').pop() : '036';
 
-                        if (item.drumId && item.drumId.trim() !== '') {
-                            processedItems.push({ ...item, drumId: item.drumId, qty: totalQty, namaBarang: namaBrg });
-                        } else {
-                            let remainingToAllocate = totalQty;
-                            let temporaryAssignedDrums = [];
+            if (item.drumId && item.drumId.trim() !== '') {
+                processedItems.push({ ...item, drumId: item.drumId, qty: totalQty, namaBarang: namaBrg });
+            } else {
+                let remainingToAllocate = totalQty;
+                let temporaryAssignedDrums = [];
 
-                            while (remainingToAllocate > 0) {
-                                let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
-                                remainingToAllocate -= chunkQty;
-
-                                let zeroDrum = this.drumLedger.find(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk && d.remainingLength === 0 && !temporaryAssignedDrums.includes(d.drumId));
-                                let assignedDrumId = '';
-
-                                if (zeroDrum) {
-                                    assignedDrumId = zeroDrum.drumId;
-                                    temporaryAssignedDrums.push(assignedDrumId);
-                                } else {
-                                    const existingDrums = this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk);
-                                    let maxSeq = 0;
-                                    existingDrums.forEach(d => {
-                                        const parts = d.drumId.split('-D');
-                                        if (parts.length > 1) {
-                                            const seqNum = parseInt(parts[parts.length - 1], 10);
-                                            if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
-                                        }
-                                    });
-                                    let nextSeq = maxSeq + 1;
-                                    assignedDrumId = `${whCode}-${threeCharBarang}-D${String(nextSeq).padStart(2, '0')}`;
-                                    temporaryAssignedDrums.push(assignedDrumId);
-                                }
-
-                                processedItems.push({ ...item, drumId: assignedDrumId, qty: chunkQty, namaBarang: namaBrg });
-                            }
-                        }
-                    } else {
-                        processedItems.push({ ...item, namaBarang: namaBrg });
+                // PERBAIKAN: Hitung maxSeq awal SEBELUM masuk ke loop while
+                const existingDrums = this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk);
+                let currentMaxSeq = 0;
+                existingDrums.forEach(d => {
+                    const parts = d.drumId.split('-D');
+                    if (parts.length > 1) {
+                        const seqNum = parseInt(parts[parts.length - 1], 10);
+                        if (!isNaN(seqNum) && seqNum > currentMaxSeq) currentMaxSeq = seqNum;
                     }
                 });
-                this.newTrans.items = processedItems;
-            }
 
+                while (remainingToAllocate > 0) {
+                    let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
+                    remainingToAllocate -= chunkQty;
+
+                    let zeroDrum = this.drumLedger.find(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk && d.remainingLength === 0 && !temporaryAssignedDrums.includes(d.drumId));
+                    let assignedDrumId = '';
+
+                    if (zeroDrum) {
+                        assignedDrumId = zeroDrum.drumId;
+                    } else {
+                        // PERBAIKAN: Tambahkan currentMaxSeq secara otomatis untuk setiap drum baru
+                        currentMaxSeq++; 
+                        assignedDrumId = `${whCode}-${threeCharBarang}-D${String(currentMaxSeq).padStart(2, '0')}`;
+                    }
+                    
+                    temporaryAssignedDrums.push(assignedDrumId);
+                    processedItems.push({ ...item, drumId: assignedDrumId, qty: chunkQty, namaBarang: namaBrg });
+                }
+            }
+        } else {
+            processedItems.push({ ...item, namaBarang: namaBrg });
+        }
+    });
+    this.newTrans.items = processedItems;
+}
             if (supabaseClient) {
                 try {
                     this.isLoading = true;
