@@ -1110,9 +1110,8 @@
                     this.inisialisasiRealtimeStok();
                     this.refreshIcons();
 
-                    this.$watch('masterBarang', val => localStorage.setItem('vortex_masterBarang', JSON.stringify(val)), { deep: true });
-                    this.$watch('masterGudang', val => localStorage.setItem('vortex_masterGudang', JSON.stringify(val)), { deep: true });
-                    this.$watch('masterProject', val => localStorage.setItem('vortex_masterProject', JSON.stringify(val)), { deep: true });
+                    // Deep watcher master data dihapus dari sini untuk mencegah konsumsi memori berlebih 
+                    // dan dipindah langsung saat penyimpanan data (saveModalData & deleteItem).
 
                     this.$watch('newTrans', val => {
                         if (val && (val.noReferensi || val.keterangan || (val.items && val.items.some(i => i.kodeBarang || i.qty)))) {
@@ -1137,8 +1136,12 @@
                 inisialisasiRealtimeStok() {
                     if (!supabaseClient) return;
 
+                    // Batasi hanya pada tabel spesifik agar tidak membebani browser
                     supabaseClient.channel('pantau-stok-wms-optimized')
-                        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'stok_gudang' }, () => {
+                            this.scheduleReload();
+                        })
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
                             this.scheduleReload();
                         })
                         .subscribe();
@@ -1461,6 +1464,7 @@
                 },
 
                 async logout() {
+                    if (this.isLoading) return;
                     this.isLoading = true;
                     try {
                         if (this._reloadTimer) clearTimeout(this._reloadTimer);
@@ -1468,17 +1472,10 @@
                         
                         if (supabaseClient) {
                             await supabaseClient.removeAllChannels();
-                            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Logout timeout')), 3000));
-                            await Promise.race([
-                                supabaseClient.auth.signOut(),
-                                timeoutPromise
-                            ]).catch((timeoutErr) => {
-                                console.warn('Peringatan timeout saat signOut Supabase:', timeoutErr);
-                            });
+                            await supabaseClient.auth.signOut().catch(() => {});
                         }
                     } catch (e) {
                         console.error('Kesalahan saat proses logout sistem:', e);
-                        this.showNotification('Terjadi kendala saat keluar dari sistem, sesi lokal tetap dibersihkan.', 'error');
                     } finally {
                         localStorage.removeItem('vortex_logged_in');
                         localStorage.removeItem('vortex_user');
@@ -1486,7 +1483,7 @@
                         localStorage.removeItem('vortex_region');
                         this.isLoggedIn = false;
                         this.isLoading = false;
-                        window.location.reload();
+                        window.location.href = window.location.pathname;
                     }
                 },
 
@@ -1623,6 +1620,7 @@
                             } else {
                                 this.masterBarang.push({ ...this.modalForm });
                             }
+                            localStorage.setItem('vortex_masterBarang', JSON.stringify(this.masterBarang));
                         } else if (this.modalType === 'gudang') {
                             const payload = {
                                 region: this.modalForm.region,
@@ -1643,6 +1641,7 @@
                             } else {
                                 this.masterGudang.push({ ...this.modalForm });
                             }
+                            localStorage.setItem('vortex_masterGudang', JSON.stringify(this.masterGudang));
                         } else if (this.modalType === 'project') {
                             const payload = {
                                 periode: this.modalForm.periode,
@@ -1664,6 +1663,7 @@
                             } else {
                                 this.masterProject.push({ ...this.modalForm });
                             }
+                            localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
                         }
 
                         this.logAudit('master_save', { type: this.modalType, data: this.modalForm });
@@ -1698,6 +1698,10 @@
                             if (error) throw error;
                         }
                         arr.splice(index, 1);
+                        if (type === 'barang') localStorage.setItem('vortex_masterBarang', JSON.stringify(this.masterBarang));
+                        if (type === 'gudang') localStorage.setItem('vortex_masterGudang', JSON.stringify(this.masterGudang));
+                        if (type === 'project') localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
+
                         this.logAudit('master_delete', { type: type, key: item[localKey[type]] });
                         this.showNotification('Data dihapus!', 'success');
                         if (supabaseClient) await this.loadDataFromSupabase();
