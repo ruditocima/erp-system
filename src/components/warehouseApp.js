@@ -1122,59 +1122,61 @@ export default function warehouseApp() {
             const gudangMasuk = this.newTrans.gudangTujuan; 
 
             if (tipe === 'Masuk') {
-    let processedItems = [];
-    this.newTrans.items.forEach(item => {
-        const kat = this.getCategoryByKode(item.kodeBarang);
-        let totalQty = parseFloat(item.qty) || 0;
-        const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
+                let processedItems = [];
+                this.newTrans.items.forEach(item => {
+                    const kat = this.getCategoryByKode(item.kodeBarang);
+                    let totalQty = parseFloat(item.qty) || 0;
+                    const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
         
-        if (kat === 'Cable' && totalQty > 0) {
-            const whObj = this.masterGudang.find(g => g.namaGudang === gudangMasuk);
-            let whCode = whObj && whObj.kodeGudang ? whObj.kodeGudang.split('-')[0].toUpperCase() : 'PLB';
-            const threeCharBarang = item.kodeBarang ? item.kodeBarang.split('-').pop() : '036';
+                    // Tentukan satuan: jika kategori Cable, gunakan 'Meter', selain itu ikuti default (misal: 'Pcs')
+                    const satuanItem = (kat === 'Cable') ? 'Meter' : (item.satuan || 'Pcs');
 
-            if (item.drumId && item.drumId.trim() !== '') {
-                processedItems.push({ ...item, drumId: item.drumId, qty: totalQty, namaBarang: namaBrg });
-            } else {
-                let remainingToAllocate = totalQty;
-                let temporaryAssignedDrums = [];
+                    if (kat === 'Cable' && totalQty > 0) {
+                        const whObj = this.masterGudang.find(g => g.namaGudang === gudangMasuk);
+                        let whCode = whObj && whObj.kodeGudang ? whObj.kodeGudang.split('-')[0].toUpperCase() : 'PLB';
+                        const threeCharBarang = item.kodeBarang ? item.kodeBarang.split('-').pop() : '036';
 
-                // PERBAIKAN: Hitung maxSeq awal SEBELUM masuk ke loop while
-                const existingDrums = this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk);
-                let currentMaxSeq = 0;
-                existingDrums.forEach(d => {
-                    const parts = d.drumId.split('-D');
-                    if (parts.length > 1) {
-                        const seqNum = parseInt(parts[parts.length - 1], 10);
-                        if (!isNaN(seqNum) && seqNum > currentMaxSeq) currentMaxSeq = seqNum;
+                        if (item.drumId && item.drumId.trim() !== '') {
+                            processedItems.push({ ...item, drumId: item.drumId, qty: totalQty, satuan: satuanItem, namaBarang: namaBrg });
+                        } else {
+                            let remainingToAllocate = totalQty;
+                            let temporaryAssignedDrums = [];
+
+                            // Hitung maxSeq awal SEBELUM masuk ke loop while
+                            const existingDrums = this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk);
+                            let currentMaxSeq = 0;
+                            existingDrums.forEach(d => {
+                                const parts = d.drumId.split('-D');
+                                if (parts.length > 1) {
+                                    const seqNum = parseInt(parts[parts.length - 1], 10);
+                                    if (!isNaN(seqNum) && seqNum > currentMaxSeq) currentMaxSeq = seqNum;
+                                }
+                            });
+
+                            while (remainingToAllocate > 0) {
+                                let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
+                                remainingToAllocate -= chunkQty;
+
+                                let zeroDrum = this.drumLedger.find(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk && d.remainingLength === 0 && !temporaryAssignedDrums.includes(d.drumId));
+                                let assignedDrumId = '';
+
+                                if (zeroDrum) {
+                                    assignedDrumId = zeroDrum.drumId;
+                                } else {
+                                    currentMaxSeq++; 
+                                    assignedDrumId = `${whCode}-${threeCharBarang}-D${String(currentMaxSeq).padStart(2, '0')}`;
+                                }
+                    
+                                temporaryAssignedDrums.push(assignedDrumId);
+                                processedItems.push({ ...item, drumId: assignedDrumId, qty: chunkQty, satuan: satuanItem, namaBarang: namaBrg });
+                            }
+                        }
+                    } else {
+                        processedItems.push({ ...item, satuan: satuanItem, namaBarang: namaBrg });
                     }
                 });
-
-                while (remainingToAllocate > 0) {
-                    let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
-                    remainingToAllocate -= chunkQty;
-
-                    let zeroDrum = this.drumLedger.find(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk && d.remainingLength === 0 && !temporaryAssignedDrums.includes(d.drumId));
-                    let assignedDrumId = '';
-
-                    if (zeroDrum) {
-                        assignedDrumId = zeroDrum.drumId;
-                    } else {
-                        // PERBAIKAN: Tambahkan currentMaxSeq secara otomatis untuk setiap drum baru
-                        currentMaxSeq++; 
-                        assignedDrumId = `${whCode}-${threeCharBarang}-D${String(currentMaxSeq).padStart(2, '0')}`;
-                    }
-                    
-                    temporaryAssignedDrums.push(assignedDrumId);
-                    processedItems.push({ ...item, drumId: assignedDrumId, qty: chunkQty, namaBarang: namaBrg });
-                }
+                this.newTrans.items = processedItems;
             }
-        } else {
-            processedItems.push({ ...item, namaBarang: namaBrg });
-        }
-    });
-    this.newTrans.items = processedItems;
-}
             if (supabaseClient) {
                 try {
                     this.isLoading = true;
