@@ -759,9 +759,9 @@ export default function warehouseApp() {
                 keterangan: '', 
                 lampiran: '', 
                 lampiranUrl: '',
-                staffGudang: this.currentUser || '',
-                projectManager: '',
-                namaPenerima: '',
+                staffGudang: '',
+                projectManager: 'RUDI',
+                namaPenerima: this.currentUser || '',
                 items: [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '' }]
             };
             await this.generateNoTransaksi();
