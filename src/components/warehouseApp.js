@@ -179,6 +179,13 @@ export default function warehouseApp() {
                 }
             }, { deep: true });
 
+            // Watcher untuk tipeTransaksi: Jika Keluar, set staffGudang default ke currentUser
+            this.$watch('newTrans.tipeTransaksi', val => {
+                if (val === 'Keluar') {
+                    this.newTrans.staffGudang = this.currentUser || '';
+                }
+            });
+
             this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('searchNoTransaksi', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
@@ -764,6 +771,9 @@ export default function warehouseApp() {
                 namaPenerima: this.currentUser || '',
                 items: [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '' }]
             };
+            if (this.newTrans.tipeTransaksi === 'Keluar') {
+                this.newTrans.staffGudang = this.currentUser || '';
+            }
             await this.generateNoTransaksi();
             this.clearFormDraft();
             const fileInput = document.getElementById('attachmentInput');
@@ -853,7 +863,16 @@ export default function warehouseApp() {
             }
         },
 
-        onTipeTransaksiChange() { this.newTrans.gudangAsal = ''; this.newTrans.gudangTujuan = ''; this.generateNoTransaksi(); },
+        onTipeTransaksiChange() { 
+            this.newTrans.gudangAsal = ''; 
+            this.newTrans.gudangTujuan = ''; 
+            if (this.newTrans.tipeTransaksi === 'Keluar') {
+                this.newTrans.staffGudang = this.currentUser || '';
+            } else {
+                this.newTrans.staffGudang = '';
+            }
+            this.generateNoTransaksi(); 
+        },
         resetItemsOnWarehouseChange() { this.newTrans.items.forEach(i => i.drumId = ''); },
         
         getGudangTujuanList() { 
