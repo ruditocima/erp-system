@@ -1110,9 +1110,6 @@
                     this.inisialisasiRealtimeStok();
                     this.refreshIcons();
 
-                    // Deep watcher master data dihapus dari sini untuk mencegah konsumsi memori berlebih 
-                    // dan dipindah langsung saat penyimpanan data (saveModalData & deleteItem).
-
                     this.$watch('newTrans', val => {
                         if (val && (val.noReferensi || val.keterangan || (val.items && val.items.some(i => i.kodeBarang || i.qty)))) {
                             this.saveFormDraft(val);
@@ -1136,7 +1133,6 @@
                 inisialisasiRealtimeStok() {
                     if (!supabaseClient) return;
 
-                    // Batasi hanya pada tabel spesifik agar tidak membebani browser
                     supabaseClient.channel('pantau-stok-wms-optimized')
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'stok_gudang' }, () => {
                             this.scheduleReload();
@@ -1394,6 +1390,7 @@
                         this.showNotification('Gagal memuat data dari database: ' + (error.message || error), 'error');
                     } finally {
                         this.isLoading = false;
+                        this.refreshIcons();
                     }
                 },
 
