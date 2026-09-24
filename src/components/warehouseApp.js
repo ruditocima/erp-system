@@ -271,9 +271,9 @@ export default function warehouseApp() {
             return this.paginate(this.getFilteredDrumLedger(), this.pageDrum, this.pageSizeDrum);
         },
         getPaginatedMaterialUsage() {
-            if (supabaseClient) return this.materialUsage;
-            return this.paginate(this.getFilteredMaterialUsage(), this.pageUsage, this.pageSizeUsage);
-        },
+    if (supabaseClient) return this.materialUsage;
+    return this.paginate(this.getFilteredMaterialUsage(), this.pageUsage, this.pageSizeUsage);
+},
         getPaginatedTransactions() {
             if (supabaseClient) return this.transactions;
             return this.paginate(this.getFilteredTransactions(), this.pageTx, this.pageSizeTx);
@@ -371,35 +371,50 @@ export default function warehouseApp() {
                     this.totalDrumCount = countDrum !== null ? countDrum : drumData.length;
                 }
 
-                let usageQuery = supabaseClient.from('material_usage').select('*', { count: 'exact' });
-                if (this.searchMaterialUsageProject) {
-                    const q = this.searchMaterialUsageProject.trim();
-                    usageQuery = usageQuery.or(`kode_project.ilike.%${q}%,project_name.ilike.%${q}%,no_po.ilike.%${q}%`);
-                } else if (!this.isSuperAdmin) {
-                    const reg = this.userRegion().toLowerCase();
-                    const regionalProjectCodes = this.masterProject.filter(p => (p.region || '').toLowerCase() === reg).map(p => p.kodeProject);
-                    if (regionalProjectCodes.length > 0) usageQuery = usageQuery.in('kode_project', regionalProjectCodes);
-                }
-                const fromUsage = (this.pageUsage - 1) * this.pageSizeUsage;
-                const toUsage = fromUsage + this.pageSizeUsage - 1;
-                const { data: usageData, count: countUsage, error: usageError } = await usageQuery.order('tanggal', { ascending: false }).range(fromUsage, toUsage);
+                // Query Material Usage
+let usageQuery = supabaseClient.from('material_usage').select('*', { count: 'exact' });
 
-                if (usageError) throw usageError;
-                if (usageData) {
-                    this.materialUsage = usageData.map(u => ({
-                        id: u.id,
-                        transactionNo: u.transaction_no || '',
-                        kodeProject: u.kode_project,
-                        noPO: u.no_po,
-                        projectName: u.project_name,
-                        kodeBarang: u.kode_barang || '',
-                        namaBarang: u.nama_barang,
-                        drumId: u.drum_id,
-                        qty: parseFloat(u.qty) || 0,
-                        tanggal: u.tanggal
-                    }));
-                    this.totalUsageCount = countUsage !== null ? countUsage : usageData.length;
-                }
+if (this.searchMaterialUsageProject) {
+    const q = this.searchMaterialUsageProject.trim();
+    usageQuery = usageQuery.or(`kode_project.ilike.%${q}%,project_name.ilike.%${q}%,no_po.ilike.%${q}%`);
+} else if (!this.isSuperAdmin) {
+    const reg = (this.userRegion() || '').toLowerCase();
+    const regionalProjectCodes = this.masterProject
+        .filter(p => (p.region || '').toLowerCase() === reg)
+        .map(p => p.kodeProject)
+        .filter(Boolean);
+    
+    if (regionalProjectCodes.length > 0) {
+        usageQuery = usageQuery.in('kode_project', regionalProjectCodes);
+    } else {
+        // Mencegah query mengambil seluruh data global jika region tidak memiliki project
+        usageQuery = usageQuery.in('kode_project', ['__NONE__']);
+    }
+}
+
+const fromUsage = (this.pageUsage - 1) * this.pageSizeUsage;
+const toUsage = fromUsage + this.pageSizeUsage - 1;
+const { data: usageData, count: countUsage, error: usageError } = await usageQuery
+    .order('tanggal', { ascending: false, nullsFirst: false })
+    .range(fromUsage, toUsage);
+
+if (usageError) {
+    console.error('Gagal mengambil material_usage:', usageError.message);
+} else if (usageData) {
+    this.materialUsage = usageData.map(u => ({
+        id: u.id,
+        transactionNo: u.transaction_no || u.transactionNo || '',
+        kodeProject: u.kode_project || u.kodeProject || '',
+        noPO: u.no_po || u.noPO || '',
+        projectName: u.project_name || u.projectName || '',
+        kodeBarang: u.kode_barang || u.kodeBarang || '',
+        namaBarang: u.nama_barang || u.namaBarang || '',
+        drumId: u.drum_id || u.drumId || '',
+        qty: parseFloat(u.qty) || 0,
+        tanggal: u.tanggal || u.created_at || ''
+    }));
+    this.totalUsageCount = countUsage !== null ? countUsage : usageData.length;
+}
 
                 let txQuery = supabaseClient.from('transactions').select('*', { count: 'exact' });
                 if (this.searchNoTransaksi) {
@@ -1325,26 +1340,27 @@ export default function warehouseApp() {
         },
 
         getFilteredMaterialUsage() {
-            if (supabaseClient) {
-                const dummy = new Array(this.totalUsageCount || this.materialUsage.length);
-                const start = (this.pageUsage - 1) * this.pageSizeUsage;
-                for (let i = 0; i < this.materialUsage.length; i++) {
-                    dummy[start + i] = this.materialUsage[i];
-                }
-                return dummy;
-            }
-            let list = this.materialUsage;
-            if (!this.isSuperAdmin) {
-                const reg = this.userRegion().toLowerCase();
-                const regionalProjectCodes = this.masterProject.filter(p => (p.region || '').toLowerCase() === reg).map(p => p.kodeProject);
-                list = list.filter(u => regionalProjectCodes.includes(u.kodeProject));
-            }
-            if (this.searchMaterialUsageProject) {
-                const q = this.searchMaterialUsageProject.toLowerCase();
-                list = list.filter(u => (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) || (u.projectName && u.projectName.toLowerCase().includes(q)));
-            }
-            return list;
-        },
+    if (supabaseClient) {
+        return this.materialUsage; // Kembalikan array hasil query Supabase langsung tanpa array dummy
+    }
+    let list = this.materialUsage;
+    if (!this.isSuperAdmin) {
+        const reg = (this.userRegion() || '').toLowerCase();
+        const regionalProjectCodes = this.masterProject
+            .filter(p => (p.region || '').toLowerCase() === reg)
+            .map(p => p.kodeProject);
+        list = list.filter(u => regionalProjectCodes.includes(u.kodeProject));
+    }
+    if (this.searchMaterialUsageProject) {
+        const q = this.searchMaterialUsageProject.toLowerCase();
+        list = list.filter(u => 
+            (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) || 
+            (u.projectName && u.projectName.toLowerCase().includes(q)) ||
+            (u.noPO && u.noPO.toLowerCase().includes(q))
+        );
+    }
+    return list;
+},
 
         getFilteredTransactions() {
             if (supabaseClient) {
