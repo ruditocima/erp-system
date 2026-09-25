@@ -12,6 +12,9 @@ function safeLoadStorage(key, fallback) {
 
 export default function warehouseApp() {
     return {
+        // Properti URL Web App Google Apps Script
+        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbxGHy3EXGt68jWztirU0hyp0fACygvO0aYqe7P_O9ETDZ7Lc8P6RgOmEP6d5kx27nO3qA/exec', // Ganti dengan URL deployment Google Apps Script Anda
+
         isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
         currentUser: localStorage.getItem('vortex_user') || 'Admin',
         currentRole: localStorage.getItem('vortex_role') || 'Super Admin',
@@ -896,26 +899,67 @@ export default function warehouseApp() {
             });
         },
 
-        async handleFileUpload(e) {
-            const file = e.target.files[0];
+        // Handler pengunggahan berkas ke Google Drive via Google Apps Script Web App
+        async handleFileUpload(event) {
+            const file = event.target.files[0];
             if (!file) return;
-            const maxSizeInBytes = 5 * 1024 * 1024;
-            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-            if (file.size > maxSizeInBytes) {
-                this.showNotification('Ukuran file terlalu besar! Maksimal 5 MB.', 'error');
-                e.target.value = '';
+
+            // Batasi ukuran file (misalnya maksimal 10 MB)
+            if (file.size > 10 * 1024 * 1024) {
+                this.showNotification('Ukuran berkas terlalu besar! Maksimal 10MB.', 'error');
+                event.target.value = '';
                 return;
             }
-            if (!allowedTypes.includes(file.type)) {
-                this.showNotification('Format file tidak didukung!', 'error');
-                e.target.value = '';
-                return;
+
+            this.isLoading = true;
+            this.showNotification('Mengunggah berkas ke Google Drive...', 'info');
+
+            try {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                
+                reader.onload = async () => {
+                    const base64Data = reader.result;
+
+                    const payload = {
+                        fileName: `${Date.now()}_${file.name}`,
+                        mimeType: file.type,
+                        fileData: base64Data
+                    };
+
+                    // Mengirim file ke Google Apps Script API
+                    const response = await fetch(this.googleScriptUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'text/plain;charset=utf-8' // Menghindari isu CORS preflight
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.status === 'success') {
+                        // Simpan URL Google Drive ke state transaksi
+                        this.newTrans.lampiranUrl = result.fileUrl;
+                        this.newTrans.lampiran = file.name;
+                        this.showNotification('Lampiran berhasil diunggah ke Google Drive!', 'success');
+                    } else {
+                        throw new Error(result.message || 'Gagal mengunggah file.');
+                    }
+                    this.isLoading = false;
+                };
+
+                reader.onerror = (error) => {
+                    console.error('Gagal membaca berkas:', error);
+                    this.showNotification('Gagal membaca berkas lokal.', 'error');
+                    this.isLoading = false;
+                };
+
+            } catch (err) {
+                console.error('Unggah ke Google Drive gagal:', err);
+                this.showNotification('Gagal mengunggah lampiran: ' + err.message, 'error');
+                this.isLoading = false;
             }
-            if (this.newTrans.lampiranUrl && String(this.newTrans.lampiranUrl).startsWith('blob:')) {
-                URL.revokeObjectURL(this.newTrans.lampiranUrl);
-            }
-            this.newTrans.lampiran = file.name;
-            this.newTrans.lampiranUrl = URL.createObjectURL(file);
         },
 
         async uploadAttachment(fileInput, transactionId) {
