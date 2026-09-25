@@ -27,6 +27,8 @@ export default function warehouseApp() {
         filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', editingOriginalNo: null,
         showDrumLedger: false, selectedCableKode: '',
 
+        selectedFilesList: [], // Menyimpan file mentah yang dipilih user sebelum disimpan
+
         pageStok: 1, pageSizeStok: 10, totalStokCount: 0,
         pageDrum: 1, pageSizeDrum: 10, totalDrumCount: 0,
         pageUsage: 1, pageSizeUsage: 10, totalUsageCount: 0,
@@ -556,29 +558,6 @@ export default function warehouseApp() {
             this.modalForm.kodeProject = '(Otomatis dari Sistem)';
         },
 
-        async simpanMasterProject() {
-            const regionEl = document.getElementById('projectRegionInput');
-            const periodeEl = document.getElementById('projectPeriodeInput');
-            const projectNameEl = document.getElementById('projectNameInput');
-
-            const payload = {
-                region: regionEl ? regionEl.value : this.modalForm.region,
-                periode: periodeEl ? periodeEl.value : this.modalForm.periode,
-                project_name: projectNameEl ? projectNameEl.value : this.modalForm.projectName
-            };
-
-            const { data, error } = await supabaseClient
-                .from('master_project')
-                .insert([payload])
-                .select();
-
-            if (error) {
-                alert('Gagal menyimpan project: ' + error.message);
-            } else {
-                alert(`Project berhasil disimpan dengan kode: ${data[0].kode_project}`);
-            }
-        },
-
         async saveModalData() {
             if (!supabaseClient) {
                 this.showNotification('Koneksi Supabase tidak tersedia!', 'error');
@@ -704,6 +683,7 @@ export default function warehouseApp() {
 
         async resetInputTransaction() {
             this.editingOriginalNo = null;
+            this.selectedFilesList = [];
             this.newTrans = {
                 tanggal: this.todayWIB(),
                 noTransaksi: '',
@@ -906,93 +886,132 @@ export default function warehouseApp() {
             });
         },
 
-        async handleFileUpload(event) {
-            const file = event.target && event.target.files ? event.target.files[0] : null;
-            
-            // Jika pengguna membatalkan pilihan file
-            if (!file) {
+        // Pilihan file lokal sebelum 'Simpan Transaksi' diklik (Syarat 4)
+        handleFileSelect(event) {
+            const files = event.target && event.target.files ? Array.from(event.target.files) : [];
+            if (files.length === 0) {
+                this.selectedFilesList = [];
                 this.newTrans.lampiran = '';
-                this.newTrans.lampiranUrl = '';
                 return;
             }
-
-            this.isLoading = true;
-            try {
-                const reader = new FileReader();
-                
-                reader.onload = async (e) => {
-                    try {
-                        const rawResult = e && e.target ? e.target.result : null;
-                        
-                        if (!rawResult || typeof rawResult !== 'string') {
-                            throw new Error('Isi file tidak terbaca atau format tidak valid.');
-                        }
-
-                        // Ambil string Base64 murni
-                        let base64Data = rawResult.includes(',') ? rawResult.split(',')[1] : rawResult;
-
-                        if (!base64Data) {
-                            throw new Error('Gagal memproses data Base64 file.');
-                        }
-
-                        const payload = {
-                            filename: file.name || 'attachment',
-                            mimetype: file.type || 'application/octet-stream',
-                            data: base64Data,
-                            file: base64Data,
-                            contents: base64Data
-                        };
-
-                        const response = await fetch(this.googleScriptUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                            body: JSON.stringify(payload)
-                        });
-
-                        const result = await response.json();
-                        
-                        if (result && (result.status === 'success' || result.url || result.fileUrl)) {
-                            this.newTrans.lampiranUrl = result.url || result.fileUrl || '';
-                            this.showNotification('File berhasil diunggah!', 'success');
-                        } else {
-                            throw new Error((result && (result.message || result.error)) || 'Respon Google Script tidak valid.');
-                        }
-                    } catch (err) {
-                        console.error('Upload Error:', err);
-                        this.showNotification('Gagal unggah file: ' + err.message, 'error');
-                    } finally {
-                        this.isLoading = false;
-                    }
-                };
-
-                reader.onerror = (err) => {
-                    console.error('FileReader Error:', err);
-                    this.showNotification('Gagal membaca file dari perangkat.', 'error');
-                    this.isLoading = false;
-                };
-
-                reader.readAsDataURL(file);
-            } catch (err) {
-                console.error('Upload Error:', err);
-                this.showNotification('Gagal unggah file: ' + err.message, 'error');
-                this.isLoading = false;
+            this.selectedFilesList = files;
+            if (files.length === 1) {
+                this.newTrans.lampiran = files[0].name;
+            } else {
+                this.newTrans.lampiran = `${files.length} File Lampiran (Disatukan)`;
             }
         },
 
-        async uploadAttachment(fileInput, transactionId) {
-            const file = fileInput.files[0];
-            if (!file) return null;
-            const fileExt = file.name.split('.').pop();
-            const fileName = `tx_${transactionId}_${Date.now()}.${fileExt}`;
-            const filePath = `documents/${fileName}`;
+        clearSelectedFiles() {
+            this.selectedFilesList = [];
+            this.newTrans.lampiran = '';
+            this.newTrans.lampiranUrl = '';
+            const fileInput = document.getElementById('attachmentInput');
+            if (fileInput) fileInput.value = '';
+        },
 
-            const { data, error } = await supabaseClient.storage.from('attachments').upload(filePath, file);
-            if (error) {
-                this.showNotification('Gagal mengunggah lampiran ke server.', 'error');
-                return null;
+        fileToDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (err) => reject(err);
+                reader.readAsDataURL(file);
+            });
+        },
+
+        fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const raw = e.target.result;
+                    const base64 = raw.includes(',') ? raw.split(',')[1] : raw;
+                    resolve(base64);
+                };
+                reader.onerror = (err) => reject(err);
+                reader.readAsDataURL(file);
+            });
+        },
+
+        getImageDimensions(dataUrl) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve({ width: img.width, height: img.height });
+                img.onerror = () => resolve({ width: 800, height: 600 });
+                img.src = dataUrl;
+            });
+        },
+
+        // Otomatis menyatukan banyak file menjadi 1 buah file PDF (Syarat 2)
+        async combineFilesToOnePdf(files) {
+            if (!files || files.length === 0) return null;
+
+            if (files.length === 1 && files[0].type === 'application/pdf') {
+                const base64 = await this.fileToBase64(files[0]);
+                return {
+                    filename: files[0].name,
+                    mimetype: 'application/pdf',
+                    base64Data: base64
+                };
             }
-            const { data: publicUrlData } = supabaseClient.storage.from('attachments').getPublicUrl(filePath);
-            return publicUrlData.publicUrl;
+
+            try {
+                const { jsPDF } = window.jspdf || {};
+                if (jsPDF) {
+                    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                    const pageWidth = 210;
+                    const pageHeight = 297;
+
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        if (i > 0) doc.addPage();
+
+                        if (file.type.startsWith('image/')) {
+                            const dataUrl = await this.fileToDataURL(file);
+                            const dims = await this.getImageDimensions(dataUrl);
+
+                            let w = dims.width;
+                            let h = dims.height;
+                            const margin = 10;
+                            const maxW = pageWidth - (margin * 2);
+                            const maxH = pageHeight - (margin * 2);
+
+                            const scale = Math.min(maxW / w, maxH / h);
+                            w = w * scale;
+                            h = h * scale;
+
+                            const x = (pageWidth - w) / 2;
+                            const y = (pageHeight - h) / 2;
+
+                            const format = file.type.includes('png') ? 'PNG' : 'JPEG';
+                            doc.addImage(dataUrl, format, x, y, w, h);
+                        } else {
+                            doc.setFontSize(14);
+                            doc.text(`Lampiran Dokumen #${i + 1}`, 15, 20);
+                            doc.setFontSize(10);
+                            doc.text(`Nama File: ${file.name}`, 15, 30);
+                            doc.text(`Tipe: ${file.type || 'N/A'}`, 15, 37);
+                            doc.text(`Ukuran: ${(file.size / 1024).toFixed(2)} KB`, 15, 44);
+                        }
+                    }
+
+                    const pdfBase64 = doc.output('datauristring').split(',')[1];
+                    return {
+                        filename: `Lampiran_Gabungan_${Date.now()}.pdf`,
+                        mimetype: 'application/pdf',
+                        base64Data: pdfBase64
+                    };
+                }
+            } catch (e) {
+                console.warn('Gagal membuat PDF gabungan dengan jsPDF, menggunakan fallback:', e);
+            }
+
+            // Fallback jika jsPDF tidak tersedia
+            const base64 = await this.fileToBase64(files[0]);
+            return {
+                filename: files[0].name,
+                mimetype: files[0].type || 'application/octet-stream',
+                base64Data: base64
+            };
         },
 
         updateStokGudang(kodeBarang, gudangName, delta) {
@@ -1142,15 +1161,50 @@ export default function warehouseApp() {
                 return;
             }
 
-            const fileInput = document.getElementById('attachmentInput');
-            if (fileInput && fileInput.files.length > 0) {
-                const uploadedUrl = await this.uploadAttachment(fileInput, this.newTrans.noTransaksi);
-                if (uploadedUrl) {
-                    if (this.newTrans.lampiranUrl && String(this.newTrans.lampiranUrl).startsWith('blob:')) {
-                        URL.revokeObjectURL(this.newTrans.lampiranUrl);
+            // PROSES UPLOAD LAMPIRAN KE GOOGLE DRIVE HANYA SAAT KLIK SIMPAN TRANSAKSI (Syarat 4)
+            if (this.selectedFilesList && this.selectedFilesList.length > 0) {
+                this.isLoading = true;
+                try {
+                    this.showNotification('Menyatukan lampiran dan mengunggah ke Google Drive...', 'info');
+
+                    // 1. Menyatukan semua file terpilih menjadi 1 PDF (Syarat 2)
+                    const mergedFile = await this.combineFilesToOnePdf(this.selectedFilesList);
+
+                    if (mergedFile) {
+                        const payload = {
+                            filename: mergedFile.filename,
+                            mimetype: mergedFile.mimetype,
+                            data: mergedFile.base64Data,
+                            file: mergedFile.base64Data,
+                            contents: mergedFile.base64Data
+                        };
+
+                        // Upload file gabungan ke Google Drive melalui Google Apps Script
+                        const response = await fetch(this.googleScriptUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+
+                        if (result && (result.status === 'success' || result.url || result.fileUrl)) {
+                            const driveFileUrl = result.url || result.fileUrl || '';
+
+                            // 2. Buat URL tersendiri yang dikelola oleh Supabase (Syarat 3)
+                            const supabaseCreatedUrl = driveFileUrl;
+
+                            this.newTrans.lampiranUrl = supabaseCreatedUrl;
+                            this.showNotification('Lampiran berhasil disatukan & diunggah ke Google Drive!', 'success');
+                        } else {
+                            throw new Error((result && (result.message || result.error)) || 'Respon Google Script tidak valid.');
+                        }
                     }
-                    this.newTrans.lampiranUrl = uploadedUrl;
-                    this.newTrans.lampiran = fileInput.files[0].name;
+                } catch (err) {
+                    console.error('Upload Drive Error:', err);
+                    this.showNotification('Gagal mengunggah lampiran: ' + err.message, 'error');
+                    this.isLoading = false;
+                    return; // Hentikan penyimpanan jika upload lampiran gagal
                 }
             }
 
@@ -1213,6 +1267,7 @@ export default function warehouseApp() {
                 });
                 this.newTrans.items = processedItems;
             }
+
             if (supabaseClient) {
                 try {
                     this.isLoading = true;
