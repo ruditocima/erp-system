@@ -697,16 +697,17 @@ export default function warehouseApp() {
             }
         },
 
-        openInputTransaction() { 
+        openInputTransaction() {
             this.resetInputTransaction();
-            this.loadFormDraft();
-            this.switchTab('input-transaksi'); 
+            this.currentTab = 'input-transaksi';
+            this.refreshIcons();
         },
 
         async resetInputTransaction() {
             this.editingOriginalNo = null;
+            this.clearFormDraft();
             this.newTrans = {
-                tanggal: this.todayWIB(),
+                tanggal: this.todayWIB ? this.todayWIB() : new Date().toISOString().split('T')[0],
                 noTransaksi: '',
                 noReferensi: '', 
                 tipeTransaksi: 'Masuk',
@@ -721,6 +722,14 @@ export default function warehouseApp() {
                 namaPenerima: this.currentUser || '',
                 items: [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '' }]
             };
+            const fileInput = document.getElementById('attachmentInput');
+            if (fileInput) {
+                fileInput.value = '';
+            }
+            if (typeof this.generateNoTransaksi === 'function') {
+                await this.generateNoTransaksi();
+                }
+            },
             if (this.newTrans.tipeTransaksi === 'Keluar') {
                 this.newTrans.staffGudang = this.currentUser || '';
             }
