@@ -907,60 +907,53 @@ export default function warehouseApp() {
             const file = event.target.files[0];
             if (!file) return;
 
-            // Batasi ukuran file (misalnya maksimal 10 MB)
+            // Batasi ukuran file (misal maksimal 10 MB)
             if (file.size > 10 * 1024 * 1024) {
-                this.showNotification('Ukuran berkas terlalu besar! Maksimal 10MB.', 'error');
+                this.showNotification('Ukuran file maksimal 10MB', 'error');
                 event.target.value = '';
                 return;
             }
 
             this.isLoading = true;
-            this.showNotification('Mengunggah berkas ke Google Drive...', 'info');
-
             try {
+                // Konversi berkas ke Base64
                 const reader = new FileReader();
+                const base64Promise = new Promise((resolve, reject) => {
+                    reader.onload = () => resolve(reader.result.split(',')[1]);
+                    reader.onerror = error => reject(error);
+                });
                 reader.readAsDataURL(file);
-                
-                reader.onload = async () => {
-                    const base64Data = reader.result;
+                const base64Data = await base64Promise;
 
-                    const payload = {
-                        fileName: `${Date.now()}_${file.name}`,
+                // Unggah berkas ke Google Drive melalui Google Apps Script Web App
+                const response = await fetch(this.googleScriptUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8' // Menggunakan text/plain untuk menghindari hambatan CORS preflight pada Apps Script
+                    },
+                    body: JSON.stringify({
+                        action: 'uploadFile',
+                        filename: file.name,
                         mimeType: file.type,
                         fileData: base64Data
-                    };
+                    })
+                });
 
-                    // Mengirim file ke Google Apps Script API
-                    const response = await fetch(this.googleScriptUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'text/plain;charset=utf-8' // Menghindari isu CORS preflight
-                        },
-                        body: JSON.stringify(payload)
-                    });
+                const result = await response.json();
 
-                    const result = await response.json();
-
-                    if (result.status === 'success') {
-                        // Simpan URL Google Drive ke state transaksi
-                        this.newTrans.lampiranUrl = result.fileUrl;
-                        this.newTrans.lampiran = file.name;
-                        this.showNotification('Lampiran berhasil diunggah ke Google Drive!', 'success');
-                    } else {
-                        throw new Error(result.message || 'Gagal mengunggah file.');
-                    }
-                    this.isLoading = false;
-                };
-
-                reader.onerror = (error) => {
-                    console.error('Gagal membaca berkas:', error);
-                    this.showNotification('Gagal membaca berkas lokal.', 'error');
-                    this.isLoading = false;
-                };
-
+                if (result && (result.url || result.fileUrl || result.status === 'success')) {
+                    const fileUrl = result.url || result.fileUrl;
+                    this.newTrans.lampiranUrl = fileUrl;
+                    this.showNotification('Lampiran berhasil diunggah ke Google Drive!', 'success');
+                } else {
+                    throw new Error(result.message || 'Gagal mengunggah file ke Google Drive');
+                }
             } catch (err) {
-                console.error('Unggah ke Google Drive gagal:', err);
-                this.showNotification('Gagal mengunggah lampiran: ' + err.message, 'error');
+                console.error('Upload Error:', err);
+                this.showNotification('Gagal mengunggah lampiran: ' + (err.message || err), 'error');
+                event.target.value = '';
+                this.newTrans.lampiranUrl = '';
+            } finally {
                 this.isLoading = false;
             }
         },
