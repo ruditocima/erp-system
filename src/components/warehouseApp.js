@@ -13,7 +13,7 @@ function safeLoadStorage(key, fallback) {
 export default function warehouseApp() {
     return {
         // Properti URL Web App Google Apps Script
-        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbwdT2yJe7z7zC9on5gXS4BwDp5keJzgubNE0ypOPtupP5Pwh-74VIwrVGcBWOL4vFYz5w/exec',
+        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbzHTIlsUb_7wsweXEWio6M_eubY01sd2yu8jeYfeLS2W1ercJo3A70AsO3qIR5mkIoePw/exec',
 
         isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
         currentUser: localStorage.getItem('vortex_user') || 'Admin',
@@ -907,75 +907,75 @@ export default function warehouseApp() {
         },
 
         async handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // Batasi ukuran file (opsional, maks 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-        this.showNotification('Ukuran file terlalu besar! Maksimal 5MB.', 'error');
-        event.target.value = '';
-        return;
-    }
-
-    this.isLoading = true;
-    const reader = new FileReader();
-
-    reader.onload = async () => {
-        try {
-            const base64Data = reader.result.split(',')[1];
-            const payload = {
-                filename: file.name,
-                mimeType: file.type,
-                base64: base64Data
-            };
-
-            // Kirim data ke Google Apps Script
-            const response = await fetch(this.googleScriptUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'text/plain;charset=utf-8' // Mengabaikan CORS preflight pada Google Script
-                },
-                body: JSON.stringify(payload)
-            });
-
-            // Cek apakah HTTP response OK (bukan 404 atau 500)
-            if (!response.ok) {
-                throw new Error(`Server mengembalikan status HTTP ${response.status} (${response.statusText})`);
+            const file = event.target && event.target.files ? event.target.files[0] : null;
+            
+            // Jika pengguna membatalkan pilihan file
+            if (!file) {
+                this.newTrans.lampiran = '';
+                this.newTrans.lampiranUrl = '';
+                return;
             }
 
-            const responseText = await response.text();
-            let result;
-
+            this.isLoading = true;
             try {
-                result = JSON.parse(responseText);
-            } catch (jsonErr) {
-                throw new Error('Respon server bukan JSON valid. Pastikan URL Google Apps Script sudah benar.');
-            }
+                const reader = new FileReader();
+                
+                reader.onload = async (e) => {
+                    try {
+                        const rawResult = e.target.result;
+                        if (!rawResult) {
+                            throw new Error('Isi file tidak terbaca atau kosong.');
+                        }
 
-            if (result && (result.url || result.fileUrl || result.status === 'success')) {
-                this.newTrans.lampiranUrl = result.url || result.fileUrl;
-                this.showNotification('File berhasil diunggah!', 'success');
-            } else {
-                throw new Error(result.message || 'Gagal mengunggah file.');
-            }
-        } catch (error) {
-            console.error('Upload Error:', error);
-            this.showNotification(`Gagal mengunggah lampiran: ${error.message}`, 'error');
-            this.newTrans.lampiranUrl = '';
-            event.target.value = '';
-        } finally {
-            this.isLoading = false;
-        }
-    };
+                        // Ambil string Base64 murni tanpa prefix header (data:*;base64,)
+                        let base64Data = '';
+                        if (typeof rawResult === 'string' && rawResult.includes(',')) {
+                            base64Data = rawResult.split(',')[1];
+                        } else {
+                            base64Data = rawResult;
+                        }
 
-    reader.onerror = (error) => {
-        console.error('FileReader Error:', error);
-        this.showNotification('Gagal membaca file dari penyimpanan lokal.', 'error');
-        this.isLoading = false;
-    };
+                        // Proteksi agar properti 'data' tidak bernilai null / undefined
+                        if (!base64Data) {
+                            throw new Error('Gagal memproses data Base64 file.');
+                        }
 
-    reader.readAsDataURL(file);
-} catch (err) {
+                        const payload = {
+                            filename: file.name,
+                            mimetype: file.type,
+                            data: base64Data
+                        };
+
+                        const response = await fetch(this.googleScriptUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+                        
+                        if (result && (result.status === 'success' || result.url || result.fileUrl)) {
+                            this.newTrans.lampiranUrl = result.url || result.fileUrl || '';
+                            this.showNotification('File berhasil diunggah!', 'success');
+                        } else {
+                            throw new Error((result && (result.message || result.error)) || 'Respon Google Script tidak valid.');
+                        }
+                    } catch (err) {
+                        console.error('Upload Error:', err);
+                        this.showNotification('Gagal unggah file: ' + err.message, 'error');
+                    } finally {
+                        this.isLoading = false;
+                    }
+                };
+
+                reader.onerror = (err) => {
+                    console.error('FileReader Error:', err);
+                    this.showNotification('Gagal membaca file dari perangkat.', 'error');
+                    this.isLoading = false;
+                };
+
+                reader.readAsDataURL(file);
+            } catch (err) {
                 console.error('Upload Error:', err);
                 this.showNotification('Gagal unggah file: ' + err.message, 'error');
                 this.isLoading = false;
