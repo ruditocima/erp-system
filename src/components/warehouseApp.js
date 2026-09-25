@@ -907,64 +907,77 @@ export default function warehouseApp() {
         },
 
         async handleFileUpload(event) {
-    const file = event.target && event.target.files ? event.target.files[0] : null;
-    
-    // Jika pengguna membatalkan pilihan file
-    if (!file) {
-        this.newTrans.lampiran = '';
-        this.newTrans.lampiranUrl = '';
-        return;
-    }
+            const file = event.target && event.target.files ? event.target.files[0] : null;
+            
+            // Jika pengguna membatalkan pilihan file
+            if (!file) {
+                this.newTrans.lampiran = '';
+                this.newTrans.lampiranUrl = '';
+                return;
+            }
 
-    this.isLoading = true;
-    try {
-        const reader = new FileReader();
-        
-        reader.onload = async (e) => {
+            this.isLoading = true;
             try {
-                const rawResult = e && e.target ? e.target.result : null;
+                const reader = new FileReader();
                 
-                if (!rawResult || typeof rawResult !== 'string') {
-                    throw new Error('Isi file tidak terbaca atau format tidak valid.');
-                }
+                reader.onload = async (e) => {
+                    try {
+                        const rawResult = e && e.target ? e.target.result : null;
+                        
+                        if (!rawResult || typeof rawResult !== 'string') {
+                            throw new Error('Isi file tidak terbaca atau format tidak valid.');
+                        }
 
-                // Ambil string Base64 murni
-                let base64Data = rawResult.includes(',') ? rawResult.split(',')[1] : rawResult;
+                        // Ambil string Base64 murni
+                        let base64Data = rawResult.includes(',') ? rawResult.split(',')[1] : rawResult;
 
-                if (!base64Data) {
-                    throw new Error('Gagal memproses data Base64 file.');
-                }
+                        if (!base64Data) {
+                            throw new Error('Gagal memproses data Base64 file.');
+                        }
 
-                // Payload lengkap dengan variasi key agar cocok dengan Google Apps Script
-                const payload = {
-                    filename: file.name || 'attachment',
-                    mimetype: file.type || 'application/octet-stream',
-                    data: base64Data,
-                    file: base64Data,      // Fallback jika GAS membaca json.file
-                    contents: base64Data  // Fallback jika GAS membaca json.contents
+                        const payload = {
+                            filename: file.name || 'attachment',
+                            mimetype: file.type || 'application/octet-stream',
+                            data: base64Data,
+                            file: base64Data,
+                            contents: base64Data
+                        };
+
+                        const response = await fetch(this.googleScriptUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+                        
+                        if (result && (result.status === 'success' || result.url || result.fileUrl)) {
+                            this.newTrans.lampiranUrl = result.url || result.fileUrl || '';
+                            this.showNotification('File berhasil diunggah!', 'success');
+                        } else {
+                            throw new Error((result && (result.message || result.error)) || 'Respon Google Script tidak valid.');
+                        }
+                    } catch (err) {
+                        console.error('Upload Error:', err);
+                        this.showNotification('Gagal unggah file: ' + err.message, 'error');
+                    } finally {
+                        this.isLoading = false;
+                    }
                 };
 
-                const response = await fetch(this.googleScriptUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(payload)
-                });
+                reader.onerror = (err) => {
+                    console.error('FileReader Error:', err);
+                    this.showNotification('Gagal membaca file dari perangkat.', 'error');
+                    this.isLoading = false;
+                };
 
-                const result = await response.json();
-                
-                if (result && (result.status === 'success' || result.url || result.fileUrl)) {
-                    this.newTrans.lampiranUrl = result.url || result.fileUrl || '';
-                    this.showNotification('File berhasil diunggah!', 'success');
-                } else {
-                    throw new Error((result && (result.message || result.error)) || 'Respon Google Script tidak valid.');
-                }
+                reader.readAsDataURL(file);
             } catch (err) {
                 console.error('Upload Error:', err);
                 this.showNotification('Gagal unggah file: ' + err.message, 'error');
-            } finally {
                 this.isLoading = false;
             }
-        };
+        },
 
         reader.onerror = (err) => {
             console.error('FileReader Error:', err);
