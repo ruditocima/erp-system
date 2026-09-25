@@ -769,7 +769,7 @@ export default function warehouseApp() {
         this.showNotification('Gagal menghapus transaksi: ' + (err.message || err), 'error');
     } finally {
         this.isLoading = false;
-    }
+    },
             } else {
                 // Fallback Offline Mode
                 this.revertStockOffline(tx);
