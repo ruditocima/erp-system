@@ -773,18 +773,6 @@ export default function warehouseApp() {
                 this.isLoading = false;
             }
         },
-            } else {
-                // Fallback Offline Mode
-                this.revertStockOffline(tx);
-                this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-                this.materialUsage = this.materialUsage.filter(u => u.noTransaksi !== tx.noTransaksi);
-                localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
-                localStorage.setItem('vortex_stokGudang', JSON.stringify(this.stokGudang));
-                localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
-                localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
-                this.showNotification('Transaksi dihapus & stok dikembalikan (Offline Mode).', 'success');
-            }
-        },
 
         revertStockOffline(tx) {
             if (!tx || !tx.items) return;
