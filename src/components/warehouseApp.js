@@ -770,7 +770,6 @@ export default function warehouseApp() {
     } finally {
         this.isLoading = false;
     }
-}
             } else {
                 // Fallback Offline Mode
                 this.revertStockOffline(tx);
