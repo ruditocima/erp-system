@@ -13,7 +13,7 @@ function safeLoadStorage(key, fallback) {
 export default function warehouseApp() {
     return {
         // Properti URL Web App Google Apps Script
-        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbzHTIlsUb_7wsweXEWio6M_eubY01sd2yu8jeYfeLS2W1ercJo3A70AsO3qIR5mkIoePw/exec', // Ganti dengan URL deployment Google Apps Script Anda
+        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbzHTIlsUb_7wsweXEWio6M_eubY01sd2yu8jeYfeLS2W1ercJo3A70AsO3qIR5mkIoePw/exec',
 
         isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
         currentUser: localStorage.getItem('vortex_user') || 'Admin',
@@ -349,7 +349,6 @@ export default function warehouseApp() {
                     usageQuery = usageQuery.or(`kode_project.ilike.%${this.searchMaterialUsageProject}%,project_name.ilike.%${this.searchMaterialUsageProject}%`);
                 }
                 const fromUsage = (this.pageUsage - 1) * this.pageSizeUsage;
-                // SESUDAH (Gunakan 'id' atau 'tanggal')
                 const { data: usageData, count: countUsage } = await usageQuery
                     .order('id', { ascending: false })
                     .range(fromUsage, fromUsage + this.pageSizeUsage - 1);
@@ -697,17 +696,16 @@ export default function warehouseApp() {
             }
         },
 
-        openInputTransaction() {
+        openInputTransaction() { 
             this.resetInputTransaction();
-            this.currentTab = 'input-transaksi';
-            this.refreshIcons();
+            this.loadFormDraft();
+            this.switchTab('input-transaksi'); 
         },
 
         async resetInputTransaction() {
             this.editingOriginalNo = null;
-            this.clearFormDraft();
             this.newTrans = {
-                tanggal: this.todayWIB ? this.todayWIB() : new Date().toISOString().split('T')[0],
+                tanggal: this.todayWIB(),
                 noTransaksi: '',
                 noReferensi: '', 
                 tipeTransaksi: 'Masuk',
@@ -722,14 +720,6 @@ export default function warehouseApp() {
                 namaPenerima: this.currentUser || '',
                 items: [{ kategori: '', jenis: '', kodeBarang: '', namaBarang: '', drumId: '', qty: '' }]
             };
-            const fileInput = document.getElementById('attachmentInput');
-            if (fileInput) {
-                fileInput.value = '';
-            }
-            if (typeof this.generateNoTransaksi === 'function') {
-                await this.generateNoTransaksi();
-                }
-            },
             if (this.newTrans.tipeTransaksi === 'Keluar') {
                 this.newTrans.staffGudang = this.currentUser || '';
             }
@@ -747,7 +737,6 @@ export default function warehouseApp() {
             this.isLoading = true;
             try {
                 if (supabaseClient) {
-                    // Panggil RPC fungsi rollback penghapusan
                     const { data, error } = await supabaseClient.rpc('delete_transaction_rollback', {
                         p_no_transaksi: tx.noTransaksi
                     });
@@ -761,9 +750,8 @@ export default function warehouseApp() {
 
                     this.showNotification('Transaksi & data terkait berhasil dihapus!', 'success');
                     await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
-                    await this.loadDataFromSupabase(); // Reload data realtime
+                    await this.loadDataFromSupabase();
                 } else {
-                    // Logika Hapus Mode Lokal (Tanpa Supabase) / Fallback Offline Mode
                     this.revertStockOffline(tx);
                     this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
                     this.materialUsage = this.materialUsage.filter(m => m.kodeProject !== tx.kodeProject && m.noTransaksi !== tx.noTransaksi);
@@ -918,58 +906,78 @@ export default function warehouseApp() {
             });
         },
 
-        // Handler pengunggahan berkas ke Google Drive via Google Apps Script Web App
         async handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            // Batasi ukuran file (misal maksimal 10 MB)
-            if (file.size > 10 * 1024 * 1024) {
-                this.showNotification('Ukuran file maksimal 10MB', 'error');
-                event.target.value = '';
+            const file = event.target && event.target.files ? event.target.files[0] : null;
+            
+            // Jika pengguna membatalkan pilihan file
+            if (!file) {
+                this.newTrans.lampiran = '';
+                this.newTrans.lampiranUrl = '';
                 return;
             }
 
             this.isLoading = true;
             try {
-                // Konversi berkas ke Base64
                 const reader = new FileReader();
-                const base64Promise = new Promise((resolve, reject) => {
-                    reader.onload = () => resolve(reader.result.split(',')[1]);
-                    reader.onerror = error => reject(error);
-                });
+                
+                reader.onload = async (e) => {
+                    try {
+                        const rawResult = e.target.result;
+                        if (!rawResult) {
+                            throw new Error('Isi file tidak terbaca atau kosong.');
+                        }
+
+                        // Ambil string Base64 murni tanpa prefix header (data:*;base64,)
+                        let base64Data = '';
+                        if (typeof rawResult === 'string' && rawResult.includes(',')) {
+                            base64Data = rawResult.split(',')[1];
+                        } else {
+                            base64Data = rawResult;
+                        }
+
+                        // Proteksi agar properti 'data' tidak bernilai null / undefined
+                        if (!base64Data) {
+                            throw new Error('Gagal memproses data Base64 file.');
+                        }
+
+                        const payload = {
+                            filename: file.name,
+                            mimetype: file.type,
+                            data: base64Data
+                        };
+
+                        const response = await fetch(this.googleScriptUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+                        
+                        if (result && (result.status === 'success' || result.url || result.fileUrl)) {
+                            this.newTrans.lampiranUrl = result.url || result.fileUrl || '';
+                            this.showNotification('File berhasil diunggah!', 'success');
+                        } else {
+                            throw new Error((result && (result.message || result.error)) || 'Respon Google Script tidak valid.');
+                        }
+                    } catch (err) {
+                        console.error('Upload Error:', err);
+                        this.showNotification('Gagal unggah file: ' + err.message, 'error');
+                    } finally {
+                        this.isLoading = false;
+                    }
+                };
+
+                reader.onerror = (err) => {
+                    console.error('FileReader Error:', err);
+                    this.showNotification('Gagal membaca file dari perangkat.', 'error');
+                    this.isLoading = false;
+                };
+
                 reader.readAsDataURL(file);
-                const base64Data = await base64Promise;
-
-                // Unggah berkas ke Google Drive melalui Google Apps Script Web App
-                const response = await fetch(this.googleScriptUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'text/plain;charset=utf-8' // Menggunakan text/plain untuk menghindari hambatan CORS preflight pada Apps Script
-                    },
-                    body: JSON.stringify({
-                        action: 'uploadFile',
-                        filename: file.name,
-                        mimeType: file.type,
-                        fileData: base64Data
-                    })
-                });
-
-                const result = await response.json();
-
-                if (result && (result.url || result.fileUrl || result.status === 'success')) {
-                    const fileUrl = result.url || result.fileUrl;
-                    this.newTrans.lampiranUrl = fileUrl;
-                    this.showNotification('Lampiran berhasil diunggah ke Google Drive!', 'success');
-                } else {
-                    throw new Error(result.message || 'Gagal mengunggah file ke Google Drive');
-                }
             } catch (err) {
                 console.error('Upload Error:', err);
-                this.showNotification('Gagal mengunggah lampiran: ' + (err.message || err), 'error');
-                event.target.value = '';
-                this.newTrans.lampiranUrl = '';
-            } finally {
+                this.showNotification('Gagal unggah file: ' + err.message, 'error');
                 this.isLoading = false;
             }
         },
