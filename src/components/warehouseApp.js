@@ -731,29 +731,46 @@ export default function warehouseApp() {
         },
 
         async deleteTransaction(tx) {
-            if (!confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?`)) return;
+    if (!confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"? Data stok, usage, dan drum ledger terkait akan di-rollback.`)) {
+        return;
+    }
 
-            if (supabaseClient) {
-                this.isLoading = true;
-                try {
-                    const { data, error } = await supabaseClient.rpc('hapus_transaksi_dan_kembalikan_stok', {
-                        p_no_transaksi: tx.noTransaksi
-                    });
+    this.isLoading = true;
+    try {
+        if (supabaseClient) {
+            // Panggil RPC fungsi rollback penghapusan
+            const { data, error } = await supabaseClient.rpc('delete_transaction_rollback', {
+                p_no_transaksi: tx.noTransaksi
+            });
 
-                    if (error) throw error;
-                    if (data && data.status === 'error') {
-                        this.showNotification('Gagal: ' + data.message, 'error');
-                        return;
-                    }
+            if (error) throw error;
 
-                    this.showNotification('Transaksi berhasil dihapus dan stok/sisa panjang dikembalikan.', 'success');
-                    await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
-                    await this.loadDataFromSupabase();
-                } catch (err) {
-                    this.showNotification('Gagal menghapus transaksi: ' + (err.message || err), 'error');
-                } finally {
-                    this.isLoading = false;
-                }
+            if (data && data.status === 'error') {
+                this.showNotification(data.message, 'error');
+                return;
+            }
+
+            this.showNotification('Transaksi & data terkait berhasil dihapus!', 'success');
+            await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
+            await this.loadDataFromSupabase(); // Reload data realtime
+        } else {
+            // Logika Hapus Mode Lokal (Tanpa Supabase)
+            this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+            localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
+            
+            // Hapus dari Material Usage Lokal
+            this.materialUsage = this.materialUsage.filter(m => m.kodeProject !== tx.kodeProject);
+            localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
+
+            this.showNotification('Transaksi dihapus dari penyimpanan lokal.', 'success');
+        }
+    } catch (err) {
+        console.error('Gagal menghapus transaksi:', err);
+        this.showNotification('Gagal menghapus transaksi: ' + (err.message || err), 'error');
+    } finally {
+        this.isLoading = false;
+    }
+}
             } else {
                 // Fallback Offline Mode
                 this.revertStockOffline(tx);
