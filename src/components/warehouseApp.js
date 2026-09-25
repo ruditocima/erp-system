@@ -13,7 +13,7 @@ function safeLoadStorage(key, fallback) {
 export default function warehouseApp() {
     return {
         // Properti URL Web App Google Apps Script
-        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbzHTIlsUb_7wsweXEWio6M_eubY01sd2yu8jeYfeLS2W1ercJo3A70AsO3qIR5mkIoePw/exec',
+        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbwdT2yJe7z7zC9on5gXS4BwDp5keJzgubNE0ypOPtupP5Pwh-74VIwrVGcBWOL4vFYz5w/exec',
 
         isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
         currentUser: localStorage.getItem('vortex_user') || 'Admin',
