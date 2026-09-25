@@ -979,34 +979,6 @@ export default function warehouseApp() {
             }
         },
 
-        reader.onerror = (err) => {
-            console.error('FileReader Error:', err);
-            this.showNotification('Gagal membaca file dari perangkat.', 'error');
-            this.isLoading = false;
-        };
-
-        reader.readAsDataURL(file);
-    } catch (err) {
-        console.error('Upload Error:', err);
-        this.showNotification('Gagal unggah file: ' + err.message, 'error');
-        this.isLoading = false;
-    }
-},
-
-                reader.onerror = (err) => {
-                    console.error('FileReader Error:', err);
-                    this.showNotification('Gagal membaca file dari perangkat.', 'error');
-                    this.isLoading = false;
-                };
-
-                reader.readAsDataURL(file);
-            } catch (err) {
-                console.error('Upload Error:', err);
-                this.showNotification('Gagal unggah file: ' + err.message, 'error');
-                this.isLoading = false;
-            }
-        },
-
         async uploadAttachment(fileInput, transactionId) {
             const file = fileInput.files[0];
             if (!file) return null;
