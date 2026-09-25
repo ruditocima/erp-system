@@ -13,7 +13,7 @@ function safeLoadStorage(key, fallback) {
 export default function warehouseApp() {
     return {
         // Properti URL Web App Google Apps Script
-        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbxGHy3EXGt68jWztirU0hyp0fACygvO0aYqe7P_O9ETDZ7Lc8P6RgOmEP6d5kx27nO3qA/exec', // Ganti dengan URL deployment Google Apps Script Anda
+        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbzHTIlsUb_7wsweXEWio6M_eubY01sd2yu8jeYfeLS2W1ercJo3A70AsO3qIR5mkIoePw/exec', // Ganti dengan URL deployment Google Apps Script Anda
 
         isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
         currentUser: localStorage.getItem('vortex_user') || 'Admin',
@@ -349,7 +349,10 @@ export default function warehouseApp() {
                     usageQuery = usageQuery.or(`kode_project.ilike.%${this.searchMaterialUsageProject}%,project_name.ilike.%${this.searchMaterialUsageProject}%`);
                 }
                 const fromUsage = (this.pageUsage - 1) * this.pageSizeUsage;
-                const { data: usageData, count: countUsage } = await usageQuery.order('created_at', { ascending: false }).range(fromUsage, fromUsage + this.pageSizeUsage - 1);
+                // SESUDAH (Gunakan 'id' atau 'tanggal')
+                const { data: usageData, count: countUsage } = await usageQuery
+                    .order('id', { ascending: false })
+                    .range(fromUsage, fromUsage + this.pageSizeUsage - 1);
 
                 if (usageData) {
                     this.materialUsage = usageData.map(u => ({
