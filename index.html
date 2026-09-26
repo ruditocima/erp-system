@@ -4,34 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Warehouse Management System</title>
-    <!-- Tailwind CSS (CDN Stable) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@0.454.0"></script>
     <!-- Google Fonts: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- jsPDF untuk penggabungan otomatis beberapa lampiran menjadi 1 file PDF -->
+    <!-- jsPDF untuk penggabungan dokumen PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <style>
-        body { font-family: 'Inter', sans-serif; font-size: 13px; }
-        [x-cloak] { display: none !important; }
-
-        @media print {
-            @page { margin: 0; size: auto; }
-            body { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
-            .print\:hidden, aside, header, nav, .no-print { display: none !important; }
-            #printable-bast {
-                display: block !important;
-                position: static !important;
-                width: 100% !important;
-                visibility: visible !important;
-                padding: 12mm 15mm !important;
-            }
-            #printable-bast * { visibility: visible !important; }
-            tr { page-break-inside: avoid; }
-        }
-    </style>
-<base target="_blank">
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
 
@@ -526,62 +502,61 @@
                             </div>
                         </div>
                         <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
-    <table class="w-full text-left border-collapse">
-        <thead>
-            <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
-                <th class="p-3">Kode Barang</th>
-                <th class="p-3">Nama Barang</th>
-                <th class="p-3">Kategori</th>
-                <th class="p-3">Gudang</th>
-                <th class="p-3">Masuk</th>
-                <th class="p-3">Keluar</th>
-                <th class="p-3">T.Masuk</th>
-                <th class="p-3">T.Keluar</th>
-                <th class="p-3">Total Stok</th>
-                <th class="p-3">Satuan</th>
-            </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
-            <template x-for="stok in getPaginatedStokGudang()" :key="stok.kodeBarang + '-' + stok.gudang">
-                <tr class="hover:bg-slate-800/30 transition">
-                    <td class="p-3 text-indigo-400" x-text="stok.kodeBarang"></td>
-                    <td class="p-3 font-sans text-white font-medium" x-text="stok.namaBarang"></td>
-                    <td class="p-3 font-sans text-slate-300" x-text="stok.kategori"></td>
-                    <td class="p-3 font-sans text-slate-300" x-text="stok.gudang"></td>
-                    <td class="p-3 text-emerald-400 font-semibold" x-text="formatQty(stok.masuk)"></td>
-                    <td class="p-3 text-rose-400 font-semibold" x-text="formatQty(stok.keluar)"></td>
-                    <td class="p-3 text-blue-400 font-semibold" x-text="formatQty(stok.tMasuk)"></td>
-                    <td class="p-3 text-amber-400 font-semibold" x-text="formatQty(stok.tKeluar)"></td>
-                    <td class="p-3 font-bold">
-                        <template x-if="stok.kategori && stok.kategori.toLowerCase() === 'cable'">
-                            <button type="button" @click="showDrumLedger = true; selectedCableKode = stok.kodeBarang; filterStokGudang = stok.gudang;" class="text-emerald-400 hover:text-emerald-300 underline cursor-pointer flex items-center gap-1 focus:outline-none" title="Klik untuk melihat Tracking Drum">
-                                <span x-text="formatQty(stok.qty)"></span>
-                                <i data-lucide="chevron-down" class="w-3 h-3"></i>
-                            </button>
-                        </template>
-                        <template x-if="!stok.kategori || stok.kategori.toLowerCase() !== 'cable'">
-                            <span class="text-emerald-400" x-text="formatQty(stok.qty)"></span>
-                        </template>
-                    </td>
-                    <td class="p-3 font-sans text-slate-400" x-text="stok.sat"></td>
-                </tr>
-            </template>
-        </tbody>
-    </table>
-</div>
-                            <div class="flex items-center justify-between px-4 py-3 bg-slate-900/50 border-t border-slate-800 text-xs text-slate-400">
-                                <div>Menampilkan <span x-text="getFilteredStokGudang().length > 0 ? ((pageStok - 1) * pageSizeStok + 1) : 0"></span> - <span x-text="Math.min(pageStok * pageSizeStok, getFilteredStokGudang().length)"></span> dari <span x-text="getFilteredStokGudang().length"></span> data</div>
-                                <div class="flex items-center gap-2">
-                                    <select x-model.number="pageSizeStok" class="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[11px] text-slate-200">
-                                        <option value="5">5</option>
-                                        <option value="10">10</option>
-                                        <option value="25">25</option>
-                                        <option value="50">50</option>
-                                    </select>
-                                    <button type="button" @click="pageStok > 1 ? pageStok-- : null" :disabled="pageStok === 1" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded text-slate-300">Prev</button>
-                                    <span x-text="pageStok + ' / ' + totalPages(getFilteredStokGudang(), pageSizeStok)"></span>
-                                    <button type="button" @click="pageStok < totalPages(getFilteredStokGudang(), pageSizeStok) ? pageStok++ : null" :disabled="pageStok >= totalPages(getFilteredStokGudang(), pageSizeStok)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded text-slate-300">Next</button>
-                                </div>
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
+                                        <th class="p-3">Kode Barang</th>
+                                        <th class="p-3">Nama Barang</th>
+                                        <th class="p-3">Kategori</th>
+                                        <th class="p-3">Gudang</th>
+                                        <th class="p-3">Masuk</th>
+                                        <th class="p-3">Keluar</th>
+                                        <th class="p-3">T.Masuk</th>
+                                        <th class="p-3">T.Keluar</th>
+                                        <th class="p-3">Total Stok</th>
+                                        <th class="p-3">Satuan</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <template x-for="stok in getPaginatedStokGudang()" :key="stok.kodeBarang + '-' + stok.gudang">
+                                        <tr class="hover:bg-slate-800/30 transition">
+                                            <td class="p-3 text-indigo-400" x-text="stok.kodeBarang"></td>
+                                            <td class="p-3 font-sans text-white font-medium" x-text="stok.namaBarang"></td>
+                                            <td class="p-3 font-sans text-slate-300" x-text="stok.kategori"></td>
+                                            <td class="p-3 font-sans text-slate-300" x-text="stok.gudang"></td>
+                                            <td class="p-3 text-emerald-400 font-semibold" x-text="formatQty(stok.masuk)"></td>
+                                            <td class="p-3 text-rose-400 font-semibold" x-text="formatQty(stok.keluar)"></td>
+                                            <td class="p-3 text-blue-400 font-semibold" x-text="formatQty(stok.tMasuk)"></td>
+                                            <td class="p-3 text-amber-400 font-semibold" x-text="formatQty(stok.tKeluar)"></td>
+                                            <td class="p-3 font-bold">
+                                                <template x-if="stok.kategori && stok.kategori.toLowerCase() === 'cable'">
+                                                    <button type="button" @click="showDrumLedger = true; selectedCableKode = stok.kodeBarang; filterStokGudang = stok.gudang;" class="text-emerald-400 hover:text-emerald-300 underline cursor-pointer flex items-center gap-1 focus:outline-none" title="Klik untuk melihat Tracking Drum">
+                                                        <span x-text="formatQty(stok.qty)"></span>
+                                                        <i data-lucide="chevron-down" class="w-3 h-3"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="!stok.kategori || stok.kategori.toLowerCase() !== 'cable'">
+                                                    <span class="text-emerald-400" x-text="formatQty(stok.qty)"></span>
+                                                </template>
+                                            </td>
+                                            <td class="p-3 font-sans text-slate-400" x-text="stok.sat"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="flex items-center justify-between px-4 py-3 bg-slate-900/50 border-t border-slate-800 text-xs text-slate-400">
+                            <div>Menampilkan <span x-text="getFilteredStokGudang().length > 0 ? ((pageStok - 1) * pageSizeStok + 1) : 0"></span> - <span x-text="Math.min(pageStok * pageSizeStok, getFilteredStokGudang().length)"></span> dari <span x-text="getFilteredStokGudang().length"></span> data</div>
+                            <div class="flex items-center gap-2">
+                                <select x-model.number="pageSizeStok" class="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[11px] text-slate-200">
+                                    <option value="5">5</option>
+                                    <option value="10">10</option>
+                                    <option value="25">25</option>
+                                    <option value="50">50</option>
+                                </select>
+                                <button type="button" @click="pageStok > 1 ? pageStok-- : null" :disabled="pageStok === 1" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded text-slate-300">Prev</button>
+                                <span x-text="pageStok + ' / ' + totalPages(getFilteredStokGudang(), pageSizeStok)"></span>
+                                <button type="button" @click="pageStok < totalPages(getFilteredStokGudang(), pageSizeStok) ? pageStok++ : null" :disabled="pageStok >= totalPages(getFilteredStokGudang(), pageSizeStok)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded text-slate-300">Next</button>
                             </div>
                         </div>
                     </div>
@@ -940,7 +915,7 @@
         </div>
     </div>
 
-    <!-- MAIN MODULE ENTRY POINT -->
-    <script type="module" src="./src/main.js"></script>
+    <!-- ENTRY POINT VITE -->
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>
