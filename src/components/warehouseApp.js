@@ -13,7 +13,7 @@ function safeLoadStorage(key, fallback) {
 export default function warehouseApp() {
     return {
         // Properti URL Web App Google Apps Script
-        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbxGfGRF55_aYHdG9kMMLgGqV7_ksL5VZGtb6JLRpXBn9nTaMKYUlVrk6s587cTNYC7_/exec',
+        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbz5vORjryjIbV6ZoG-Vc49zL_Ye2fZCTN9whvIEzpHbQAVrycvz_n7wMmhlnrdBrZ5m/exec',
 
         isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
         currentUser: localStorage.getItem('vortex_user') || 'Admin',
@@ -324,20 +324,12 @@ export default function warehouseApp() {
                 const { data: stockData, count: countStok } = await stockQuery.order('kode_barang', { ascending: true }).range(fromStok, fromStok + this.pageSizeStok - 1);
                 if (stockData) {
                     this.stokGudang = stockData.map(s => ({
-                        kodeBarang: s.kode_barang,
-                        namaBarang: s.nama_barang,
-                        kategori: s.kategori,
-                        gudang: s.gudang,
-                        masuk: parseFloat(s.masuk) || 0,       // Kolom Masuk
-                        keluar: parseFloat(s.keluar) || 0,     // Kolom Keluar
-                        tMasuk: parseFloat(s.t_masuk) || 0,    // Kolom Transfer Masuk
-                        tKeluar: parseFloat(s.t_keluar) || 0,  // Kolom Transfer Keluar
-                        qty: parseFloat(s.qty) || 0,           // Saldo Akhir Stok
-                        sat: s.sat
+                        kodeBarang: s.kode_barang, namaBarang: s.nama_barang,
+                        kategori: s.kategori, gudang: s.gudang, qty: parseFloat(s.qty) || 0, sat: s.sat
                     }));
                     this.totalStokCount = countStok !== null ? countStok : stockData.length;
                 }
-                
+
                 // 5. Load Drum Ledger
                 let drumQuery = supabaseClient.from('drum_ledger').select('*', { count: 'exact' });
                 if (this.filterStokGudang) drumQuery = drumQuery.eq('gudang', this.filterStokGudang);
@@ -801,52 +793,39 @@ export default function warehouseApp() {
 
         async generateNoTransaksi() {
             if (this.editingOriginalNo) return;
-            
-            // Mengambil tanggal transaksi aktif atau tanggal hari ini (WIB)
-            const tanggalVal = this.newTrans.tanggal || this.todayWIB();
-            const dateObj = new Date(tanggalVal);
-            const yy = String(dateObj.getFullYear()).slice(-2); // Tahun 2 digit (contoh: 26)
-            const month = String(dateObj.getMonth() + 1).padStart(2, '0'); // Bulan 2 digit (contoh: 09)
-            
-            const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-            
-            // Format prefix menggunakan Tahun dan Bulan (YYMM), contoh: ACM-IN-2609-
-            const monthPrefix = `ACM-${typeCode}-${yy}${month}-`;
-
             if (!supabaseClient) {
-                // Mode Lokal: Mencari nomor urut maksimum berdasarkan bulan yang sama
+                const dateStr = (this.newTrans.tanggal || this.todayWIB()).replace(/-/g, '').substring(0, 6);
+                const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
+                const prefix = `ACM-${typeCode}-${dateStr}-`;
                 let maxSeq = 0;
                 this.transactions.forEach(t => {
-                    if (t.noTransaksi && t.noTransaksi.startsWith(monthPrefix)) {
-                        const seqNum = parseInt(t.noTransaksi.replace(monthPrefix, ''), 10);
+                    if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
+                        const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
                         if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
                     }
                 });
-                
-                // Menghasilkan nomor transaksi dengan padding 3 digit (001, 002, dst.)
-                this.newTrans.noTransaksi = `${monthPrefix}${String(maxSeq + 1).padStart(3, '0')}`;
+                this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
                 return;
             }
 
             try {
-                // Mode Supabase / Database (memanggil fungsi RPC backend)
-                const { data, error } = await supabaseClient.rpc('generate_no_transaksi_bulanan', { 
-                    p_tipe: typeCode,
-                    p_tanggal: tanggalVal 
-                });
+                const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
+                const { data, error } = await supabaseClient.rpc('generate_no_transaksi', { p_tipe: typeCode });
                 if (error) throw error;
                 this.newTrans.noTransaksi = data;
             } catch (err) {
-                console.error('Gagal generate nomor transaksi bulanan:', err.message);
-                // Fallback lokal jika koneksi database gagal
+                console.error('Gagal generate nomor transaksi:', err.message);
+                const dateStr = (this.newTrans.tanggal || this.todayWIB()).replace(/-/g, '').substring(0, 6);
+                const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
+                const prefix = `ACM-${typeCode}-${dateStr}-`;
                 let maxSeq = 0;
                 this.transactions.forEach(t => {
-                    if (t.noTransaksi && t.noTransaksi.startsWith(monthPrefix)) {
-                        const seqNum = parseInt(t.noTransaksi.replace(monthPrefix, ''), 10);
+                    if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
+                        const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
                         if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
                     }
                 });
-                this.newTrans.noTransaksi = `${monthPrefix}${String(maxSeq + 1).padStart(3, '0')}`;
+                this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
             }
         },
 
