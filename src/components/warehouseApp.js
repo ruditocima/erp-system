@@ -1,4 +1,4 @@
-import { supabaseClient } from './services/supabaseClient.js';
+import { supabaseClient } from '../services/supabaseClient.js';
 
 function safeLoadStorage(key, fallback) {
     try {
