@@ -178,6 +178,12 @@ export default function warehouseApp() {
             this.inisialisasiRealtimeStok();
             this.refreshIcons();
 
+            // Watcher untuk memastikan Drum Ledger tertutup otomatis saat berganti tab/menu
+            this.$watch('currentTab', () => {
+                this.showDrumLedger = false;
+                this.selectedCableKode = '';
+            });
+
             this.$watch('newTrans', val => {
                 if (val && (val.noReferensi || val.keterangan || (val.items && val.items.some(i => i.kodeBarang || i.qty)))) {
                     this.saveFormDraft(val);
@@ -507,7 +513,7 @@ export default function warehouseApp() {
             if (!supabaseClient) {
                 this.currentUser = this.profileForm.namaLengkap;
                 localStorage.setItem('vortex_user', this.currentUser);
-                this.showNotification('Profil diperbarui (Lokal)[cite: 2]!', 'success');
+                this.showNotification('Profil diperbarui (Lokal)!', 'success');
                 return;
             }
             try {
