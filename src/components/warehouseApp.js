@@ -13,7 +13,7 @@ function safeLoadStorage(key, fallback) {
 export default function warehouseApp() {
     return {
         // Properti URL Web App Google Apps Script
-        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbz5vORjryjIbV6ZoG-Vc49zL_Ye2fZCTN9whvIEzpHbQAVrycvz_n7wMmhlnrdBrZ5m/exec',
+        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbxGfGRF55_aYHdG9kMMLgGqV7_ksL5VZGtb6JLRpXBn9nTaMKYUlVrk6s587cTNYC7_/exec',
 
         isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
         currentUser: localStorage.getItem('vortex_user') || 'Admin',
@@ -724,6 +724,25 @@ export default function warehouseApp() {
 
             this.isLoading = true;
             try {
+                // Hapus lampiran dari Google Drive jika transaksi memiliki lampiranUrl
+                if (tx.lampiranUrl) {
+                    try {
+                        // Ekstrak File ID dari URL Google Drive (mendukung berbagai format URL Drive)
+                        const match = tx.lampiranUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || tx.lampiranUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                        const fileId = match ? match[1] : null;
+
+                        if (fileId) {
+                            await fetch(this.googleScriptUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                body: JSON.stringify({ action: 'delete', fileId: fileId })
+                            });
+                        }
+                    } catch (driveErr) {
+                        console.warn('Peringatan: Gagal menghapus lampiran dari Google Drive:', driveErr);
+                    }
+                }
+
                 if (supabaseClient) {
                     const { data, error } = await supabaseClient.rpc('delete_transaction_rollback', {
                         p_no_transaksi: tx.noTransaksi
@@ -736,7 +755,7 @@ export default function warehouseApp() {
                         return;
                     }
 
-                    this.showNotification('Transaksi & data terkait berhasil dihapus!', 'success');
+                    this.showNotification('Transaksi & lampiran Google Drive berhasil dihapus!', 'success');
                     await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
                     await this.loadDataFromSupabase();
                 } else {
@@ -749,7 +768,7 @@ export default function warehouseApp() {
                     localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
                     localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
 
-                    this.showNotification('Transaksi dihapus & stok dikembalikan (Offline Mode).', 'success');
+                    this.showNotification('Transaksi & lampiran dihapus (Offline Mode).', 'success');
                 }
             } catch (err) {
                 console.error('Gagal menghapus transaksi:', err);
