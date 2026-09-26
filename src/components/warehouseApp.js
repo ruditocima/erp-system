@@ -793,39 +793,52 @@ export default function warehouseApp() {
 
         async generateNoTransaksi() {
             if (this.editingOriginalNo) return;
+            
+            // Mengambil tanggal transaksi aktif atau tanggal hari ini (WIB)
+            const tanggalVal = this.newTrans.tanggal || this.todayWIB();
+            const dateObj = new Date(tanggalVal);
+            const yy = String(dateObj.getFullYear()).slice(-2); // Tahun 2 digit (contoh: 26)
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0'); // Bulan 2 digit (contoh: 09)
+            
+            const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
+            
+            // Format prefix menggunakan Tahun dan Bulan (YYMM), contoh: ACM-IN-2609-
+            const monthPrefix = `ACM-${typeCode}-${yy}${month}-`;
+
             if (!supabaseClient) {
-                const dateStr = (this.newTrans.tanggal || this.todayWIB()).replace(/-/g, '').substring(0, 6);
-                const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-                const prefix = `ACM-${typeCode}-${dateStr}-`;
+                // Mode Lokal: Mencari nomor urut maksimum berdasarkan bulan yang sama
                 let maxSeq = 0;
                 this.transactions.forEach(t => {
-                    if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
-                        const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
+                    if (t.noTransaksi && t.noTransaksi.startsWith(monthPrefix)) {
+                        const seqNum = parseInt(t.noTransaksi.replace(monthPrefix, ''), 10);
                         if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
                     }
                 });
-                this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
+                
+                // Menghasilkan nomor transaksi dengan padding 3 digit (001, 002, dst.)
+                this.newTrans.noTransaksi = `${monthPrefix}${String(maxSeq + 1).padStart(3, '0')}`;
                 return;
             }
 
             try {
-                const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-                const { data, error } = await supabaseClient.rpc('generate_no_transaksi', { p_tipe: typeCode });
+                // Mode Supabase / Database (memanggil fungsi RPC backend)
+                const { data, error } = await supabaseClient.rpc('generate_no_transaksi_bulanan', { 
+                    p_tipe: typeCode,
+                    p_tanggal: tanggalVal 
+                });
                 if (error) throw error;
                 this.newTrans.noTransaksi = data;
             } catch (err) {
-                console.error('Gagal generate nomor transaksi:', err.message);
-                const dateStr = (this.newTrans.tanggal || this.todayWIB()).replace(/-/g, '').substring(0, 6);
-                const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-                const prefix = `ACM-${typeCode}-${dateStr}-`;
+                console.error('Gagal generate nomor transaksi bulanan:', err.message);
+                // Fallback lokal jika koneksi database gagal
                 let maxSeq = 0;
                 this.transactions.forEach(t => {
-                    if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
-                        const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
+                    if (t.noTransaksi && t.noTransaksi.startsWith(monthPrefix)) {
+                        const seqNum = parseInt(t.noTransaksi.replace(monthPrefix, ''), 10);
                         if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
                     }
                 });
-                this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
+                this.newTrans.noTransaksi = `${monthPrefix}${String(maxSeq + 1).padStart(3, '0')}`;
             }
         },
 
