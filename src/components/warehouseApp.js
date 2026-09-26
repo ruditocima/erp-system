@@ -490,6 +490,11 @@ export default function warehouseApp() {
 
         switchTab(tabName) {
             this.currentTab = tabName;
+            
+            // Reset / Tutup tampilan Drum Ledger agar tidak tersangkut saat pindah menu
+            this.showDrumLedger = false;
+            this.selectedCableKode = '';
+
             this.refreshIcons();
         },
 
@@ -502,7 +507,7 @@ export default function warehouseApp() {
             if (!supabaseClient) {
                 this.currentUser = this.profileForm.namaLengkap;
                 localStorage.setItem('vortex_user', this.currentUser);
-                this.showNotification('Profil diperbarui (Lokal)!', 'success');
+                this.showNotification('Profil diperbarui (Lokal)[cite: 2]!', 'success');
                 return;
             }
             try {
@@ -894,7 +899,6 @@ export default function warehouseApp() {
             });
         },
 
-        // Pilihan file lokal sebelum 'Simpan Transaksi' diklik (Syarat 4)
         handleFileSelect(event) {
             const files = event.target && event.target.files ? Array.from(event.target.files) : [];
             if (files.length === 0) {
@@ -949,7 +953,6 @@ export default function warehouseApp() {
             });
         },
 
-        // Otomatis menyatukan banyak file menjadi 1 buah file PDF (Syarat 2)
         async combineFilesToOnePdf(files) {
             if (!files || files.length === 0) return null;
 
@@ -1013,7 +1016,6 @@ export default function warehouseApp() {
                 console.warn('Gagal membuat PDF gabungan dengan jsPDF, menggunakan fallback:', e);
             }
 
-            // Fallback jika jsPDF tidak tersedia
             const base64 = await this.fileToBase64(files[0]);
             return {
                 filename: files[0].name,
@@ -1169,13 +1171,11 @@ export default function warehouseApp() {
                 return;
             }
 
-            // PROSES UPLOAD LAMPIRAN KE GOOGLE DRIVE HANYA SAAT KLIK SIMPAN TRANSAKSI (Syarat 4)
             if (this.selectedFilesList && this.selectedFilesList.length > 0) {
                 this.isLoading = true;
                 try {
                     this.showNotification('Menyatukan lampiran dan mengunggah ke Google Drive...', 'info');
 
-                    // 1. Menyatukan semua file terpilih menjadi 1 PDF (Syarat 2)
                     const mergedFile = await this.combineFilesToOnePdf(this.selectedFilesList);
 
                     if (mergedFile) {
@@ -1187,7 +1187,6 @@ export default function warehouseApp() {
                             contents: mergedFile.base64Data
                         };
 
-                        // Upload file gabungan ke Google Drive melalui Google Apps Script
                         const response = await fetch(this.googleScriptUrl, {
                             method: 'POST',
                             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1198,11 +1197,7 @@ export default function warehouseApp() {
 
                         if (result && (result.status === 'success' || result.url || result.fileUrl)) {
                             const driveFileUrl = result.url || result.fileUrl || '';
-
-                            // 2. Buat URL tersendiri yang dikelola oleh Supabase (Syarat 3)
-                            const supabaseCreatedUrl = driveFileUrl;
-
-                            this.newTrans.lampiranUrl = supabaseCreatedUrl;
+                            this.newTrans.lampiranUrl = driveFileUrl;
                             this.showNotification('Lampiran berhasil disatukan & diunggah ke Google Drive!', 'success');
                         } else {
                             throw new Error((result && (result.message || result.error)) || 'Respon Google Script tidak valid.');
@@ -1212,7 +1207,7 @@ export default function warehouseApp() {
                     console.error('Upload Drive Error:', err);
                     this.showNotification('Gagal mengunggah lampiran: ' + err.message, 'error');
                     this.isLoading = false;
-                    return; // Hentikan penyimpanan jika upload lampiran gagal
+                    return;
                 }
             }
 
@@ -1298,11 +1293,11 @@ export default function warehouseApp() {
                     await this.resetInputTransaction();
                     this.switchTab('data-transaksi');
                     await this.loadDataFromSupabase();
-                    return; // Berhasil, keluar dari fungsi
+                    return;
                 } catch (err) {
                     this.showNotification('Gagal memproses transaksi: ' + (err.message || err), 'error');
                     this.isLoading = false;
-                    return; // WAJIB ADA: Mencegah agar tidak lanjut menyimpan ke lokal saat Supabase error!
+                    return;
                 } finally {
                     this.isLoading = false;
                 }
