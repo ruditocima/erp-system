@@ -322,10 +322,19 @@ export default function warehouseApp() {
                 }
                 const fromStok = (this.pageStok - 1) * this.pageSizeStok;
                 const { data: stockData, count: countStok } = await stockQuery.order('kode_barang', { ascending: true }).range(fromStok, fromStok + this.pageSizeStok - 1);
+                // Di dalam fungsi loadDataFromSupabase() pada warehouseApp.js
                 if (stockData) {
                     this.stokGudang = stockData.map(s => ({
-                        kodeBarang: s.kode_barang, namaBarang: s.nama_barang,
-                        kategori: s.kategori, gudang: s.gudang, qty: parseFloat(s.qty) || 0, sat: s.sat
+                        kodeBarang: s.kode_barang, 
+                        namaBarang: s.nama_barang,
+                        kategori: s.kategori, 
+                        gudang: s.gudang, 
+                        masuk: parseFloat(s.masuk) || 0,
+                        keluar: parseFloat(s.keluar) || 0,
+                        tMasuk: parseFloat(s.t_masuk) || 0,
+                        tKeluar: parseFloat(s.t_keluar) || 0,
+                        qty: parseFloat(s.qty) || 0, 
+                        sat: s.sat
                     }));
                     this.totalStokCount = countStok !== null ? countStok : stockData.length;
                 }
