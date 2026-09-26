@@ -324,12 +324,20 @@ export default function warehouseApp() {
                 const { data: stockData, count: countStok } = await stockQuery.order('kode_barang', { ascending: true }).range(fromStok, fromStok + this.pageSizeStok - 1);
                 if (stockData) {
                     this.stokGudang = stockData.map(s => ({
-                        kodeBarang: s.kode_barang, namaBarang: s.nama_barang,
-                        kategori: s.kategori, gudang: s.gudang, qty: parseFloat(s.qty) || 0, sat: s.sat
+                        kodeBarang: s.kode_barang,
+                        namaBarang: s.nama_barang,
+                        kategori: s.kategori,
+                        gudang: s.gudang,
+                        masuk: parseFloat(s.masuk) || 0,       // Kolom Masuk
+                        keluar: parseFloat(s.keluar) || 0,     // Kolom Keluar
+                        tMasuk: parseFloat(s.t_masuk) || 0,    // Kolom Transfer Masuk
+                        tKeluar: parseFloat(s.t_keluar) || 0,  // Kolom Transfer Keluar
+                        qty: parseFloat(s.qty) || 0,           // Saldo Akhir Stok
+                        sat: s.sat
                     }));
                     this.totalStokCount = countStok !== null ? countStok : stockData.length;
                 }
-
+                
                 // 5. Load Drum Ledger
                 let drumQuery = supabaseClient.from('drum_ledger').select('*', { count: 'exact' });
                 if (this.filterStokGudang) drumQuery = drumQuery.eq('gudang', this.filterStokGudang);
