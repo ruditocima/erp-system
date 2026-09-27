@@ -1733,4 +1733,4 @@ export default function warehouseApp() {
             } finally {
                 this.isLoading = false;
             }
-        }
+        },
