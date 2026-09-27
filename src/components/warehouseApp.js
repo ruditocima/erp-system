@@ -176,7 +176,6 @@ export default function warehouseApp() {
             this.inisialisasiRealtimeStok();
             this.refreshIcons();
 
-            // Watcher untuk memastikan Drum Ledger tertutup otomatis saat berganti tab/menu
             this.$watch('currentTab', () => {
                 this.showDrumLedger = false;
                 this.selectedCableKode = '';
@@ -292,7 +291,6 @@ export default function warehouseApp() {
             if (!supabaseClient) return;
             this.isLoading = true;
             try {
-                // 1. Load Master Project
                 const { data: projectData } = await supabaseClient.from('master_project').select('*');
                 if (projectData) {
                     this.masterProject = projectData.map(p => ({
@@ -301,7 +299,6 @@ export default function warehouseApp() {
                     }));
                 }
 
-                // 2. Load Master Barang
                 const { data: barangData } = await supabaseClient.from('master_barang').select('*');
                 if (barangData) {
                     this.masterBarang = barangData.map(b => ({
@@ -310,7 +307,6 @@ export default function warehouseApp() {
                     }));
                 }
 
-                // 3. Load Master Gudang
                 const { data: gudangData } = await supabaseClient.from('master_gudang').select('*');
                 if (gudangData) {
                     this.masterGudang = gudangData.map(g => ({
@@ -319,7 +315,6 @@ export default function warehouseApp() {
                     }));
                 }
 
-                // 4. Load Stok Gudang
                 let stockQuery = supabaseClient.from('stok_gudang').select('*', { count: 'exact' });
                 if (this.filterStokGudang) {
                     stockQuery = stockQuery.eq('gudang', this.filterStokGudang);
@@ -342,7 +337,6 @@ export default function warehouseApp() {
                     this.totalStokCount = countStok !== null ? countStok : stockData.length;
                 }
 
-                // 5. Load Drum Ledger
                 let drumQuery = supabaseClient.from('drum_ledger').select('*', { count: 'exact' });
                 if (this.filterStokGudang) drumQuery = drumQuery.eq('gudang', this.filterStokGudang);
                 if (this.selectedCableKode) drumQuery = drumQuery.eq('kode_barang', this.selectedCableKode);
@@ -357,7 +351,6 @@ export default function warehouseApp() {
                     this.totalDrumCount = countDrum !== null ? countDrum : drumData.length;
                 }
 
-                // 6. LOAD MATERIAL USAGE
                 let usageQuery = supabaseClient.from('material_usage').select('*', { count: 'exact' });
                 if (this.searchMaterialUsageProject) {
                     usageQuery = usageQuery.or(`kode_project.ilike.%${this.searchMaterialUsageProject}%,project_name.ilike.%${this.searchMaterialUsageProject}%`);
@@ -382,7 +375,6 @@ export default function warehouseApp() {
                     this.totalUsageCount = countUsage !== null ? countUsage : usageData.length;
                 }
 
-                // 7. Load Data Transaksi
                 let txQuery = supabaseClient.from('transactions').select('*', { count: 'exact' });
                 if (this.searchNoTransaksi) txQuery = txQuery.or(`no_transaksi.ilike.%${this.searchNoTransaksi}%,no_referensi.ilike.%${this.searchNoTransaksi}%`);
                 const fromTx = (this.pageTx - 1) * this.pageSizeTx;
@@ -494,11 +486,8 @@ export default function warehouseApp() {
 
         switchTab(tabName) {
             this.currentTab = tabName;
-            
-            // Reset / Tutup tampilan Drum Ledger agar tidak tersangkut saat pindah menu
             this.showDrumLedger = false;
             this.selectedCableKode = '';
-
             this.refreshIcons();
         },
 
@@ -511,7 +500,7 @@ export default function warehouseApp() {
             if (!supabaseClient) {
                 this.currentUser = this.profileForm.namaLengkap;
                 localStorage.setItem('vortex_user', this.currentUser);
-                this.showNotification('Profil diperbarui (Lokal)!', 'success');
+                this.showNotification('Profil diperbarui (Lokal)[cite: 6]!', 'success');
                 return;
             }
             try {
@@ -528,7 +517,7 @@ export default function warehouseApp() {
                 this.currentUser = this.profileForm.namaLengkap;
                 localStorage.setItem('vortex_user', this.currentUser);
                 this.profileForm.newPassword = '';
-                this.showNotification('Profil berhasil diperbarui!', 'success');
+                this.showNotification('Profil berhasil diperbarui[cite: 6]!', 'success');
             } catch (err) {
                 this.showNotification('Gagal update profil: ' + (err.message || err), 'error');
             } finally {
@@ -577,7 +566,7 @@ export default function warehouseApp() {
 
         async saveModalData() {
             if (!supabaseClient) {
-                this.showNotification('Koneksi Supabase tidak tersedia!', 'error');
+                this.showNotification('Koneksi Supabase tidak tersedia[cite: 6]!', 'error');
                 return;
             }
 
@@ -651,7 +640,7 @@ export default function warehouseApp() {
 
                 this.logAudit('master_save', { type: this.modalType, data: this.modalForm });
                 this.showModal = false;
-                this.showNotification('Data berhasil disimpan ke Supabase!', 'success');
+                this.showNotification('Data berhasil disimpan ke Supabase[cite: 6]!', 'success');
             } catch (err) {
                 this.showNotification('Gagal menyimpan: ' + (err.message || err), 'error');
             } finally {
@@ -683,7 +672,7 @@ export default function warehouseApp() {
                 if (type === 'project') localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
 
                 this.logAudit('master_delete', { type: type, key: item[localKey[type]] });
-                this.showNotification('Data dihapus!', 'success');
+                this.showNotification('Data dihapus[cite: 6]!', 'success');
                 if (supabaseClient) await this.loadDataFromSupabase();
             } catch (err) {
                 this.showNotification('Gagal menghapus: ' + (err.message || err), 'error');
@@ -745,7 +734,7 @@ export default function warehouseApp() {
                         return;
                     }
 
-                    this.showNotification('Transaksi & data terkait berhasil dihapus!', 'success');
+                    this.showNotification('Transaksi & data terkait berhasil dihapus[cite: 6]!', 'success');
                     await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
                     await this.loadDataFromSupabase();
                 } else {
@@ -758,7 +747,7 @@ export default function warehouseApp() {
                     localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
                     localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
 
-                    this.showNotification('Transaksi dihapus & stok dikembalikan (Offline Mode).', 'success');
+                    this.showNotification('Transaksi dihapus & stok dikembalikan (Offline Mode)[cite: 6].', 'success');
                 }
             } catch (err) {
                 console.error('Gagal menghapus transaksi:', err);
@@ -811,9 +800,6 @@ export default function warehouseApp() {
         async generateNoTransaksi() {
             if (this.editingOriginalNo) return;
 
-            // 1. Tentukan Gudang berdasarkan Tipe Transaksi:
-            // - Jika Masuk: Menggunakan Gudang Tujuan
-            // - Jika Keluar / Transfer: Menggunakan Gudang Asal
             let targetWarehouseName = '';
             if (this.newTrans.tipeTransaksi === 'Masuk') {
                 targetWarehouseName = this.newTrans.gudangTujuan;
@@ -821,7 +807,6 @@ export default function warehouseApp() {
                 targetWarehouseName = this.newTrans.gudangAsal;
             }
 
-            // 2. Ambil Kode Gudang dari Master Gudang dan hapus semua tanda strip (-)
             let kodeGudangClean = 'HQ';
             if (targetWarehouseName) {
                 const wh = this.masterGudang.find(g => g.namaGudang === targetWarehouseName);
@@ -832,19 +817,15 @@ export default function warehouseApp() {
                 }
             }
 
-            // 3. Tentukan Kode Tipe Transaksi (IN / OUT / TRF)
             const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
 
-            // 4. Ambil 2 digit Tahun dan 2 digit Bulan (YYMM) dari Tanggal Transaksi
             const transDate = new Date(this.newTrans.tanggal || this.todayWIB());
             const yy = String(transDate.getFullYear()).slice(-2);
             const mm = String(transDate.getMonth() + 1).padStart(2, '0');
             const yymm = `${yy}${mm}`;
 
-            // 5. Susun Prefix Format Baru: [KODE_GUDANG]-[TIPE]-[YYMM]-
             const prefix = `${kodeGudangClean}-${typeCode}-${yymm}-`;
 
-            // 6. Hitung Nomor Urut (Sequence) Bulanan (3 digit: 001, 002, dst.)
             let maxSeq = 0;
             this.transactions.forEach(t => {
                 if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
@@ -853,7 +834,6 @@ export default function warehouseApp() {
                 }
             });
 
-            // Hasil akhir nomor transaksi
             this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
         },
 
@@ -1202,20 +1182,18 @@ export default function warehouseApp() {
                             contents: mergedFile.base64Data
                         };
 
-                        // Memanggil Edge Function Supabase secara aman (tanpa mengekspos token/URL di client)
                         const { data: edgeData, error: edgeError } = await supabaseClient.functions.invoke('trigger-gas', {
                             body: payload
                         });
 
                         if (edgeError) throw edgeError;
 
-                        // Parse hasil respon dari Edge Function
                         const result = typeof edgeData?.data === 'string' ? JSON.parse(edgeData.data) : (edgeData?.data || edgeData);
 
                         if (result && (result.status === 'success' || result.url || result.fileUrl)) {
                             const driveFileUrl = result.url || result.fileUrl || '';
                             this.newTrans.lampiranUrl = driveFileUrl;
-                            this.showNotification('Lampiran berhasil disatukan & diunggah ke Google Drive!', 'success');
+                            this.showNotification('Lampiran berhasil disatukan & diunggah ke Google Drive[cite: 6]!', 'success');
                         } else {
                             throw new Error((result && (result.message || result.error)) || 'Respon Google Script tidak valid.');
                         }
@@ -1305,7 +1283,7 @@ export default function warehouseApp() {
                     }
 
                     this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi });
-                    this.showNotification('Transaksi berhasil disimpan ke Supabase!', 'success');
+                    this.showNotification('Transaksi berhasil disimpan ke Supabase[cite: 6]!', 'success');
                     this.clearFormDraft();
                     await this.resetInputTransaction();
                     this.switchTab('data-transaksi');
@@ -1322,7 +1300,7 @@ export default function warehouseApp() {
 
             this.applyTransactionStock(this.newTrans);
             this.transactions.push(JSON.parse(JSON.stringify(this.newTrans)));
-            this.showNotification('Transaksi disimpan (Lokal)!', 'success');
+            this.showNotification('Transaksi disimpan (Lokal)[cite: 6]!', 'success');
             this.clearFormDraft();
             await this.resetInputTransaction();
             this.switchTab('data-transaksi');
