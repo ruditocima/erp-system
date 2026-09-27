@@ -715,6 +715,14 @@ export default function warehouseApp() {
             if (fileInput) fileInput.value = '';
         },
 
+        // Helper untuk ekstrak File ID Google Drive menggunakan Regular Expression (Regex)
+        extractGoogleDriveFileId(url) {
+            if (!url) return null;
+            const regex = /(?:\/d\/|id=)([a-zA-Z0-9_-]{25,})/;
+            const match = url.match(regex);
+            return match ? match[1] : null;
+        },
+
         async deleteTransaction(tx) {
             if (!confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"? Data stok, usage, dan drum ledger terkait akan di-rollback.`)) {
                 return;
@@ -722,6 +730,24 @@ export default function warehouseApp() {
 
             this.isLoading = true;
             try {
+                // Logika Hapus File di Google Drive jika lampiranUrl tersedia
+                if (tx.lampiranUrl) {
+                    const fileId = this.extractGoogleDriveFileId(tx.lampiranUrl);
+                    if (fileId && supabaseClient) {
+                        try {
+                            await supabaseClient.functions.invoke('trigger-gas', {
+                                body: {
+                                    action: 'delete',
+                                    fileId: fileId
+                                }
+                            });
+                            console.log('File lampiran di Google Drive berhasil dihapus:', fileId);
+                        } catch (driveErr) {
+                            console.warn('Peringatan: Gagal menghapus file lampiran dari Google Drive:', driveErr);
+                        }
+                    }
+                }
+
                 if (supabaseClient) {
                     const { data, error } = await supabaseClient.rpc('delete_transaction_rollback', {
                         p_no_transaksi: tx.noTransaksi
@@ -1273,7 +1299,6 @@ export default function warehouseApp() {
                     if (this.editingOriginalNo) {
                         editBackup = this.transactions.find(t => t.noTransaksi === this.editingOriginalNo) || null;
                         
-                        // Perbaikan: Panggil RPC delete_transaction_rollback untuk mengembalikan stok & ledger lama di database Supabase sebelum memproses transaksi baru
                         const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
                             p_no_transaksi: this.editingOriginalNo
                         });
