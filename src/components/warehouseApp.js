@@ -1734,5 +1734,3 @@ export default function warehouseApp() {
                 this.isLoading = false;
             }
         }
-    }
-}
