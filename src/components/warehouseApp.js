@@ -1562,168 +1562,177 @@ export default function warehouseApp() {
         },
 
         async exportTransactionCSV() {
-        this.isLoading = true;
-        try {
-            let selectedGudangName = this.filterStokGudang ? this.filterStokGudang.replace(/[^a-zA-Z0-9]/g, '_') : 'All';
-            let fileName = `data_transaksi_${selectedGudangName}.csv`;
+            this.isLoading = true;
+            try {
+                let selectedGudangName = this.filterStokGudang ? this.filterStokGudang.replace(/[^a-zA-Z0-9]/g, '_') : 'All';
+                let fileName = 'data_transaksi_' + selectedGudangName + '.csv';
 
-            let txsToExport = [];
-            
-            // Deteksi client Supabase secara lebih luas agar tidak null
-            const client = window.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null) || this.supabase;
-
-            if (client) {
-                console.log("Mengambil seluruh data transaksi langsung dari Supabase...");
-                let txQuery = client.from('transactions').select('*');
+                let txsToExport = [];
                 
-                if (this.searchNoTransaksi) {
-                    txQuery = txQuery.or(`no_transaksi.ilike.%${this.searchNoTransaksi}%,no_referensi.ilike.%${this.searchNoTransaksi}%`);
-                }
-                
-                // Gunakan .range(0, 9999) agar tidak terpotong limit default 1000 baris dari Supabase
-                const { data: allTxData, error } = await txQuery.order('tanggal', { ascending: false }).range(0, 9999);
-                
-                if (error) throw error;
+                let client = window.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null) || this.supabase;
 
-                if (allTxData && allTxData.length > 0) {
-                    console.log(`Berhasil memuat ${allTxData.length} baris data dari database.`);
-                    txsToExport = allTxData.map(t => ({
-                        noTransaksi: t.no_transaksi, 
-                        tanggal: t.tanggal, 
-                        noReferensi: t.no_referensi,
-                        tipeTransaksi: t.tipe_transaksi, 
-                        gudangAsal: t.gudang_asal, 
-                        gudangTujuan: t.gudang_tujuan,
-                        kodeProject: t.kode_project, 
-                        keterangan: t.keterangan, 
-                        staffGudang: t.staff_gudang,
-                        projectManager: t.project_manager, 
-                        namaPenerima: t.nama_penerima, 
-                        lampiranUrl: t.lampiran_url,
-                        items: typeof t.items === 'string' ? JSON.parse(t.items) : (t.items || [])
-                    }));
-                } else {
-                    console.log("Data transaksi dari database kosong.");
-                }
-            } else {
-                console.warn("Supabase client tidak ditemukan, fallback ke this.transactions (halaman aktif).");
-                txsToExport = this.transactions;
-            }
+                if (client) {
+                    console.log("Mengambil seluruh data transaksi langsung dari Supabase...");
+                    let txQuery = client.from('transactions').select('*');
+                    
+                    if (this.searchNoTransaksi) {
+                        txQuery = txQuery.or('no_transaksi.ilike.%' + this.searchNoTransaksi + '%,no_referensi.ilike.%' + this.searchNoTransaksi + '%');
+                    }
+                    
+                    let response = await txQuery.order('tanggal', { ascending: false }).range(0, 9999);
+                    let allTxData = response.data;
+                    let error = response.error;
+                    
+                    if (error) throw error;
 
-            // Filter berdasarkan gudang jika ada filter gudang yang aktif dipilih
-            if (this.filterStokGudang) {
-                txsToExport = txsToExport.filter(tx => 
-                    (tx.gudangAsal && tx.gudangAsal.toLowerCase() === this.filterStokGudang.toLowerCase()) || 
-                    (tx.gudangTujuan && tx.gudangTujuan.toLowerCase() === this.filterStokGudang.toLowerCase())
-                );
-            }
-
-            let csvRows = [];
-            let headers = [
-                "Tanggal", 
-                "No Transaksi", 
-                "No Referensi", 
-                "Tipe Transaksi", 
-                "Gudang Asal", 
-                "Gudang Tujuan", 
-                "Nama Project", 
-                "Kode Barang", 
-                "Nama Barang", 
-                "Drum ID", 
-                "Qty", 
-                "Keterangan", 
-                "Nama Penerima"
-            ];
-            csvRows.push(headers.join(","));
-
-            const getProjectName = (kodeProj) => {
-                if (!kodeProj) return "-";
-                const found = this.masterProject.find(p => p.kodeProject === kodeProj);
-                return found ? found.projectName : kodeProj;
-            };
-
-            txsToExport.forEach(tx => {
-                let tanggal = `"${tx.tanggal || ''}"`;
-                let noTransaksi = `"${tx.noTransaksi || ''}"`;
-                let noReferensi = `"${tx.noReferensi || ''}"`;
-                let tipeTransaksi = `"${tx.tipeTransaksi || ''}"`;
-                let gudangAsal = `"${tx.gudangAsal || ''}"`;
-                let gudangTujuan = `"${tx.gudangTujuan || ''}"`;
-                let namaProject = `"${getProjectName(tx.kodeProject)}"`;
-                let keterangan = `"${(tx.keterangan || '').replace(/"/g, '""')}"`;
-                let namaPenerima = `"${tx.namaPenerima || ''}"`;
-
-                if (tx.items && tx.items.length > 0) {
-                    tx.items.forEach(item => {
-                        let kodeBarang = `"${item.kodeBarang || ''}"`;
-                        let namaBarang = `"${(item.namaBarang || '').replace(/"/g, '""')}"`;
-                        let qty = item.qty || 0;
-
-                        let rawDrumId = item.drumId ? String(item.drumId) : '';
-                        let drumIdList = [rawDrumId];
-                        
-                        if (rawDrumId.includes(',') || rawDrumId.includes(';')) {
-                            drumIdList = rawDrumId.split(/[,;]+/).map(d => d.trim()).filter(Boolean);
-                        }
-
-                        if (drumIdList.length === 0) drumIdList = [''];
-
-                        drumIdList.forEach(dId => {
-                            let drumIdCol = `"${dId}"`;
-                            let row = [
-                                tanggal,
-                                noTransaksi,
-                                noReferensi,
-                                tipeTransaksi,
-                                gudangAsal,
-                                gudangTujuan,
-                                namaProject,
-                                kodeBarang,
-                                namaBarang,
-                                drumIdCol,
-                                qty,
-                                keterangan,
-                                namaPenerima
-                            ];
-                            csvRows.push(row.join(","));
+                    if (allTxData && allTxData.length > 0) {
+                        console.log("Berhasil memuat " + allTxData.length + " baris data dari database.");
+                        txsToExport = allTxData.map(function(t) {
+                            return {
+                                noTransaksi: t.no_transaksi, 
+                                tanggal: t.tanggal, 
+                                noReferensi: t.no_referensi,
+                                tipeTransaksi: t.tipe_transaksi, 
+                                gudangAsal: t.gudang_asal, 
+                                gudangTujuan: t.gudang_tujuan,
+                                kodeProject: t.kode_project, 
+                                keterangan: t.keterangan, 
+                                staffGudang: t.staff_gudang,
+                                projectManager: t.project_manager, 
+                                namaPenerima: t.nama_penerima, 
+                                lampiranUrl: t.lampiran_url,
+                                items: typeof t.items === 'string' ? JSON.parse(t.items) : (t.items || [])
+                            };
                         });
-                    });
+                    } else {
+                        console.log("Data transaksi dari database kosong.");
+                    }
                 } else {
-                    let row = [
-                        tanggal,
-                        noTransaksi,
-                        noReferensi,
-                        tipeTransaksi,
-                        gudangAsal,
-                        gudangTujuan,
-                        namaProject,
-                        '""',
-                        '""',
-                        '""',
-                        0,
-                        keterangan,
-                        namaPenerima
-                    ];
-                    csvRows.push(row.join(","));
+                    console.warn("Supabase client tidak ditemukan, fallback ke this.transactions (halaman aktif).");
+                    txsToExport = this.transactions;
                 }
-            });
 
-            let csvString = csvRows.join("\n");
-            let blob = new Blob(["\uFEFF" + csvString], { type: 'text/csv;charset=utf-8;' });
-            let url = URL.createObjectURL(blob);
-            let a = document.createElement('a');
-            a.setAttribute('href', url);
-            a.setAttribute('download', fileName);
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            
-            this.showNotification(`File ${fileName} berhasil diexport keseluruhan!`, 'success');
-        } catch (err) {
-            console.error('Gagal export CSV transaksi:', err);
-            this.showNotification('Gagal export CSV: ' + (err.message || err), 'error');
-        } finally {
-            this.isLoading = false;
+                // Filter berdasarkan gudang jika ada filter gudang yang aktif dipilih
+                if (this.filterStokGudang) {
+                    let filterGudangVal = this.filterStokGudang.toLowerCase();
+                    txsToExport = txsToExport.filter(function(tx) {
+                        return (tx.gudangAsal && tx.gudangAsal.toLowerCase() === filterGudangVal) || 
+                               (tx.gudangTujuan && tx.gudangTujuan.toLowerCase() === filterGudangVal);
+                    });
+                }
+
+                let csvRows = [];
+                let headers = [
+                    "Tanggal", 
+                    "No Transaksi", 
+                    "No Referensi", 
+                    "Tipe Transaksi", 
+                    "Gudang Asal", 
+                    "Gudang Tujuan", 
+                    "Nama Project", 
+                    "Kode Barang", 
+                    "Nama Barang", 
+                    "Drum ID", 
+                    "Qty", 
+                    "Keterangan", 
+                    "Nama Penerima"
+                ];
+                csvRows.push(headers.join(","));
+
+                let self = this;
+                let getProjectName = function(kodeProj) {
+                    if (!kodeProj) return "-";
+                    let found = self.masterProject.find(function(p) {
+                        return p.kodeProject === kodeProj;
+                    });
+                    return found ? found.projectName : kodeProj;
+                };
+
+                txsToExport.forEach(function(tx) {
+                    let tanggal = '"' + (tx.tanggal || '') + '"';
+                    let noTransaksi = '"' + (tx.noTransaksi || '') + '"';
+                    let noReferensi = '"' + (tx.noReferensi || '') + '"';
+                    let tipeTransaksi = '"' + (tx.tipeTransaksi || '') + '"';
+                    let gudangAsal = '"' + (tx.gudangAsal || '') + '"';
+                    let gudangTujuan = '"' + (tx.gudangTujuan || '') + '"';
+                    let namaProject = '"' + getProjectName(tx.kodeProject) + '"';
+                    let keterangan = '"' + (tx.keterangan || '').replace(/"/g, '""') + '"';
+                    let namaPenerima = '"' + (tx.namaPenerima || '') + '"';
+
+                    if (tx.items && tx.items.length > 0) {
+                        tx.items.forEach(function(item) {
+                            let kodeBarang = '"' + (item.kodeBarang || '') + '"';
+                            let namaBarang = '"' + (item.namaBarang || '').replace(/"/g, '""') + '"';
+                            let qty = item.qty || 0;
+
+                            let rawDrumId = item.drumId ? String(item.drumId) : '';
+                            let drumIdList = [rawDrumId];
+                            
+                            if (rawDrumId.indexOf(',') !== -1 || rawDrumId.indexOf(';') !== -1) {
+                                drumIdList = rawDrumId.split(/[,;]+/).map(function(d) {
+                                    return d.trim();
+                                }).filter(Boolean);
+                            }
+
+                            if (drumIdList.length === 0) drumIdList = [''];
+
+                            drumIdList.forEach(function(dId) {
+                                let drumIdCol = '"' + dId + '"';
+                                let row = [
+                                    tanggal,
+                                    noTransaksi,
+                                    noReferensi,
+                                    tipeTransaksi,
+                                    gudangAsal,
+                                    gudangTujuan,
+                                    namaProject,
+                                    kodeBarang,
+                                    namaBarang,
+                                    drumIdCol,
+                                    qty,
+                                    keterangan,
+                                    namaPenerima
+                                ];
+                                csvRows.push(row.join(","));
+                            });
+                        });
+                    } else {
+                        let row = [
+                            tanggal,
+                            noTransaksi,
+                            noReferensi,
+                            tipeTransaksi,
+                            gudangAsal,
+                            gudangTujuan,
+                            namaProject,
+                            '""',
+                            '""',
+                            '""',
+                            0,
+                            keterangan,
+                            namaPenerima
+                        ];
+                        csvRows.push(row.join(","));
+                    }
+                });
+
+                let csvString = csvRows.join("\n");
+                let blob = new Blob(["\uFEFF" + csvString], { type: 'text/csv;charset=utf-8;' });
+                let url = URL.createObjectURL(blob);
+                let a = document.createElement('a');
+                a.setAttribute('href', url);
+                a.setAttribute('download', fileName);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                this.showNotification("File " + fileName + " berhasil diexport keseluruhan!", "success");
+            } catch (err) {
+                console.error("Gagal export CSV transaksi:", err);
+                this.showNotification("Gagal export CSV: " + (err.message || err), "error");
+            } finally {
+                this.isLoading = false;
+            }
         }
     }
 }
