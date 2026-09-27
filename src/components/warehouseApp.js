@@ -258,61 +258,6 @@ export default function warehouseApp() {
             }
         },
 
-        // --- FUNGSI RETUR KABEL DENGAN KODE PROJECT TANPA TANDA STRIP (-) ---
-        async submitReturKabelUbahID() {
-            if (this.isLoading) return;
-
-            const rawProjectCode = this.newTrans.projectCode || '';
-            const cleanProjectCode = rawProjectCode.replace(/-/g, '').trim();
-
-            const formData = {
-                originalDrumId: this.newTrans.drumId,
-                kodeBarang: this.newTrans.kodeBarang,
-                returnedLength: parseFloat(this.newTrans.qtyRetur || 0),
-                gudangTujuan: this.newTrans.gudangTujuan,
-                projectCode: cleanProjectCode,
-                user: this.currentUser || 'Admin Gudang'
-            };
-
-            if (!formData.originalDrumId || !formData.projectCode || formData.returnedLength <= 0) {
-                this.showNotification('Mohon lengkapi Drum ID asal, Kode Project, dan Panjang Retur dengan benar.', 'error');
-                return;
-            }
-
-            if (!supabaseClient) {
-                this.showNotification('Koneksi database tidak tersedia.', 'error');
-                return;
-            }
-
-            try {
-                this.isLoading = true;
-                const { data, error } = await supabaseClient.rpc('proses_retur_kabel_ubah_id', {
-                    p_original_drum_id: formData.originalDrumId,
-                    p_kode_barang: formData.kodeBarang,
-                    p_returned_length: formData.returnedLength,
-                    p_gudang_tujuan: formData.gudangTujuan,
-                    p_project_code: formData.projectCode,
-                    p_user: formData.user
-                });
-
-                if (error) throw error;
-
-                if (data && data.status === 'success') {
-                    this.showNotification(`Sukses! ${data.message} (Panjang: ${data.returned_length} meter)`, 'success');
-                    await this.resetInputTransaction();
-                    await this.loadDataFromSupabase();
-                } else {
-                    this.showNotification('Gagal memproses retur: ' + (data?.message || 'Unknown error'), 'error');
-                }
-
-            } catch (err) {
-                console.error('Error saat retur kabel:', err.message);
-                this.showNotification('Terjadi kesalahan sistem: ' + (err.message || err), 'error');
-            } finally {
-                this.isLoading = false;
-            }
-        },
-
         formatQty(val) {
             const n = parseFloat(val) || 0;
             return n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
@@ -896,7 +841,6 @@ export default function warehouseApp() {
                 }
             }
 
-            // Penentuan kode tipe transaksi (mendukung 'Return' / 'Retur' dengan awalan 'RET')
             let typeCode = 'IN';
             if (this.newTrans.tipeTransaksi === 'Keluar') {
                 typeCode = 'OUT';
@@ -1245,6 +1189,11 @@ export default function warehouseApp() {
             if (!this.newTrans.noReferensi || !this.newTrans.keterangan) {
                 this.showNotification('No Referensi dan Keterangan wajib diisi!', 'error');
                 return;
+            }
+
+            // Sanitasi kode project khusus untuk tipe transaksi Return (menghilangkan strip '-')
+            if (this.newTrans.tipeTransaksi === 'Return' && this.newTrans.kodeProject) {
+                this.newTrans.kodeProject = this.newTrans.kodeProject.replace(/-/g, '').trim();
             }
 
             this.newTrans.items = this.newTrans.items.filter(i => i.kategori || i.jenis || i.kodeBarang || i.drumId || (parseFloat(i.qty) > 0));
