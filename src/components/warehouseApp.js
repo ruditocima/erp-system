@@ -329,6 +329,7 @@ export default function warehouseApp() {
                         gudang: s.gudang, 
                         masuk: parseFloat(s.masuk) || 0,
                         keluar: parseFloat(s.keluar) || 0,
+                        retur: parseFloat(s.retur) || 0,          // <-- Tambahan mapping retur
                         tMasuk: parseFloat(s.t_masuk) || 0,
                         tKeluar: parseFloat(s.t_keluar) || 0,
                         qty: parseFloat(s.qty) || 0, 
@@ -1504,22 +1505,48 @@ export default function warehouseApp() {
                 let q = supabaseClient.from('stok_gudang').select('*');
                 if (this.filterStokGudang) q = q.eq('gudang', this.filterStokGudang);
                 const { data } = await q;
-                if (data) items = data.map(s => ({ kodeBarang: s.kode_barang, namaBarang: s.nama_barang, kategori: s.kategori, gudang: s.gudang, qty: s.qty, sat: s.sat }));
+                if (data) {
+                    items = data.map(s => ({ 
+                        kodeBarang: s.kode_barang, 
+                        namaBarang: s.nama_barang, 
+                        kategori: s.kategori, 
+                        gudang: s.gudang, 
+                        masuk: parseFloat(s.masuk) || 0,
+                        keluar: parseFloat(s.keluar) || 0,
+                        retur: parseFloat(s.retur) || 0,
+                        tKeluar: parseFloat(s.t_keluar) || 0,
+                        tMasuk: parseFloat(s.t_masuk) || 0,
+                        qty: parseFloat(s.qty) || 0, 
+                        sat: s.sat 
+                    }));
+                }
             } else {
                 items = this.getFilteredStokGudang();
             }
 
-            const whSuffix = this.filterStokGudang ? this.filterStokGudang.replace(/[^a-zA-Z0-9]/g, '_') : 'all';
-            const filename = `stok_gudang_${whSuffix}.csv`;
+            const headers = ['Kode Barang', 'Nama Barang', 'Kategori', 'Gudang', 'Masuk', 'Keluar', 'Retur', 'T.Keluar', 'T.Masuk', 'Total Stok', 'Satuan'];
+            const rows = items.map(s => [
+                `"${s.kodeBarang || ''}"`,
+                `"${(s.namaBarang || '').replace(/"/g, '""')}"`,
+                `"${s.kategori || ''}"`,
+                `"${s.gudang || ''}"`,
+                s.masuk || 0,
+                s.keluar || 0,
+                s.retur || 0,
+                s.tKeluar || 0,
+                s.tMasuk || 0,
+                s.qty || 0,
+                `"${s.sat || ''}"`
+            ]);
 
-            let csv = 'Kode Barang,Nama Barang,Kategori,Gudang,Total Stok,Satuan\n';
-            items.forEach(s => { csv += `"${s.kodeBarang || ''}","${s.namaBarang || ''}","${s.kategori || ''}","${s.gudang || ''}",${s.qty || 0},"${s.sat || ''}"\n`; });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); 
-            a.href = url; 
-            a.download = filename; 
-            a.click();
+            const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `stok_gudang_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         },
 
         async exportUsageCSV() {
