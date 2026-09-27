@@ -112,23 +112,29 @@ export default function warehouseApp() {
         },
 
         buildRpcParams(tx) {
-            return {
-                p_no_transaksi: tx.noTransaksi,
-                p_tanggal: tx.tanggal,
-                p_no_referensi: tx.noReferensi || '',
-                p_tipe_transaksi: tx.tipeTransaksi,
-                p_gudang_asal: tx.gudangAsal || '',     // Asal material / project asal retur
-                p_gudang_tujuan: tx.gudangTujuan || '', // Gudang penerima sisa material retur
-                p_kode_project: tx.kodeProject || '',   // Kode project terkait retur
-                p_keterangan: tx.keterangan || '',
-                p_staff_gudang: tx.staffGudang || '',
-                p_project_manager: tx.projectManager || '',
-                p_nama_penerima: tx.namaPenerima || '',
-                p_lampiran_url: tx.lampiranUrl || '',
-                p_items: tx.items || []
-            };
-        },
-
+    return {
+        p_no_transaksi: tx.noTransaksi,
+        p_tanggal: tx.tanggal,
+        p_no_referensi: tx.noReferensi || '',
+        p_tipe_transaksi: tx.tipeTransaksi,
+        p_gudang_asal: tx.gudangAsal || '',
+        p_gudang_tujuan: tx.gudangTujuan || '',
+        p_kode_project: tx.kodeProject || '',
+        p_keterangan: tx.keterangan || '',
+        p_staff_gudang: tx.staffGudang || '',
+        p_project_manager: tx.projectManager || '',
+        p_nama_penerima: tx.namaPenerima || '',
+        p_lampiran_url: tx.lampiranUrl || '',
+        p_items: (tx.items || []).map(item => ({
+            ...item,
+            // Menambahkan format snake_case untuk PostgreSQL JSON parsing
+            kode_barang: item.kodeBarang,
+            nama_barang: item.namaBarang,
+            drum_id: item.drumId || '',
+            qty: parseFloat(item.qty) || 0
+        }))
+    };
+}
         async logAudit(action, details) {
             try {
                 if (!supabaseClient) return;
