@@ -810,40 +810,51 @@ export default function warehouseApp() {
 
         async generateNoTransaksi() {
             if (this.editingOriginalNo) return;
-            if (!supabaseClient) {
-                const dateStr = (this.newTrans.tanggal || this.todayWIB()).replace(/-/g, '').substring(0, 6);
-                const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-                const prefix = `ACM-${typeCode}-${dateStr}-`;
-                let maxSeq = 0;
-                this.transactions.forEach(t => {
-                    if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
-                        const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
-                        if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
-                    }
-                });
-                this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
-                return;
+
+            // 1. Tentukan Gudang berdasarkan Tipe Transaksi:
+            // - Jika Masuk: Menggunakan Gudang Tujuan
+            // - Jika Keluar / Transfer: Menggunakan Gudang Asal
+            let targetWarehouseName = '';
+            if (this.newTrans.tipeTransaksi === 'Masuk') {
+                targetWarehouseName = this.newTrans.gudangTujuan;
+            } else {
+                targetWarehouseName = this.newTrans.gudangAsal;
             }
 
-            try {
-                const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-                const { data, error } = await supabaseClient.rpc('generate_no_transaksi', { p_tipe: typeCode });
-                if (error) throw error;
-                this.newTrans.noTransaksi = data;
-            } catch (err) {
-                console.error('Gagal generate nomor transaksi:', err.message);
-                const dateStr = (this.newTrans.tanggal || this.todayWIB()).replace(/-/g, '').substring(0, 6);
-                const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
-                const prefix = `ACM-${typeCode}-${dateStr}-`;
-                let maxSeq = 0;
-                this.transactions.forEach(t => {
-                    if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
-                        const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
-                        if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
-                    }
-                });
-                this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
+            // 2. Ambil Kode Gudang dari Master Gudang dan hapus semua tanda strip (-)
+            let kodeGudangClean = 'HQ';
+            if (targetWarehouseName) {
+                const wh = this.masterGudang.find(g => g.namaGudang === targetWarehouseName);
+                if (wh && wh.kodeGudang) {
+                    kodeGudangClean = wh.kodeGudang.replace(/-/g, '');
+                } else {
+                    kodeGudangClean = targetWarehouseName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                }
             }
+
+            // 3. Tentukan Kode Tipe Transaksi (IN / OUT / TRF)
+            const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
+
+            // 4. Ambil 2 digit Tahun dan 2 digit Bulan (YYMM) dari Tanggal Transaksi
+            const transDate = new Date(this.newTrans.tanggal || this.todayWIB());
+            const yy = String(transDate.getFullYear()).slice(-2);
+            const mm = String(transDate.getMonth() + 1).padStart(2, '0');
+            const yymm = `${yy}${mm}`;
+
+            // 5. Susun Prefix Format Baru: [KODE_GUDANG]-[TIPE]-[YYMM]-
+            const prefix = `${kodeGudangClean}-${typeCode}-${yymm}-`;
+
+            // 6. Hitung Nomor Urut (Sequence) Bulanan (3 digit: 001, 002, dst.)
+            let maxSeq = 0;
+            this.transactions.forEach(t => {
+                if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
+                    const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
+                    if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
+                }
+            });
+
+            // Hasil akhir nomor transaksi
+            this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
         },
 
         onTipeTransaksiChange() { 
