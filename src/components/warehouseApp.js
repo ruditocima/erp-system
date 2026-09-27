@@ -1463,11 +1463,18 @@ export default function warehouseApp() {
             } else {
                 items = this.getFilteredStokGudang();
             }
+
+            const whSuffix = this.filterStokGudang ? this.filterStokGudang.replace(/[^a-zA-Z0-9]/g, '_') : 'all';
+            const filename = `stok_gudang_${whSuffix}.csv`;
+
             let csv = 'Kode Barang,Nama Barang,Kategori,Gudang,Total Stok,Satuan\n';
             items.forEach(s => { csv += `"${s.kodeBarang || ''}","${s.namaBarang || ''}","${s.kategori || ''}","${s.gudang || ''}",${s.qty || 0},"${s.sat || ''}"\n`; });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'stok_gudang.csv'; a.click();
+            const a = document.createElement('a'); 
+            a.href = url; 
+            a.download = filename; 
+            a.click();
         },
 
         async exportUsageCSV() {
@@ -1488,20 +1495,50 @@ export default function warehouseApp() {
         },
 
         async exportTransactionCSV() {
-            let items = [];
+            let txList = [];
             if (supabaseClient) {
                 let q = supabaseClient.from('transactions').select('*');
                 if (this.searchNoTransaksi) q = q.or(`no_transaksi.ilike.%${this.searchNoTransaksi}%`);
+                if (this.filterStokGudang) {
+                    q = q.or(`gudang_asal.eq.${this.filterStokGudang},gudang_tujuan.eq.${this.filterStokGudang}`);
+                }
                 const { data } = await q;
-                if (data) items = data.map(t => ({ tanggal: t.tanggal, noTransaksi: t.no_transaksi, tipeTransaksi: t.tipe_transaksi, gudangAsal: t.gudang_asal, gudangTujuan: t.gudang_tujuan, keterangan: t.keterangan }));
+                if (data) {
+                    txList = data.map(t => ({
+                        tanggal: t.tanggal,
+                        noTransaksi: t.no_transaksi,
+                        tipeTransaksi: t.tipe_transaksi,
+                        gudangAsal: t.gudang_asal || '',
+                        gudangTujuan: t.gudang_tujuan || '',
+                        kodeProject: t.kode_project || '',
+                        keterangan: t.keterangan || '',
+                        items: typeof t.items === 'string' ? JSON.parse(t.items) : (t.items || [])
+                    }));
+                }
             } else {
-                items = this.getFilteredTransactions();
+                txList = this.getFilteredTransactions();
             }
-            let csv = 'Tanggal,No Transaksi,Tipe Transaksi,Gudang Asal,Gudang Tujuan,Keterangan\n';
-            items.forEach(t => { csv += `"${t.tanggal || ''}","${t.noTransaksi || ''}","${t.tipeTransaksi || ''}","${t.gudangAsal || ''}","${t.gudangTujuan || ''}","${t.keterangan || ''}"\n`; });
+
+            const whSuffix = this.filterStokGudang ? this.filterStokGudang.replace(/[^a-zA-Z0-9]/g, '_') : 'all';
+            const filename = `data_transaksi_${whSuffix}.csv`;
+
+            let csv = 'Tanggal,No Transaksi,Tipe Transaksi,Gudang Asal,Gudang Tujuan,Nama Project,Kode Barang,Nama Barang,Drum ID,Qty,Keterangan\n';
+
+            txList.forEach(t => {
+                const projectName = this.masterProject.find(p => p.kodeProject === t.kodeProject)?.projectName || t.kodeProject || '';
+                const items = t.items && t.items.length > 0 ? t.items : [{ kodeBarang: '', namaBarang: '', drumId: '', qty: 0 }];
+
+                items.forEach(item => {
+                    csv += `"${t.tanggal || ''}","${t.noTransaksi || ''}","${t.tipeTransaksi || ''}","${t.gudangAsal || ''}","${t.gudangTujuan || ''}","${projectName}","${item.kodeBarang || ''}","${item.namaBarang || ''}","${item.drumId || ''}",${item.qty || 0},"${t.keterangan || ''}"\n`;
+                });
+            });
+
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'data_transaksi.csv'; a.click();
+            const a = document.createElement('a'); 
+            a.href = url; 
+            a.download = filename; 
+            a.click();
         }
     };
 }
