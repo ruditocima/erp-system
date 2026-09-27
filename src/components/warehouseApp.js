@@ -1568,16 +1568,25 @@ export default function warehouseApp() {
             let fileName = `data_transaksi_${selectedGudangName}.csv`;
 
             let txsToExport = [];
-            if (supabaseClient) {
-                // Ambil seluruh data transaksi dari database tanpa batasan halaman (pagination)
-                let txQuery = supabaseClient.from('transactions').select('*');
+            
+            // Deteksi client Supabase secara lebih luas agar tidak null
+            const client = window.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null) || this.supabase;
+
+            if (client) {
+                console.log("Mengambil seluruh data transaksi langsung dari Supabase...");
+                let txQuery = client.from('transactions').select('*');
+                
                 if (this.searchNoTransaksi) {
                     txQuery = txQuery.or(`no_transaksi.ilike.%${this.searchNoTransaksi}%,no_referensi.ilike.%${this.searchNoTransaksi}%`);
                 }
-                const { data: allTxData, error } = await txQuery.order('tanggal', { ascending: false });
+                
+                // Gunakan .range(0, 9999) agar tidak terpotong limit default 1000 baris dari Supabase
+                const { data: allTxData, error } = await txQuery.order('tanggal', { ascending: false }).range(0, 9999);
+                
                 if (error) throw error;
 
-                if (allTxData) {
+                if (allTxData && allTxData.length > 0) {
+                    console.log(`Berhasil memuat ${allTxData.length} baris data dari database.`);
                     txsToExport = allTxData.map(t => ({
                         noTransaksi: t.no_transaksi, 
                         tanggal: t.tanggal, 
@@ -1593,8 +1602,11 @@ export default function warehouseApp() {
                         lampiranUrl: t.lampiran_url,
                         items: typeof t.items === 'string' ? JSON.parse(t.items) : (t.items || [])
                     }));
+                } else {
+                    console.log("Data transaksi dari database kosong.");
                 }
             } else {
+                console.warn("Supabase client tidak ditemukan, fallback ke this.transactions (halaman aktif).");
                 txsToExport = this.transactions;
             }
 
