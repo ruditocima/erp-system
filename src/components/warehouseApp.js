@@ -1,4 +1,5 @@
 import { supabaseClient } from '../services/supabaseClient.js';
+import { APP_CONFIG } from '../config.js'; // Import config
 
 function safeLoadStorage(key, fallback) {
     try {
@@ -13,7 +14,7 @@ function safeLoadStorage(key, fallback) {
 export default function warehouseApp() {
     return {
         // Properti URL Web App Google Apps Script
-        googleScriptUrl: 'https://script.google.com/macros/s/AKfycbxGfGRF55_aYHdG9kMMLgGqV7_ksL5VZGtb6JLRpXBn9nTaMKYUlVrk6s587cTNYC7_/exec',
+        googleScriptUrl: APP_CONFIG.GOOGLE_SCRIPT_URL,
 
         isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
         currentUser: localStorage.getItem('vortex_user') || 'Admin',
