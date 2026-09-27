@@ -13,9 +13,6 @@ function safeLoadStorage(key, fallback) {
 
 export default function warehouseApp() {
     return {
-        // Properti URL Web App Google Apps Script
-        googleScriptUrl: APP_CONFIG.GOOGLE_SCRIPT_URL,
-
         isLoggedIn: localStorage.getItem('vortex_logged_in') === 'true',
         currentUser: localStorage.getItem('vortex_user') || 'Admin',
         currentRole: localStorage.getItem('vortex_role') || 'Super Admin',
@@ -1194,13 +1191,15 @@ export default function warehouseApp() {
                             contents: mergedFile.base64Data
                         };
 
-                        const response = await fetch(this.googleScriptUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                            body: JSON.stringify(payload)
+                        // Memanggil Edge Function Supabase secara aman (tanpa mengekspos token/URL di client)
+                        const { data: edgeData, error: edgeError } = await supabaseClient.functions.invoke('trigger-gas', {
+                            body: payload
                         });
 
-                        const result = await response.json();
+                        if (edgeError) throw edgeError;
+
+                        // Parse hasil respon dari Edge Function
+                        const result = typeof edgeData?.data === 'string' ? JSON.parse(edgeData.data) : (edgeData?.data || edgeData);
 
                         if (result && (result.status === 'success' || result.url || result.fileUrl)) {
                             const driveFileUrl = result.url || result.fileUrl || '';
