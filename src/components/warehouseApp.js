@@ -1603,14 +1603,12 @@ export default function warehouseApp() {
             };
 
             const cleanField = (field) => {
-                let str = String(field !== null && field !== undefined ? field : "");
-                if (str.includes(",") || str.includes("\"") || str.includes("
-") || str.includes('"')) {
-                    str = `\"${str.replace(/"/g, '""')}\"`;
-                }
-                return str;
+            let str = String(field !== null && field !== undefined ? field : "");
+            if (str.includes(",") || str.includes("\"") || str.includes("\n") || str.includes('"')) {
+                str = `\"${str.replace(/"/g, '""')}\"`;
+            }
+            return str;
             };
-
             const headers = [
                 "Tanggal", 
                 "No Transaksi", 
