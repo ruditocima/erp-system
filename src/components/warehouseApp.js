@@ -500,7 +500,7 @@ export default function warehouseApp() {
             if (!supabaseClient) {
                 this.currentUser = this.profileForm.namaLengkap;
                 localStorage.setItem('vortex_user', this.currentUser);
-                this.showNotification('Profil diperbarui (Lokal)[cite: 6]!', 'success');
+                this.showNotification('Profil diperbarui (Lokal)!', 'success');
                 return;
             }
             try {
@@ -517,7 +517,7 @@ export default function warehouseApp() {
                 this.currentUser = this.profileForm.namaLengkap;
                 localStorage.setItem('vortex_user', this.currentUser);
                 this.profileForm.newPassword = '';
-                this.showNotification('Profil berhasil diperbarui[cite: 6]!', 'success');
+                this.showNotification('Profil berhasil diperbarui!', 'success');
             } catch (err) {
                 this.showNotification('Gagal update profil: ' + (err.message || err), 'error');
             } finally {
@@ -566,7 +566,7 @@ export default function warehouseApp() {
 
         async saveModalData() {
             if (!supabaseClient) {
-                this.showNotification('Koneksi Supabase tidak tersedia[cite: 6]!', 'error');
+                this.showNotification('Koneksi Supabase tidak tersedia!', 'error');
                 return;
             }
 
@@ -640,7 +640,7 @@ export default function warehouseApp() {
 
                 this.logAudit('master_save', { type: this.modalType, data: this.modalForm });
                 this.showModal = false;
-                this.showNotification('Data berhasil disimpan ke Supabase[cite: 6]!', 'success');
+                this.showNotification('Data berhasil disimpan ke Supabase!', 'success');
             } catch (err) {
                 this.showNotification('Gagal menyimpan: ' + (err.message || err), 'error');
             } finally {
@@ -672,7 +672,7 @@ export default function warehouseApp() {
                 if (type === 'project') localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
 
                 this.logAudit('master_delete', { type: type, key: item[localKey[type]] });
-                this.showNotification('Data dihapus[cite: 6]!', 'success');
+                this.showNotification('Data dihapus!', 'success');
                 if (supabaseClient) await this.loadDataFromSupabase();
             } catch (err) {
                 this.showNotification('Gagal menghapus: ' + (err.message || err), 'error');
@@ -734,7 +734,7 @@ export default function warehouseApp() {
                         return;
                     }
 
-                    this.showNotification('Transaksi & data terkait berhasil dihapus[cite: 6]!', 'success');
+                    this.showNotification('Transaksi & data terkait berhasil dihapus!', 'success');
                     await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
                     await this.loadDataFromSupabase();
                 } else {
@@ -747,7 +747,7 @@ export default function warehouseApp() {
                     localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
                     localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
 
-                    this.showNotification('Transaksi dihapus & stok dikembalikan (Offline Mode)[cite: 6].', 'success');
+                    this.showNotification('Transaksi dihapus & stok dikembalikan (Offline Mode).', 'success');
                 }
             } catch (err) {
                 console.error('Gagal menghapus transaksi:', err);
@@ -1193,7 +1193,7 @@ export default function warehouseApp() {
                         if (result && (result.status === 'success' || result.url || result.fileUrl)) {
                             const driveFileUrl = result.url || result.fileUrl || '';
                             this.newTrans.lampiranUrl = driveFileUrl;
-                            this.showNotification('Lampiran berhasil disatukan & diunggah ke Google Drive[cite: 6]!', 'success');
+                            this.showNotification('Lampiran berhasil disatukan & diunggah ke Google Drive!', 'success');
                         } else {
                             throw new Error((result && (result.message || result.error)) || 'Respon Google Script tidak valid.');
                         }
@@ -1283,7 +1283,7 @@ export default function warehouseApp() {
                     }
 
                     this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi });
-                    this.showNotification('Transaksi berhasil disimpan ke Supabase[cite: 6]!', 'success');
+                    this.showNotification('Transaksi berhasil disimpan ke Supabase!', 'success');
                     this.clearFormDraft();
                     await this.resetInputTransaction();
                     this.switchTab('data-transaksi');
@@ -1300,7 +1300,7 @@ export default function warehouseApp() {
 
             this.applyTransactionStock(this.newTrans);
             this.transactions.push(JSON.parse(JSON.stringify(this.newTrans)));
-            this.showNotification('Transaksi disimpan (Lokal)[cite: 6]!', 'success');
+            this.showNotification('Transaksi disimpan (Lokal)!', 'success');
             this.clearFormDraft();
             await this.resetInputTransaction();
             this.switchTab('data-transaksi');
