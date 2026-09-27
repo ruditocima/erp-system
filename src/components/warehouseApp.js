@@ -1272,7 +1272,16 @@ export default function warehouseApp() {
                     let editBackup = null;
                     if (this.editingOriginalNo) {
                         editBackup = this.transactions.find(t => t.noTransaksi === this.editingOriginalNo) || null;
-                        await supabaseClient.from('transactions').delete().eq('no_transaksi', this.editingOriginalNo);
+                        
+                        // Perbaikan: Panggil RPC delete_transaction_rollback untuk mengembalikan stok & ledger lama di database Supabase sebelum memproses transaksi baru
+                        const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
+                            p_no_transaksi: this.editingOriginalNo
+                        });
+                        if (rollbackErr) throw rollbackErr;
+                        if (rollbackData && rollbackData.status === 'error') {
+                            throw new Error(rollbackData.message || 'Gagal melakukan rollback transaksi lama.');
+                        }
+
                         await supabaseClient.from('material_usage').delete().eq('transaction_no', this.editingOriginalNo);
                     }
 
