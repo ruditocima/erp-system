@@ -262,18 +262,15 @@ export default function warehouseApp() {
         async submitReturKabelUbahID() {
             if (this.isLoading) return;
 
-            // Ambil data dari form
             const rawProjectCode = this.newTrans.projectCode || '';
-            
-            // Hapus tanda strip (-) dari kode project secara otomatis jika diinput oleh user
             const cleanProjectCode = rawProjectCode.replace(/-/g, '').trim();
 
             const formData = {
-                originalDrumId: this.newTrans.drumId,      // Contoh: 'PLB-036-D05'
-                kodeBarang: this.newTrans.kodeBarang,        // Contoh: 'FO-24C'
-                returnedLength: parseFloat(this.newTrans.qtyRetur || 0), // Contoh: 1000
-                gudangTujuan: this.newTrans.gudangTujuan,    // Contoh: 'Gudang PLB'
-                projectCode: cleanProjectCode,               // Sudah bersih tanpa strip (misal: 'ProjectA')
+                originalDrumId: this.newTrans.drumId,
+                kodeBarang: this.newTrans.kodeBarang,
+                returnedLength: parseFloat(this.newTrans.qtyRetur || 0),
+                gudangTujuan: this.newTrans.gudangTujuan,
+                projectCode: cleanProjectCode,
                 user: this.currentUser || 'Admin Gudang'
             };
 
@@ -302,7 +299,6 @@ export default function warehouseApp() {
 
                 if (data && data.status === 'success') {
                     this.showNotification(`Sukses! ${data.message} (Panjang: ${data.returned_length} meter)`, 'success');
-                    
                     await this.resetInputTransaction();
                     await this.loadDataFromSupabase();
                 } else {
@@ -774,7 +770,6 @@ export default function warehouseApp() {
             if (fileInput) fileInput.value = '';
         },
 
-        // Helper untuk ekstrak File ID Google Drive menggunakan Regular Expression (Regex)
         extractGoogleDriveFileId(url) {
             if (!url) return null;
             const regex = /(?:\/d\/|id=)([a-zA-Z0-9_-]{25,})/;
@@ -789,7 +784,6 @@ export default function warehouseApp() {
 
             this.isLoading = true;
             try {
-                // Logika Hapus File di Google Drive jika lampiranUrl tersedia
                 if (tx.lampiranUrl) {
                     const fileId = this.extractGoogleDriveFileId(tx.lampiranUrl);
                     if (fileId && supabaseClient) {
@@ -859,7 +853,7 @@ export default function warehouseApp() {
                         let d = this.drumLedger.find(x => x.drumId === item.drumId);
                         if (d) d.remainingLength += qty;
                     }
-                } else if (tipe === 'Masuk') {
+                } else if (tipe === 'Masuk' || tipe === 'Return' || tipe === 'Retur') {
                     let s = this.stokGudang.find(x => x.kodeBarang === item.kodeBarang && x.gudang === gTujuan);
                     if (s) s.qty = Math.max(0, s.qty - qty);
                     if (item.drumId) {
@@ -886,7 +880,7 @@ export default function warehouseApp() {
             if (this.editingOriginalNo) return;
 
             let targetWarehouseName = '';
-            if (this.newTrans.tipeTransaksi === 'Masuk') {
+            if (this.newTrans.tipeTransaksi === 'Masuk' || this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') {
                 targetWarehouseName = this.newTrans.gudangTujuan;
             } else {
                 targetWarehouseName = this.newTrans.gudangAsal;
@@ -902,7 +896,15 @@ export default function warehouseApp() {
                 }
             }
 
-            const typeCode = this.newTrans.tipeTransaksi === 'Masuk' ? 'IN' : (this.newTrans.tipeTransaksi === 'Keluar' ? 'OUT' : 'TRF');
+            // Penentuan kode tipe transaksi (mendukung 'Return' / 'Retur' dengan awalan 'RET')
+            let typeCode = 'IN';
+            if (this.newTrans.tipeTransaksi === 'Keluar') {
+                typeCode = 'OUT';
+            } else if (this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') {
+                typeCode = 'RET';
+            } else if (this.newTrans.tipeTransaksi === 'Transfer') {
+                typeCode = 'TRF';
+            }
 
             const transDate = new Date(this.newTrans.tanggal || this.todayWIB());
             const yy = String(transDate.getFullYear()).slice(-2);
@@ -960,7 +962,7 @@ export default function warehouseApp() {
         getDrumList(item) { return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === this.newTrans.gudangAsal && d.remainingLength > 0); },
 
         getMaxStock(item) {
-            if (this.newTrans.tipeTransaksi === 'Masuk') return 999999;
+            if (this.newTrans.tipeTransaksi === 'Masuk' || this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') return 999999;
             if (!this.newTrans.gudangAsal || !item.kodeBarang) return 999999;
             if (this.getCategoryByKode(item.kodeBarang) === 'Cable' && item.drumId) {
                 const drum = this.drumLedger.find(d => d.drumId === item.drumId);
@@ -971,7 +973,7 @@ export default function warehouseApp() {
         },
 
         hasStockExceeded() {
-            if (this.newTrans.tipeTransaksi === 'Masuk') return false;
+            if (this.newTrans.tipeTransaksi === 'Masuk' || this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') return false;
             return this.newTrans.items.some(item => {
                 const max = this.getMaxStock(item);
                 const qty = parseFloat(item.qty) || 0;
@@ -1154,7 +1156,7 @@ export default function warehouseApp() {
                 const qty = parseFloat(item.qty) || 0;
                 const kat = this.getCategoryByKode(item.kodeBarang);
 
-                if (tipe === 'Masuk') {
+                if (tipe === 'Masuk' || tipe === 'Return' || tipe === 'Retur') {
                     this.updateStokGudang(item.kodeBarang, gudangMasuk, -qty);
                     if (kat === 'Cable' && item.drumId) {
                         let drum = this.drumLedger.find(d => d.drumId === item.drumId);
@@ -1195,7 +1197,7 @@ export default function warehouseApp() {
                 const qty = parseFloat(item.qty) || 0;
                 const kat = this.getCategoryByKode(item.kodeBarang);
 
-                if (tipe === 'Masuk') {
+                if (tipe === 'Masuk' || tipe === 'Return' || tipe === 'Retur') {
                     this.updateStokGudang(item.kodeBarang, gudangMasuk, qty);
                     if (kat === 'Cable' && item.drumId) {
                         this.updateDrumLedger(item.drumId, qty, { kodeBarang: item.kodeBarang, namaBarang: item.namaBarang, gudang: gudangMasuk });
@@ -1296,7 +1298,8 @@ export default function warehouseApp() {
             const tipe = this.newTrans.tipeTransaksi;
             const gudangMasuk = this.newTrans.gudangTujuan; 
 
-            if (tipe === 'Masuk') {
+            // Penanganan khusus item Masuk dan Return / Retur (pengelolaan drum kabel & kuantitas)
+            if (tipe === 'Masuk' || tipe === 'Return' || tipe === 'Retur') {
                 let processedItems = [];
                 this.newTrans.items.forEach(item => {
                     const kat = this.getCategoryByKode(item.kodeBarang);
