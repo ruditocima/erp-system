@@ -134,7 +134,7 @@ export default function warehouseApp() {
             qty: parseFloat(item.qty) || 0
         }))
     };
-}
+},
         async logAudit(action, details) {
             try {
                 if (!supabaseClient) return;
