@@ -1316,6 +1316,16 @@ export default function warehouseApp() {
                         throw error;
                     }
 
+                    // Tambahan pemanggilan RPC proses_pengeluaran_drum untuk update remaining_length drum_ledger
+                    if (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') {
+                        const { data: drumData, error: drumError } = await supabaseClient.rpc('proses_pengeluaran_drum', {
+                            p_items: this.newTrans.items
+                        });
+                        if (drumError) {
+                            console.warn('Peringatan: Gagal memproses pemotongan panjang drum:', drumError);
+                        }
+                    }
+
                     this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi });
                     this.showNotification('Transaksi berhasil disimpan ke Supabase!', 'success');
                     this.clearFormDraft();
