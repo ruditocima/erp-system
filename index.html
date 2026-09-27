@@ -368,13 +368,14 @@
                                         <option value="Masuk">Masuk</option>
                                         <option value="Keluar">Keluar</option>
                                         <option value="Transfer">Transfer</option>
+                                        <option value="Return">Return / Retur</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Gudang / Sumber Asal</label>
-                                    <input type="text" x-show="newTrans.tipeTransaksi === 'Masuk'" x-model="newTrans.gudangAsal" @input="generateNoTransaksi()" placeholder="Vendor / Supplier" :required="newTrans.tipeTransaksi === 'Masuk'" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none" x-cloak>
+                                    <input type="text" x-show="newTrans.tipeTransaksi === 'Masuk' || newTrans.tipeTransaksi === 'Return'" x-model="newTrans.gudangAsal" @input="generateNoTransaksi()" placeholder="Vendor / Asal Lapangan" :required="newTrans.tipeTransaksi === 'Masuk' || newTrans.tipeTransaksi === 'Return'" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none" x-cloak>
     
-                                    <select x-show="newTrans.tipeTransaksi !== 'Masuk'" x-model="newTrans.gudangAsal" @change="resetItemsOnWarehouseChange(); generateNoTransaksi(); newTrans.kodeProject = ''; if(newTrans.gudangAsal === newTrans.gudangTujuan) newTrans.gudangTujuan = '';" :required="newTrans.tipeTransaksi !== 'Masuk'" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none" x-cloak>
+                                    <select x-show="newTrans.tipeTransaksi !== 'Masuk' && newTrans.tipeTransaksi !== 'Return'" x-model="newTrans.gudangAsal" @change="resetItemsOnWarehouseChange(); generateNoTransaksi(); newTrans.kodeProject = ''; if(newTrans.gudangAsal === newTrans.gudangTujuan) newTrans.gudangTujuan = '';" :required="newTrans.tipeTransaksi !== 'Masuk' && newTrans.tipeTransaksi !== 'Return'" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none" x-cloak>
                                         <option value="">Pilih Gudang Asal</option>
                                         <template x-for="g in getFilteredMasterGudang()" :key="g.kodeGudang"><option :value="g.namaGudang" x-text="g.namaGudang"></option></template>
                                     </select>
@@ -393,7 +394,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
-                                    <select x-model="newTrans.kodeProject" :disabled="newTrans.tipeTransaksi !== 'Keluar' || getFilteredProjectsForAsal().length === 0" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none disabled:opacity-50">
+                                    <select x-model="newTrans.kodeProject" :disabled="(newTrans.tipeTransaksi !== 'Keluar' && newTrans.tipeTransaksi !== 'Return') || getFilteredProjectsForAsal().length === 0" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none disabled:opacity-50">
                                         <option value="">Pilih Project...</option>
                                         <template x-for="p in getFilteredProjectsForAsal()" :key="p.kodeProject"><option :value="p.kodeProject" x-text="p.kodeProject + ' - ' + p.projectName"></option></template>
                                     </select>
@@ -476,7 +477,7 @@
                                                         </select>
                                                     </template>
                                                     <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer'))">
-                                                        <input type="text" x-model="item.drumId" placeholder="Drum ID (Otomatis/Opsional)" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
+                                                        <input type="text" x-model="item.drumId" placeholder="Drum ID Asal / Baru" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
                                                     </template>
                                                 </div>
                                                 <div class="md:col-span-1">
@@ -487,7 +488,7 @@
                                                 </div>
                                             </div>
 
-                                            <template x-if="newTrans.tipeTransaksi !== 'Masuk' && item.kodeBarang">
+                                            <template x-if="newTrans.tipeTransaksi !== 'Masuk' && newTrans.tipeTransaksi !== 'Return' && item.kodeBarang">
                                                 <div class="flex items-center justify-between px-1 pt-1 border-t border-slate-900 text-[10px]">
                                                     <span class="text-slate-400">Stok Aktif Tersedia: <strong class="text-indigo-300 font-mono" x-text="getMaxStock(item)"></strong></span>
                                                     <span x-show="parseFloat(item.qty || 0) > getMaxStock(item)" class="text-rose-400 font-semibold">⚠️ Jumlah yang dimasukkan melebihi stok aktif yang tersedia di gudang!</span>
@@ -498,9 +499,8 @@
                                 </div>
                             </div>
 
-                            <!-- Tombol Submit / Simpan dengan tombol tambahan Retur Kabel -->
+                            <!-- Tombol Submit / Simpan Terpusat -->
                             <div class="pt-3 flex justify-end gap-2">
-                                <button @click="submitReturKabelUbahID()" class="btn btn-primary bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-5 py-2 rounded-lg shadow-lg text-xs transition">Simpan Retur Kabel</button>
                                 <button type="submit" :disabled="isLoading || hasStockExceeded()" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium px-5 py-2 rounded-lg shadow-lg text-xs transition flex items-center gap-2">
                                     <span x-show="isLoading" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
                                     <span x-text="isLoading ? 'Memproses...' : (editingOriginalNo ? 'Update Transaksi' : 'Simpan Transaksi')"></span>
