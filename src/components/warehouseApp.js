@@ -501,7 +501,7 @@ export default function warehouseApp() {
             if (!supabaseClient) {
                 this.currentUser = this.profileForm.namaLengkap;
                 localStorage.setItem('vortex_user', this.currentUser);
-                this.showNotification('Profil diperbarui (Lokal)!', 'success');
+                this.showNotification('Profil diperbarui (Lokal) !', 'success');
                 return;
             }
             try {
@@ -1192,11 +1192,6 @@ export default function warehouseApp() {
                 return;
             }
 
-            // Sanitasi kode project khusus untuk tipe transaksi Return (menghilangkan strip '-')
-            if (this.newTrans.tipeTransaksi === 'Return' && this.newTrans.kodeProject) {
-                this.newTrans.kodeProject = this.newTrans.kodeProject.replace(/-/g, '').trim();
-            }
-
             this.newTrans.items = this.newTrans.items.filter(i => i.kategori || i.jenis || i.kodeBarang || i.drumId || (parseFloat(i.qty) > 0));
             if (this.newTrans.items.length === 0) {
                 this.showNotification('Minimal satu item material wajib diisi!', 'error');
@@ -1613,7 +1608,7 @@ export default function warehouseApp() {
             ]);
 
             const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.setAttribute('href', url);
