@@ -258,6 +258,65 @@ export default function warehouseApp() {
             }
         },
 
+        // --- FUNGSI RETUR KABEL DENGAN KODE PROJECT TANPA TANDA STRIP (-) ---
+        async submitReturKabelUbahID() {
+            if (this.isLoading) return;
+
+            // Ambil data dari form
+            const rawProjectCode = this.newTrans.projectCode || '';
+            
+            // Hapus tanda strip (-) dari kode project secara otomatis jika diinput oleh user
+            const cleanProjectCode = rawProjectCode.replace(/-/g, '').trim();
+
+            const formData = {
+                originalDrumId: this.newTrans.drumId,      // Contoh: 'PLB-036-D05'
+                kodeBarang: this.newTrans.kodeBarang,        // Contoh: 'FO-24C'
+                returnedLength: parseFloat(this.newTrans.qtyRetur || 0), // Contoh: 1000
+                gudangTujuan: this.newTrans.gudangTujuan,    // Contoh: 'Gudang PLB'
+                projectCode: cleanProjectCode,               // Sudah bersih tanpa strip (misal: 'ProjectA')
+                user: this.currentUser || 'Admin Gudang'
+            };
+
+            if (!formData.originalDrumId || !formData.projectCode || formData.returnedLength <= 0) {
+                this.showNotification('Mohon lengkapi Drum ID asal, Kode Project, dan Panjang Retur dengan benar.', 'error');
+                return;
+            }
+
+            if (!supabaseClient) {
+                this.showNotification('Koneksi database tidak tersedia.', 'error');
+                return;
+            }
+
+            try {
+                this.isLoading = true;
+                const { data, error } = await supabaseClient.rpc('proses_retur_kabel_ubah_id', {
+                    p_original_drum_id: formData.originalDrumId,
+                    p_kode_barang: formData.kodeBarang,
+                    p_returned_length: formData.returnedLength,
+                    p_gudang_tujuan: formData.gudangTujuan,
+                    p_project_code: formData.projectCode,
+                    p_user: formData.user
+                });
+
+                if (error) throw error;
+
+                if (data && data.status === 'success') {
+                    this.showNotification(`Sukses! ${data.message} (Panjang: ${data.returned_length} meter)`, 'success');
+                    
+                    await this.resetInputTransaction();
+                    await this.loadDataFromSupabase();
+                } else {
+                    this.showNotification('Gagal memproses retur: ' + (data?.message || 'Unknown error'), 'error');
+                }
+
+            } catch (err) {
+                console.error('Error saat retur kabel:', err.message);
+                this.showNotification('Terjadi kesalahan sistem: ' + (err.message || err), 'error');
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
         formatQty(val) {
             const n = parseFloat(val) || 0;
             return n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
@@ -1314,16 +1373,6 @@ export default function warehouseApp() {
                     if (error) {
                         if (editBackup) await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(editBackup));
                         throw error;
-                    }
-
-                    // Tambahan pemanggilan RPC proses_pengeluaran_drum untuk update remaining_length drum_ledger
-                    if (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer') {
-                        const { data: drumData, error: drumError } = await supabaseClient.rpc('proses_pengeluaran_drum', {
-                            p_items: this.newTrans.items
-                        });
-                        if (drumError) {
-                            console.warn('Peringatan: Gagal memproses pemotongan panjang drum:', drumError);
-                        }
                     }
 
                     this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi });
