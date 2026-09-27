@@ -127,9 +127,9 @@ export default function warehouseApp() {
         p_lampiran_url: tx.lampiranUrl || '',
         p_items: (tx.items || []).map(item => ({
             ...item,
-            // Menambahkan format snake_case untuk PostgreSQL JSON parsing
             kode_barang: item.kodeBarang,
             nama_barang: item.namaBarang,
+            kategori: item.kategori || this.getCategoryByKode(item.kodeBarang) || '',
             drum_id: item.drumId || '',
             qty: parseFloat(item.qty) || 0
         }))
