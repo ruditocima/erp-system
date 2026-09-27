@@ -331,7 +331,7 @@ export default function warehouseApp() {
                     this.stokGudang = stockData.map(s => ({
                         kodeBarang: s.kode_barang, 
                         namaBarang: s.nama_barang,
-                        kategori: s.kategori, 
+                        kategori: s.kategori || this.masterBarang.find(b => b.kodeBarang === s.kode_barang)?.kategori || '', 
                         gudang: s.gudang, 
                         masuk: parseFloat(s.masuk) || 0,
                         keluar: parseFloat(s.keluar) || 0,
@@ -1510,7 +1510,7 @@ export default function warehouseApp() {
                     items = data.map(s => ({ 
                         kodeBarang: s.kode_barang, 
                         namaBarang: s.nama_barang, 
-                        kategori: s.kategori, 
+                        kategori: s.kategori || this.masterBarang.find(b => b.kodeBarang === s.kode_barang)?.kategori || '', 
                         gudang: s.gudang, 
                         masuk: parseFloat(s.masuk) || 0,
                         keluar: parseFloat(s.keluar) || 0,
