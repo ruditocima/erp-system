@@ -1561,21 +1561,51 @@ export default function warehouseApp() {
             const a = document.createElement('a'); a.href = url; a.download = 'material_usage.csv'; a.click();
         },
 
-        exportTransactionCSV() {
-            // Tentukan nama gudang yang sedang aktif/dipilih untuk penamaan file
+        async exportTransactionCSV() {
+        this.isLoading = true;
+        try {
             let selectedGudangName = this.filterStokGudang ? this.filterStokGudang.replace(/[^a-zA-Z0-9]/g, '_') : 'All';
             let fileName = `data_transaksi_${selectedGudangName}.csv`;
 
-            // Filter transaksi berdasarkan gudang jika ada filter gudang yang dipilih
-            let txsToExport = this.transactions;
+            let txsToExport = [];
+            if (supabaseClient) {
+                // Ambil seluruh data transaksi dari database tanpa batasan halaman (pagination)
+                let txQuery = supabaseClient.from('transactions').select('*');
+                if (this.searchNoTransaksi) {
+                    txQuery = txQuery.or(`no_transaksi.ilike.%${this.searchNoTransaksi}%,no_referensi.ilike.%${this.searchNoTransaksi}%`);
+                }
+                const { data: allTxData, error } = await txQuery.order('tanggal', { ascending: false });
+                if (error) throw error;
+
+                if (allTxData) {
+                    txsToExport = allTxData.map(t => ({
+                        noTransaksi: t.no_transaksi, 
+                        tanggal: t.tanggal, 
+                        noReferensi: t.no_referensi,
+                        tipeTransaksi: t.tipe_transaksi, 
+                        gudangAsal: t.gudang_asal, 
+                        gudangTujuan: t.gudang_tujuan,
+                        kodeProject: t.kode_project, 
+                        keterangan: t.keterangan, 
+                        staffGudang: t.staff_gudang,
+                        projectManager: t.project_manager, 
+                        namaPenerima: t.nama_penerima, 
+                        lampiranUrl: t.lampiran_url,
+                        items: typeof t.items === 'string' ? JSON.parse(t.items) : (t.items || [])
+                    }));
+                }
+            } else {
+                txsToExport = this.transactions;
+            }
+
+            // Filter berdasarkan gudang jika ada filter gudang yang aktif dipilih
             if (this.filterStokGudang) {
-                txsToExport = this.transactions.filter(tx => 
+                txsToExport = txsToExport.filter(tx => 
                     (tx.gudangAsal && tx.gudangAsal.toLowerCase() === this.filterStokGudang.toLowerCase()) || 
                     (tx.gudangTujuan && tx.gudangTujuan.toLowerCase() === this.filterStokGudang.toLowerCase())
                 );
             }
 
-            // Header kolom sesuai permintaan
             let csvRows = [];
             let headers = [
                 "Tanggal", 
@@ -1594,14 +1624,12 @@ export default function warehouseApp() {
             ];
             csvRows.push(headers.join(","));
 
-            // Helper untuk mengambil nama project berdasarkan kode project
             const getProjectName = (kodeProj) => {
                 if (!kodeProj) return "-";
                 const found = this.masterProject.find(p => p.kodeProject === kodeProj);
                 return found ? found.projectName : kodeProj;
             };
 
-            // Loop setiap transaksi dan items di dalamnya
             txsToExport.forEach(tx => {
                 let tanggal = `"${tx.tanggal || ''}"`;
                 let noTransaksi = `"${tx.noTransaksi || ''}"`;
@@ -1619,7 +1647,6 @@ export default function warehouseApp() {
                         let namaBarang = `"${(item.namaBarang || '').replace(/"/g, '""')}"`;
                         let qty = item.qty || 0;
 
-                        // Pengecekan apabila Drum ID terdapat lebih dari satu (dipisah koma/titik koma)
                         let rawDrumId = item.drumId ? String(item.drumId) : '';
                         let drumIdList = [rawDrumId];
                         
@@ -1629,7 +1656,6 @@ export default function warehouseApp() {
 
                         if (drumIdList.length === 0) drumIdList = [''];
 
-                        // Tambahkan baris baru untuk setiap Drum ID (aturan poin 2)
                         drumIdList.forEach(dId => {
                             let drumIdCol = `"${dId}"`;
                             let row = [
@@ -1651,7 +1677,6 @@ export default function warehouseApp() {
                         });
                     });
                 } else {
-                    // Jika transaksi tidak memiliki item detail
                     let row = [
                         tanggal,
                         noTransaksi,
@@ -1671,7 +1696,6 @@ export default function warehouseApp() {
                 }
             });
 
-            // Proses Download File CSV
             let csvString = csvRows.join("\n");
             let blob = new Blob(["\uFEFF" + csvString], { type: 'text/csv;charset=utf-8;' });
             let url = URL.createObjectURL(blob);
@@ -1682,7 +1706,12 @@ export default function warehouseApp() {
             a.click();
             document.body.removeChild(a);
             
-            this.showNotification(`File ${fileName} berhasil diexport!`, 'success');
+            this.showNotification(`File ${fileName} berhasil diexport keseluruhan!`, 'success');
+        } catch (err) {
+            console.error('Gagal export CSV transaksi:', err);
+            this.showNotification('Gagal export CSV: ' + (err.message || err), 'error');
+        } finally {
+            this.isLoading = false;
         }
     };
 }
