@@ -1562,6 +1562,11 @@ export default function warehouseApp() {
         },
 
         async exportTransactionCSV() {
+            let selectedWarehouse = 'All';
+            if (this.filterStokGudang && this.filterStokGudang.trim() !== '') {
+                selectedWarehouse = this.filterStokGudang.replace(/[^a-zA-Z0-9]/g, '_');
+            }
+
             let txList = [];
             if (supabaseClient) {
                 let q = supabaseClient.from('transactions').select('*');
@@ -1591,31 +1596,91 @@ export default function warehouseApp() {
                 txList = this.transactions;
             }
 
-            const headers = ['Tanggal', 'No Transaksi', 'No Referensi', 'Tipe Transaksi', 'Gudang Asal', 'Gudang Tujuan', 'Kode Project', 'Keterangan', 'Lampiran', 'Staff Gudang', 'Project Manager', 'Nama Penerima'];
-            const rows = txList.map(tx => [
-                `"${tx.tanggal || ''}"`,
-                `"${tx.noTransaksi || ''}"`,
-                `"${tx.noReferensi || ''}"`,
-                `"${tx.tipeTransaksi || ''}"`,
-                `"${tx.gudangAsal || ''}"`,
-                `"${tx.gudangTujuan || ''}"`,
-                `"${tx.kodeProject || ''}"`,
-                `"${tx.keterangan || ''}"`,
-                `"${tx.lampiranUrl || ''}"`,
-                `"${tx.staffGudang || ''}"`,
-                `"${tx.projectManager || ''}"`,
-                `"${tx.namaPenerima || ''}"`
-            ]);
+            const getProjectName = (kodeProj) => {
+                if (!kodeProj) return "-";
+                const proj = this.masterProject.find(p => p.kodeProject === kodeProj);
+                return proj ? proj.projectName : kodeProj;
+            };
 
-            const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const cleanField = (field) => {
+                let str = String(field !== null && field !== undefined ? field : "");
+                if (str.includes(",") || str.includes("\"") || str.includes("
+") || str.includes('"')) {
+                    str = `\"${str.replace(/"/g, '""')}\"`;
+                }
+                return str;
+            };
+
+            const headers = [
+                "Tanggal", 
+                "No Transaksi", 
+                "No Referensi", 
+                "Tipe Transaksi", 
+                "Gudang Asal", 
+                "Gudang Tujuan", 
+                "Nama Project", 
+                "Kode Barang", 
+                "Nama Barang", 
+                "Drum ID", 
+                "Qty", 
+                "Keterangan", 
+                "Nama Penerima"
+            ];
+
+            let csvRows = [headers.join(",")];
+
+            txList.forEach(tx => {
+                let tanggal = tx.tanggal || "";
+                let noTransaksi = tx.noTransaksi || "";
+                let noReferensi = tx.noReferensi || "";
+                let tipeTransaksi = tx.tipeTransaksi || "";
+                let gudangAsal = tx.gudangAsal || "";
+                let gudangTujuan = tx.gudangTujuan || "";
+                let namaProject = getProjectName(tx.kodeProject);
+                let keterangan = tx.keterangan || "";
+                let namaPenerima = tx.namaPenerima || "";
+
+                let items = tx.items && tx.items.length > 0 
+                    ? tx.items 
+                    : [{ kodeBarang: "-", namaBarang: "-", drumId: "-", qty: 0 }];
+
+                items.forEach(item => {
+                    let kodeBarang = item.kodeBarang || "-";
+                    let namaBarang = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || "-";
+                    let drumId = item.drumId || "-";
+                    let qty = item.qty !== undefined ? item.qty : 0;
+
+                    const row = [
+                        cleanField(tanggal),
+                        cleanField(noTransaksi),
+                        cleanField(noReferensi),
+                        cleanField(tipeTransaksi),
+                        cleanField(gudangAsal),
+                        cleanField(gudangTujuan),
+                        cleanField(namaProject),
+                        cleanField(kodeBarang),
+                        cleanField(namaBarang),
+                        cleanField(drumId),
+                        cleanField(qty),
+                        cleanField(keterangan),
+                        cleanField(namaPenerima)
+                    ];
+
+                    csvRows.push(row.join(","));
+                });
+            });
+
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.setAttribute('href', url);
-            a.setAttribute('download', `data_transaksi_${this.todayWIB()}.csv`);
+            a.setAttribute('download', `data_transaksi_${selectedWarehouse}.csv`);
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+
+            this.showNotification(`File data_transaksi_${selectedWarehouse}.csv berhasil di-export!`, "success");
         }
     };
 }
