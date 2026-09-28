@@ -951,8 +951,9 @@ export default function warehouseApp() {
             if (this.newTrans.tipeTransaksi === 'Masuk' || this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') return 999999;
             if (!this.newTrans.gudangAsal || !item.kodeBarang) return 999999;
             if (this.getCategoryByKode(item.kodeBarang) === 'Cable' && item.drumId) {
-                const drum = this.drumLedger.find(d => d.drumId === item.drumId);
-                return drum ? drum.remainingLength : 0;
+                // Cari di drumLedger lokal ATAU di activeDropdownDrums
+                const drum = this.drumLedger.find(d => d.drumId === item.drumId) || this.activeDropdownDrums.find(d => d.drumId === item.drumId);
+                return drum ? (drum.remainingLength !== undefined ? drum.remainingLength : drum.remainingLength) : 0;
             }
             const stok = this.stokGudang.find(s => s.kodeBarang === item.kodeBarang && s.gudang === this.newTrans.gudangAsal);
             return stok ? stok.qty : 0;
