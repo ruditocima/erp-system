@@ -461,7 +461,8 @@
                                                     </select>
                                                 </div>
                                                 <div class="md:col-span-2">
-                                                    <select x-model="item.kodeBarang" @change="fillNamaBarang(item); item.drumId=''" :disabled="!item.jenis" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-200 font-mono disabled:opacity-50">
+                                                    <!-- PERBAIKAN 1: Tambahkan fetchDrumsForDropdown pada event @change kodeBarang -->
+                                                    <select x-model="item.kodeBarang" @change="fillNamaBarang(item); item.drumId=''; fetchDrumsForDropdown(item.kodeBarang, newTrans.gudangAsal)" :disabled="!item.jenis" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-200 font-mono disabled:opacity-50">
                                                         <option value="">Pilih Kode</option>
                                                         <template x-for="brg in getBarangList(item.kategori, item.jenis)" :key="brg.kodeBarang"><option :value="brg.kodeBarang" x-text="brg.kodeBarang"></option></template>
                                                     </select>
@@ -471,9 +472,10 @@
                                                 </div>
                                                 <div class="md:col-span-2">
                                                     <template x-if="getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer')">
+                                                        <!-- PERBAIKAN 2: Menggunakan getDrumList() tanpa argumen item karena merujuk ke activeDropdownDrums -->
                                                         <select x-model="item.drumId" required class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-mono text-indigo-300">
                                                             <option value="">Pilih Drum ID</option>
-                                                            <template x-for="d in getDrumList(item)" :key="d.drumId"><option :value="d.drumId" x-text="d.drumId + ' (Sisa: ' + d.remainingLength + 'm)'"></option></template>
+                                                            <template x-for="d in getDrumList()" :key="d.drumId"><option :value="d.drumId" x-text="d.drumId + ' (Sisa: ' + d.remainingLength + 'm)'"></option></template>
                                                         </select>
                                                     </template>
                                                     <template x-if="!(getCategoryByKode(item.kodeBarang) === 'Cable' && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Transfer'))">
