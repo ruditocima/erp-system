@@ -47,6 +47,7 @@ export default function warehouseApp() {
         transactions: safeLoadStorage('vortex_transactions', []),
         newTrans: { tanggal: '', noTransaksi: '', noReferensi: '', tipeTransaksi: 'Masuk', gudangAsal: '', gudangTujuan: '', kodeProject: '', keterangan: '', lampiran: '', lampiranUrl: '', staffGudang: '', projectManager: '', namaPenerima: '', items: [] },
         activeBast: {},
+        activeDropdownDrums: [], // Langkah 1: Tambahkan variabel ini untuk menampung data dropdown drum tanpa limit paginasi
 
         get isSuperAdmin() {
             return !this.currentRole || this.currentRole.toLowerCase().includes('super') || this.currentRole.toLowerCase() === 'admin';
@@ -911,7 +912,40 @@ export default function warehouseApp() {
         getBarangList(cat, jns) { return this.masterBarang.filter(b => b.kategori === cat && b.jenis === jns); },
         getCategoryByKode(code) { return this.masterBarang.find(b => b.kodeBarang === code)?.kategori || ''; },
         fillNamaBarang(item) { item.namaBarang = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || ''; },
-        getDrumList(item) { return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === this.newTrans.gudangAsal && d.remainingLength > 0); },
+        
+        // Langkah 3: Mengubah logika getDrumList agar merujuk ke state asinkron
+        getDrumList() { 
+            return this.activeDropdownDrums; 
+        },
+
+        // Langkah 2: Fungsi asinkron untuk mengambil data daftar drum langsung dari Supabase tanpa batas paginasi
+        async fetchDrumsForDropdown(kodeBarang, gudangAsal) {
+            if (!supabaseClient || !kodeBarang || !gudangAsal) {
+                this.activeDropdownDrums = [];
+                return;
+            }
+            
+            try {
+                // Ambil semua drum yang memenuhi syarat (sisa panjang > 0)
+                const { data, error } = await supabaseClient.from('drum_ledger')
+                    .select('drum_id, remaining_length')
+                    .eq('kode_barang', kodeBarang)
+                    .eq('gudang', gudangAsal)
+                    .gt('remaining_length', 0);
+                    
+                if (data && !error) {
+                    this.activeDropdownDrums = data.map(d => ({
+                        drumId: d.drum_id,
+                        remainingLength: d.remaining_length
+                    }));
+                } else {
+                    this.activeDropdownDrums = [];
+                }
+            } catch (err) {
+                console.error("Gagal menarik daftar drum:", err);
+                this.activeDropdownDrums = [];
+            }
+        },
 
         getMaxStock(item) {
             if (this.newTrans.tipeTransaksi === 'Masuk' || this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') return 999999;
