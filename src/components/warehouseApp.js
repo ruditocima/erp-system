@@ -1600,143 +1600,43 @@ export default function warehouseApp() {
                                 tanggal: t.tanggal, 
                                 noReferensi: t.no_referensi,
                                 tipeTransaksi: t.tipe_transaksi, 
-                                gudangAsal: t.gudang_asal, 
+                                gudangAsal: t.gudang_asal,
                                 gudangTujuan: t.gudang_tujuan,
-                                kodeProject: t.kode_project, 
-                                keterangan: t.keterangan, 
+                                kodeProject: t.kode_project,
+                                keterangan: t.keterangan,
                                 staffGudang: t.staff_gudang,
-                                projectManager: t.project_manager, 
-                                namaPenerima: t.nama_penerima, 
-                                lampiranUrl: t.lampiran_url,
+                                projectManager: t.project_manager,
+                                namaPenerima: t.nama_penerima,
                                 items: typeof t.items === 'string' ? JSON.parse(t.items) : (t.items || [])
                             };
                         });
-                    } else {
-                        console.log("Data transaksi dari database kosong.");
                     }
                 } else {
-                    console.warn("Supabase client tidak ditemukan, fallback ke this.transactions (halaman aktif).");
-                    txsToExport = this.transactions;
+                    txsToExport = this.getFilteredTransactions();
                 }
 
-                // Filter berdasarkan gudang jika ada filter gudang yang aktif dipilih
-                if (this.filterStokGudang) {
-                    let filterGudangVal = this.filterStokGudang.toLowerCase();
-                    txsToExport = txsToExport.filter(function(tx) {
-                        return (tx.gudangAsal && tx.gudangAsal.toLowerCase() === filterGudangVal) || 
-                               (tx.gudangTujuan && tx.gudangTujuan.toLowerCase() === filterGudangVal);
-                    });
-                }
-
-                let csvRows = [];
-                let headers = [
-                    "Tanggal", 
-                    "No Transaksi", 
-                    "No Referensi", 
-                    "Tipe Transaksi", 
-                    "Gudang Asal", 
-                    "Gudang Tujuan", 
-                    "Nama Project", 
-                    "Kode Barang", 
-                    "Nama Barang", 
-                    "Drum ID", 
-                    "Qty", 
-                    "Keterangan", 
-                    "Nama Penerima"
-                ];
-                csvRows.push(headers.join(","));
-
-                let self = this;
-                let getProjectName = function(kodeProj) {
-                    if (!kodeProj) return "-";
-                    let found = self.masterProject.find(function(p) {
-                        return p.kodeProject === kodeProj;
-                    });
-                    return found ? found.projectName : kodeProj;
-                };
-
-                txsToExport.forEach(function(tx) {
-                    let tanggal = '"' + (tx.tanggal || '') + '"';
-                    let noTransaksi = '"' + (tx.noTransaksi || '') + '"';
-                    let noReferensi = '"' + (tx.noReferensi || '') + '"';
-                    let tipeTransaksi = '"' + (tx.tipeTransaksi || '') + '"';
-                    let gudangAsal = '"' + (tx.gudangAsal || '') + '"';
-                    let gudangTujuan = '"' + (tx.gudangTujuan || '') + '"';
-                    let namaProject = '"' + getProjectName(tx.kodeProject) + '"';
-                    let keterangan = '"' + (tx.keterangan || '').replace(/"/g, '""') + '"';
-                    let namaPenerima = '"' + (tx.namaPenerima || '') + '"';
-
-                    if (tx.items && tx.items.length > 0) {
-                        tx.items.forEach(function(item) {
-                            let kodeBarang = '"' + (item.kodeBarang || '') + '"';
-                            let namaBarang = '"' + (item.namaBarang || '').replace(/"/g, '""') + '"';
-                            let qty = item.qty || 0;
-
-                            let rawDrumId = item.drumId ? String(item.drumId) : '';
-                            let drumIdList = [rawDrumId];
-                            
-                            if (rawDrumId.indexOf(',') !== -1 || rawDrumId.indexOf(';') !== -1) {
-                                drumIdList = rawDrumId.split(/[,;]+/).map(function(d) {
-                                    return d.trim();
-                                }).filter(Boolean);
-                            }
-
-                            if (drumIdList.length === 0) drumIdList = [''];
-
-                            drumIdList.forEach(function(dId) {
-                                let drumIdCol = '"' + dId + '"';
-                                let row = [
-                                    tanggal,
-                                    noTransaksi,
-                                    noReferensi,
-                                    tipeTransaksi,
-                                    gudangAsal,
-                                    gudangTujuan,
-                                    namaProject,
-                                    kodeBarang,
-                                    namaBarang,
-                                    drumIdCol,
-                                    qty,
-                                    keterangan,
-                                    namaPenerima
-                                ];
-                                csvRows.push(row.join(","));
-                            });
-                        });
+                let csv = 'No Transaksi,Tanggal,No Referensi,Tipe Transaksi,Gudang Asal,Gudang Tujuan,Kode Project,Keterangan,Staff Gudang,Project Manager,Nama Penerima,Kode Barang,Nama Barang,Drum ID,Qty\n';
+                txsToExport.forEach(tx => {
+                    const items = tx.items || [];
+                    if (items.length === 0) {
+                         csv += `"${tx.noTransaksi || ''}","${tx.tanggal || ''}","${tx.noReferensi || ''}","${tx.tipeTransaksi || ''}","${tx.gudangAsal || ''}","${tx.gudangTujuan || ''}","${tx.kodeProject || ''}","${tx.keterangan || ''}","${tx.staffGudang || ''}","${tx.projectManager || ''}","${tx.namaPenerima || ''}","","","",0\n`;
                     } else {
-                        let row = [
-                            tanggal,
-                            noTransaksi,
-                            noReferensi,
-                            tipeTransaksi,
-                            gudangAsal,
-                            gudangTujuan,
-                            namaProject,
-                            '""',
-                            '""',
-                            '""',
-                            0,
-                            keterangan,
-                            namaPenerima
-                        ];
-                        csvRows.push(row.join(","));
+                        items.forEach(i => {
+                            csv += `"${tx.noTransaksi || ''}","${tx.tanggal || ''}","${tx.noReferensi || ''}","${tx.tipeTransaksi || ''}","${tx.gudangAsal || ''}","${tx.gudangTujuan || ''}","${tx.kodeProject || ''}","${(tx.keterangan || '').replace(/"/g, '""')}","${tx.staffGudang || ''}","${tx.projectManager || ''}","${tx.namaPenerima || ''}","${i.kodeBarang || ''}","${(i.namaBarang || '').replace(/"/g, '""')}","${i.drumId || ''}",${i.qty || 0}\n`;
+                        });
                     }
                 });
 
-                let csvString = csvRows.join("\n");
-                let blob = new Blob(["\uFEFF" + csvString], { type: 'text/csv;charset=utf-8;' });
-                let url = URL.createObjectURL(blob);
-                let a = document.createElement('a');
-                a.setAttribute('href', url);
-                a.setAttribute('download', fileName);
-                document.body.appendChild(a);
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); 
+                a.href = url; 
+                a.download = fileName; 
                 a.click();
-                document.body.removeChild(a);
-                
-                this.showNotification("File " + fileName + " berhasil diexport keseluruhan!", "success");
+                URL.revokeObjectURL(url);
             } catch (err) {
-                console.error("Gagal export CSV transaksi:", err);
-                this.showNotification("Gagal export CSV: " + (err.message || err), "error");
+                console.error("Gagal mengekspor CSV:", err);
+                this.showNotification('Gagal mengekspor data transaksi ke CSV: ' + err.message, 'error');
             } finally {
                 this.isLoading = false;
             }
