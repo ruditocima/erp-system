@@ -112,29 +112,30 @@ export default function warehouseApp() {
         },
 
         buildRpcParams(tx) {
-    return {
-        p_no_transaksi: tx.noTransaksi,
-        p_tanggal: tx.tanggal,
-        p_no_referensi: tx.noReferensi || '',
-        p_tipe_transaksi: tx.tipeTransaksi,
-        p_gudang_asal: tx.gudangAsal || '',
-        p_gudang_tujuan: tx.gudangTujuan || '',
-        p_kode_project: tx.kodeProject || '',
-        p_keterangan: tx.keterangan || '',
-        p_staff_gudang: tx.staffGudang || '',
-        p_project_manager: tx.projectManager || '',
-        p_nama_penerima: tx.namaPenerima || '',
-        p_lampiran_url: tx.lampiranUrl || '',
-        p_items: (tx.items || []).map(item => ({
-            ...item,
-            kode_barang: item.kodeBarang,
-            nama_barang: item.namaBarang,
-            kategori: item.kategori || this.getCategoryByKode(item.kodeBarang) || '',
-            drum_id: item.drumId || '',
-            qty: parseFloat(item.qty) || 0
-        }))
-    };
-},
+            return {
+                p_no_transaksi: tx.noTransaksi,
+                p_tanggal: tx.tanggal,
+                p_no_referensi: tx.noReferensi || '',
+                p_tipe_transaksi: tx.tipeTransaksi,
+                p_gudang_asal: tx.gudangAsal || '',
+                p_gudang_tujuan: tx.gudangTujuan || '',
+                p_kode_project: tx.kodeProject || '',
+                p_keterangan: tx.keterangan || '',
+                p_staff_gudang: tx.staffGudang || '',
+                p_project_manager: tx.projectManager || '',
+                p_nama_penerima: tx.namaPenerima || '',
+                p_lampiran_url: tx.lampiranUrl || '',
+                p_items: (tx.items || []).map(item => ({
+                    ...item,
+                    kode_barang: item.kodeBarang,
+                    nama_barang: item.namaBarang,
+                    kategori: item.kategori || this.getCategoryByKode(item.kodeBarang) || '',
+                    drum_id: item.drumId || '',
+                    qty: parseFloat(item.qty) || 0
+                }))
+            };
+        },
+
         async logAudit(action, details) {
             try {
                 if (!supabaseClient) return;
@@ -335,7 +336,7 @@ export default function warehouseApp() {
                         gudang: s.gudang, 
                         masuk: parseFloat(s.masuk) || 0,
                         keluar: parseFloat(s.keluar) || 0,
-                        retur: parseFloat(s.retur) || 0,          // <-- Tambahan mapping retur
+                        retur: parseFloat(s.retur) || 0,
                         tMasuk: parseFloat(s.t_masuk) || 0,
                         tKeluar: parseFloat(s.t_keluar) || 0,
                         qty: parseFloat(s.qty) || 0, 
