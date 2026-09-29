@@ -22,7 +22,7 @@ export default function warehouseApp() {
 
         showModal: false, modalType: '', modalForm: {}, isEdit: false, editIndex: null,
         isLoading: false, notification: { show: false, message: '', type: 'error' },
-        filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', editingOriginalNo: null,
+        filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null,
         showDrumLedger: false, selectedCableKode: '',
 
         selectedFilesList: [], // Menyimpan file mentah yang dipilih user sebelum disimpan
@@ -211,6 +211,7 @@ export default function warehouseApp() {
             this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('searchNoTransaksi', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+            this.$watch('searchDrumQuery', () => { this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
 
             this.$watch('pageStok', () => { if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('pageSizeStok', () => { this.pageStok = 1; if(supabaseClient) this.loadDataFromSupabase(); });
@@ -291,6 +292,7 @@ export default function warehouseApp() {
             return this.paginate(this.getFilteredStokGudang(), this.pageStok, this.pageSizeStok);
         },
         getPaginatedDrumLedger() {
+            if (supabaseClient) return this.drumLedger;
             return this.paginate(this.getFilteredDrumLedger(), this.pageDrum, this.pageSizeDrum);
         },
         getPaginatedMaterialUsage() {
@@ -353,9 +355,14 @@ export default function warehouseApp() {
                     this.totalStokCount = countStok !== null ? countStok : stockData.length;
                 }
 
+                // Server-side query & paginasi untuk drum_ledger dengan pencarian multi-kolom
                 let drumQuery = supabaseClient.from('drum_ledger').select('*', { count: 'exact' });
                 if (this.filterStokGudang) drumQuery = drumQuery.eq('gudang', this.filterStokGudang);
                 if (this.selectedCableKode) drumQuery = drumQuery.eq('kode_barang', this.selectedCableKode);
+                if (this.searchDrumQuery && this.searchDrumQuery.trim() !== '') {
+                    const kw = this.searchDrumQuery.trim();
+                    drumQuery = drumQuery.or(`drum_id.ilike.%${kw}%,nama_barang.ilike.%${kw}%,gudang.ilike.%${kw}%`);
+                }
                 const fromDrum = (this.pageDrum - 1) * this.pageSizeDrum;
                 const { data: drumData, count: countDrum } = await drumQuery.order('drum_id', { ascending: true }).range(fromDrum, fromDrum + this.pageSizeDrum - 1);
                 if (drumData) {
@@ -740,7 +747,6 @@ export default function warehouseApp() {
         },
 
         async deleteTransaction(tx) {
-            // 1. Konfirmasi ganda mencegah penghapusan tidak sengaja
             if (!confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?\n\nPeringatan: Data pada Material Usage dan Drum Ledger yang terkait juga akan dihapus/dibatalkan.`)) {
                 return;
             }
@@ -748,7 +754,6 @@ export default function warehouseApp() {
             this.isLoading = true;
 
             try {
-                // [INTEGRASI AMAN] Mempertahankan logika penghapusan lampiran di Google Drive
                 if (tx.lampiranUrl) {
                     const fileId = this.extractGoogleDriveFileId(tx.lampiranUrl);
                     if (fileId && supabaseClient) {
@@ -756,7 +761,6 @@ export default function warehouseApp() {
                             await supabaseClient.functions.invoke('trigger-gas', {
                                 body: { action: 'delete', fileId: fileId }
                             });
-                            console.log('File lampiran di Google Drive berhasil dihapus:', fileId);
                         } catch (driveErr) {
                             console.warn('Peringatan: Gagal menghapus file lampiran dari Google Drive:', driveErr);
                         }
@@ -764,9 +768,6 @@ export default function warehouseApp() {
                 }
 
                 if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-                    
-                    // 2. Hapus log di tabel 'material_usage' yang merujuk pada transaksi ini
-                    // Catatan: Menggunakan properti kolom 'transaction_no' sesuai skema backend yang asli
                     const { error: errUsage } = await supabaseClient
                         .from('material_usage')
                         .delete()
@@ -774,7 +775,6 @@ export default function warehouseApp() {
                     
                     if (errUsage) console.warn('Peringatan penghapusan Material Usage:', errUsage);
 
-                    // 3. Hapus history/data di 'drum_ledger' yang tercipta oleh transaksi ini
                     const { error: errDrum } = await supabaseClient
                         .from('drum_ledger')
                         .delete()
@@ -782,12 +782,6 @@ export default function warehouseApp() {
 
                     if (errDrum) console.warn('Peringatan penghapusan Drum Ledger:', errDrum);
 
-                    // 4. (Opsional namun Penting) Revert perhitungan di tabel stok_gudang
-                    // Jika stok_gudang Anda adalah tabel fisik, hapus baris komentar di bawah ini
-                    // dan pastikan Anda memiliki RPC Supabase bernama 'revert_stok' untuk kalkulasi matematisnya:
-                    // await supabaseClient.rpc('revert_stok', { p_no_transaksi: tx.noTransaksi });
-
-                    // 5. Eksekusi Hapus pada Transaksi Utama
                     const { error: errTx } = await supabaseClient
                         .from('transactions')
                         .delete()
@@ -796,26 +790,18 @@ export default function warehouseApp() {
                     if (errTx) throw errTx;
 
                     this.showNotification(`Transaksi ${tx.noTransaksi} beserta data relasinya berhasil dihapus.`, 'success');
-                    
-                    // [INTEGRASI AMAN] Mempertahankan Audit Log
                     await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
                     
-                    // 6. Muat ulang (Refresh) data dari Supabase 
                     if (typeof this.loadDataFromSupabase === 'function') {
                         await this.loadDataFromSupabase();
                     }
-
                 } else {
-                    // Fallback: Pembersihan local storage jika offline/tanpa internet
-                    // [INTEGRASI AMAN] Memanggil revertStockOffline agar perhitungan fisik stok kembali saat offline
                     this.revertStockOffline(tx);
-                    
                     this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
                     if (this.materialUsage) {
                         this.materialUsage = this.materialUsage.filter(m => m.transactionNo !== tx.noTransaksi && m.noTransaksi !== tx.noTransaksi);
                     }
 
-                    // Memperbarui local storage
                     localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
                     localStorage.setItem('vortex_stokGudang', JSON.stringify(this.stokGudang));
                     localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
@@ -967,7 +953,6 @@ export default function warehouseApp() {
             }
         },
         
-        // Logika getDrumList fleksibel (Offline / Supabase)
         getDrumList(item) { 
             if (this.activeDropdownDrums && this.activeDropdownDrums.length > 0) {
                 return this.activeDropdownDrums; 
@@ -977,7 +962,6 @@ export default function warehouseApp() {
             return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudang && d.remainingLength > 0);
         },
 
-        // Fungsi asinkron penarikan daftar drum langsung dari Supabase tanpa batas paginasi
         async fetchDrumsForDropdown(kodeBarang, gudangAsal) {
             if (!supabaseClient || !kodeBarang || !gudangAsal) {
                 this.activeDropdownDrums = [];
@@ -1362,7 +1346,6 @@ export default function warehouseApp() {
                             let remainingToAllocate = totalQty;
                             let temporaryAssignedDrums = [];
 
-                            // Fetch seluruh data drum dari database tanpa paginasi untuk mendapatkan sequence max yang akurat
                             let existingDrumsFromDb = [];
                             if (supabaseClient) {
                                 const { data: dbDrums } = await supabaseClient
@@ -1549,6 +1532,14 @@ export default function warehouseApp() {
         },
 
         getFilteredDrumLedger() {
+            if (supabaseClient) {
+                const dummy = new Array(this.totalDrumCount || this.drumLedger.length);
+                const start = (this.pageDrum - 1) * this.pageSizeDrum;
+                for (let i = 0; i < this.drumLedger.length; i++) {
+                    dummy[start + i] = this.drumLedger[i];
+                }
+                return dummy;
+            }
             let list = this.drumLedger;
             if (!this.isSuperAdmin) {
                 const reg = this.userRegion().toLowerCase();
@@ -1690,25 +1681,19 @@ export default function warehouseApp() {
                 let fileName = 'data_transaksi_' + selectedGudangName + '.csv';
 
                 let txsToExport = [];
-                
                 let client = window.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null) || this.supabase;
 
                 if (client) {
-                    console.log("Mengambil seluruh data transaksi langsung dari Supabase...");
                     let txQuery = client.from('transactions').select('*');
-                    
                     if (this.searchNoTransaksi) {
                         txQuery = txQuery.or('no_transaksi.ilike.%' + this.searchNoTransaksi + '%,no_referensi.ilike.%' + this.searchNoTransaksi + '%');
                     }
-                    
                     let response = await txQuery.order('tanggal', { ascending: false }).range(0, 9999);
                     let allTxData = response.data;
                     let error = response.error;
-                    
                     if (error) throw error;
 
                     if (allTxData && allTxData.length > 0) {
-                        console.log("Berhasil memuat " + allTxData.length + " baris data dari database.");
                         txsToExport = allTxData.map(function(t) {
                             return {
                                 noTransaksi: t.no_transaksi, 
