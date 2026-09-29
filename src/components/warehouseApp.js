@@ -1311,7 +1311,7 @@ export default function warehouseApp() {
 
             if (tipe === 'Masuk' || tipe === 'Return' || tipe === 'Retur') {
                 let processedItems = [];
-                this.newTrans.items.forEach(item => {
+                for (const item of this.newTrans.items) {
                     const kat = this.getCategoryByKode(item.kodeBarang);
                     let totalQty = parseFloat(item.qty) || 0;
                     const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
@@ -1321,7 +1321,7 @@ export default function warehouseApp() {
                     if (kat === 'Cable' && totalQty > 0) {
                         const whObj = this.masterGudang.find(g => g.namaGudang === gudangMasuk);
                         let whCode = whObj && whObj.kodeGudang ? whObj.kodeGudang.split('-')[0].toUpperCase() : 'PLB';
-                        const threeCharBarang = item.kodeBarang ? item.kodeBarang.split('-').pop() : '036';
+                        const threeCharBarang = item.kodeBarang ? item.kodeBarang.split('-').pop() : '144';
 
                         if (item.drumId && item.drumId.trim() !== '') {
                             processedItems.push({ ...item, drumId: item.drumId, qty: totalQty, satuan: satuanItem, namaBarang: namaBrg });
@@ -1329,10 +1329,27 @@ export default function warehouseApp() {
                             let remainingToAllocate = totalQty;
                             let temporaryAssignedDrums = [];
 
-                            const existingDrums = this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk);
+                            // Fetch seluruh data drum dari database tanpa paginasi untuk mendapatkan sequence max yang akurat
+                            let existingDrumsFromDb = [];
+                            if (supabaseClient) {
+                                const { data: dbDrums } = await supabaseClient
+                                    .from('drum_ledger')
+                                    .select('drum_id, remaining_length, gudang, kode_barang')
+                                    .eq('kode_barang', item.kodeBarang);
+                                
+                                if (dbDrums) {
+                                    existingDrumsFromDb = dbDrums.filter(d => 
+                                        d.gudang === gudangMasuk || (whObj && d.gudang === whObj.kodeGudang)
+                                    );
+                                }
+                            } else {
+                                existingDrumsFromDb = this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk);
+                            }
+
                             let currentMaxSeq = 0;
-                            existingDrums.forEach(d => {
-                                const parts = d.drumId.split('-D');
+                            existingDrumsFromDb.forEach(d => {
+                                const dId = d.drum_id || d.drumId || '';
+                                const parts = dId.split('-D');
                                 if (parts.length > 1) {
                                     const seqNum = parseInt(parts[parts.length - 1], 10);
                                     if (!isNaN(seqNum) && seqNum > currentMaxSeq) currentMaxSeq = seqNum;
@@ -1343,16 +1360,16 @@ export default function warehouseApp() {
                                 let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
                                 remainingToAllocate -= chunkQty;
 
-                                let zeroDrum = this.drumLedger.find(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk && d.remainingLength === 0 && !temporaryAssignedDrums.includes(d.drumId));
+                                let zeroDrum = existingDrumsFromDb.find(d => (d.remaining_length === 0 || d.remainingLength === 0) && !temporaryAssignedDrums.includes(d.drum_id || d.drumId));
                                 let assignedDrumId = '';
 
                                 if (zeroDrum) {
-                                    assignedDrumId = zeroDrum.drumId;
+                                    assignedDrumId = zeroDrum.drum_id || zeroDrum.drumId;
                                 } else {
                                     currentMaxSeq++; 
                                     assignedDrumId = `${whCode}-${threeCharBarang}-D${String(currentMaxSeq).padStart(2, '0')}`;
                                 }
-                    
+
                                 temporaryAssignedDrums.push(assignedDrumId);
                                 processedItems.push({ ...item, drumId: assignedDrumId, qty: chunkQty, satuan: satuanItem, namaBarang: namaBrg });
                             }
@@ -1360,7 +1377,7 @@ export default function warehouseApp() {
                     } else {
                         processedItems.push({ ...item, satuan: satuanItem, namaBarang: namaBrg });
                     }
-                });
+                }
                 this.newTrans.items = processedItems;
             }
 
