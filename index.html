@@ -394,10 +394,34 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Kode Project Terkait</label>
-                                    <select x-model="newTrans.kodeProject" :disabled="(newTrans.tipeTransaksi !== 'Keluar' && newTrans.tipeTransaksi !== 'Return') || getFilteredProjectsForAsal().length === 0" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none disabled:opacity-50">
-                                        <option value="">Pilih Project...</option>
-                                        <template x-for="p in getFilteredProjectsForAsal()" :key="p.kodeProject"><option :value="p.kodeProject" x-text="p.kodeProject + ' - ' + p.projectName"></option></template>
-                                    </select>
+                                    <div class="relative" x-data="{ open: false }">
+                                        <div class="relative">
+                                            <input type="text" 
+                                                   x-model="projectSearchText" 
+                                                   @focus="if ((newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Return') && getFilteredProjectsForAsal().length > 0) open = true"
+                                                   @input="open = true; newTrans.kodeProject = ''"
+                                                   @click="if ((newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Return') && getFilteredProjectsForAsal().length > 0) open = true"
+                                                   :disabled="(newTrans.tipeTransaksi !== 'Keluar' && newTrans.tipeTransaksi !== 'Return') || getFilteredProjectsForAsal().length === 0"
+                                                   placeholder="Ketik atau pilih Project Name..." 
+                                                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none disabled:opacity-50 pr-8">
+                                            <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-400">
+                                                <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                                            </div>
+                                        </div>
+                                        <!-- Dropdown List dengan Project Name Saja -->
+                                        <div x-show="open && (newTrans.tipeTransaksi === 'Keluar' || newTrans.tipeTransaksi === 'Return')" 
+                                             @click.away="open = false" 
+                                             class="absolute z-30 w-full mt-1 bg-slate-900 border border-slate-800 rounded-lg shadow-xl max-h-48 overflow-y-auto" x-cloak>
+                                            <template x-for="p in getFilteredProjectDropdownList()" :key="p.kodeProject">
+                                                <div @click="newTrans.kodeProject = p.kodeProject; projectSearchText = p.projectName; open = false;" 
+                                                     class="px-3 py-2 text-xs text-slate-200 hover:bg-indigo-600/20 hover:text-indigo-300 cursor-pointer transition border-b border-slate-800/50 last:border-0" 
+                                                     x-text="p.projectName"></div>
+                                            </template>
+                                            <div x-show="getFilteredProjectDropdownList().length === 0" class="px-3 py-2 text-xs text-slate-500 text-center">
+                                                Tidak ada project ditemukan
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-medium text-slate-300 uppercase tracking-wider mb-1">Keterangan <span class="text-rose-400">*</span></label>
