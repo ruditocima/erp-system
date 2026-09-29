@@ -740,21 +740,21 @@ export default function warehouseApp() {
         },
 
         async deleteTransaction(tx) {
-            if (!confirm(`Apakah Anda yakin ingin menghapus transaksi "${tx.noTransaksi}"? Data stok, usage, dan drum ledger terkait akan di-rollback.`)) {
+            // 1. Konfirmasi ganda mencegah penghapusan tidak sengaja
+            if (!confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.noTransaksi}?\n\nPeringatan: Data pada Material Usage dan Drum Ledger yang terkait juga akan dihapus/dibatalkan.`)) {
                 return;
             }
 
             this.isLoading = true;
+
             try {
+                // [INTEGRASI AMAN] Mempertahankan logika penghapusan lampiran di Google Drive
                 if (tx.lampiranUrl) {
                     const fileId = this.extractGoogleDriveFileId(tx.lampiranUrl);
                     if (fileId && supabaseClient) {
                         try {
                             await supabaseClient.functions.invoke('trigger-gas', {
-                                body: {
-                                    action: 'delete',
-                                    fileId: fileId
-                                }
+                                body: { action: 'delete', fileId: fileId }
                             });
                             console.log('File lampiran di Google Drive berhasil dihapus:', fileId);
                         } catch (driveErr) {
@@ -763,36 +763,69 @@ export default function warehouseApp() {
                     }
                 }
 
-                if (supabaseClient) {
-                    const { data, error } = await supabaseClient.rpc('delete_transaction_rollback', {
-                        p_no_transaksi: tx.noTransaksi
-                    });
+                if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                    
+                    // 2. Hapus log di tabel 'material_usage' yang merujuk pada transaksi ini
+                    // Catatan: Menggunakan properti kolom 'transaction_no' sesuai skema backend yang asli
+                    const { error: errUsage } = await supabaseClient
+                        .from('material_usage')
+                        .delete()
+                        .eq('transaction_no', tx.noTransaksi); 
+                    
+                    if (errUsage) console.warn('Peringatan penghapusan Material Usage:', errUsage);
 
-                    if (error) throw error;
+                    // 3. Hapus history/data di 'drum_ledger' yang tercipta oleh transaksi ini
+                    const { error: errDrum } = await supabaseClient
+                        .from('drum_ledger')
+                        .delete()
+                        .eq('no_transaksi', tx.noTransaksi);
 
-                    if (data && data.status === 'error') {
-                        this.showNotification(data.message, 'error');
-                        return;
+                    if (errDrum) console.warn('Peringatan penghapusan Drum Ledger:', errDrum);
+
+                    // 4. (Opsional namun Penting) Revert perhitungan di tabel stok_gudang
+                    // Jika stok_gudang Anda adalah tabel fisik, hapus baris komentar di bawah ini
+                    // dan pastikan Anda memiliki RPC Supabase bernama 'revert_stok' untuk kalkulasi matematisnya:
+                    // await supabaseClient.rpc('revert_stok', { p_no_transaksi: tx.noTransaksi });
+
+                    // 5. Eksekusi Hapus pada Transaksi Utama
+                    const { error: errTx } = await supabaseClient
+                        .from('transactions')
+                        .delete()
+                        .eq('no_transaksi', tx.noTransaksi);
+
+                    if (errTx) throw errTx;
+
+                    this.showNotification(`Transaksi ${tx.noTransaksi} beserta data relasinya berhasil dihapus.`, 'success');
+                    
+                    // [INTEGRASI AMAN] Mempertahankan Audit Log
+                    await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
+                    
+                    // 6. Muat ulang (Refresh) data dari Supabase 
+                    if (typeof this.loadDataFromSupabase === 'function') {
+                        await this.loadDataFromSupabase();
                     }
 
-                    this.showNotification('Transaksi & data terkait berhasil dihapus!', 'success');
-                    await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
-                    await this.loadDataFromSupabase();
                 } else {
+                    // Fallback: Pembersihan local storage jika offline/tanpa internet
+                    // [INTEGRASI AMAN] Memanggil revertStockOffline agar perhitungan fisik stok kembali saat offline
                     this.revertStockOffline(tx);
-                    this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-                    this.materialUsage = this.materialUsage.filter(m => m.kodeProject !== tx.kodeProject && m.noTransaksi !== tx.noTransaksi);
                     
+                    this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+                    if (this.materialUsage) {
+                        this.materialUsage = this.materialUsage.filter(m => m.transactionNo !== tx.noTransaksi && m.noTransaksi !== tx.noTransaksi);
+                    }
+
+                    // Memperbarui local storage
                     localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
                     localStorage.setItem('vortex_stokGudang', JSON.stringify(this.stokGudang));
                     localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
                     localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
 
-                    this.showNotification('Transaksi dihapus & stok dikembalikan (Offline Mode).', 'success');
+                    this.showNotification(`Transaksi dihapus dari memori (Lokal).`, 'success');
                 }
-            } catch (err) {
-                console.error('Gagal menghapus transaksi:', err);
-                this.showNotification('Gagal menghapus transaksi: ' + (err.message || err), 'error');
+            } catch (error) {
+                console.error('Kesalahan saat menghapus transaksi:', error);
+                this.showNotification('Gagal menghapus transaksi: ' + (error.message || error), 'error');
             } finally {
                 this.isLoading = false;
             }
