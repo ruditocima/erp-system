@@ -24,6 +24,7 @@ export default function warehouseApp() {
         isLoading: false, notification: { show: false, message: '', type: 'error' },
         filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null,
         showDrumLedger: false, selectedCableKode: '',
+        projectSearchText: '', // <-- Tambahan state untuk pencarian nama project
 
         selectedFilesList: [], // Menyimpan file mentah yang dipilih user sebelum disimpan
 
@@ -64,6 +65,14 @@ export default function warehouseApp() {
             if (this.isSuperAdmin) return this.masterProject;
             const reg = this.userRegion().toLowerCase();
             return this.masterProject.filter(p => (p.region || '').toLowerCase() === reg);
+        },
+
+        // <-- Tambahan method pencarian dropdown project
+        getFilteredProjectDropdownList() {
+            const projects = this.getFilteredProjectsForAsal();
+            if (!this.projectSearchText) return projects;
+            const query = this.projectSearchText.toLowerCase();
+            return projects.filter(p => (p.projectName || '').toLowerCase().includes(query));
         },
 
         todayWIB() {
@@ -355,7 +364,6 @@ export default function warehouseApp() {
                     this.totalStokCount = countStok !== null ? countStok : stockData.length;
                 }
 
-                // Server-side query & paginasi untuk drum_ledger dengan pencarian multi-kolom
                 let drumQuery = supabaseClient.from('drum_ledger').select('*', { count: 'exact' });
                 if (this.filterStokGudang) drumQuery = drumQuery.eq('gudang', this.filterStokGudang);
                 if (this.selectedCableKode) drumQuery = drumQuery.eq('kode_barang', this.selectedCableKode);
@@ -714,6 +722,7 @@ export default function warehouseApp() {
             this.editingOriginalNo = null;
             this.selectedFilesList = [];
             this.activeDropdownDrums = [];
+            this.projectSearchText = ''; // <-- Tambahan reset state pencarian project
             this.newTrans = {
                 tanggal: this.todayWIB(),
                 noTransaksi: '',
@@ -1450,6 +1459,11 @@ export default function warehouseApp() {
             this.newTrans = JSON.parse(JSON.stringify(tx));
             this.revertTransactionStock(tx);
             this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+            
+            // <-- Tambahan set projectSearchText saat edit transaksi
+            const foundProj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
+            this.projectSearchText = foundProj ? foundProj.projectName : (this.newTrans.kodeProject || '');
+
             if (this.newTrans.items) {
                 this.newTrans.items.forEach(item => {
                     if (item.kodeBarang && this.getCategoryByKode(item.kodeBarang) === 'Cable') {
