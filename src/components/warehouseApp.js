@@ -24,7 +24,7 @@ export default function warehouseApp() {
         isLoading: false, notification: { show: false, message: '', type: 'error' },
         filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null,
         showDrumLedger: false, selectedCableKode: '',
-        projectSearchText: '', // <-- Tambahan state untuk pencarian nama project
+        projectSearchText: '', // State untuk pencarian nama project
 
         selectedFilesList: [], // Menyimpan file mentah yang dipilih user sebelum disimpan
 
@@ -67,7 +67,6 @@ export default function warehouseApp() {
             return this.masterProject.filter(p => (p.region || '').toLowerCase() === reg);
         },
 
-        // <-- Tambahan method pencarian dropdown project
         getFilteredProjectDropdownList() {
             const projects = this.getFilteredProjectsForAsal();
             if (!this.projectSearchText) return projects;
@@ -722,7 +721,7 @@ export default function warehouseApp() {
             this.editingOriginalNo = null;
             this.selectedFilesList = [];
             this.activeDropdownDrums = [];
-            this.projectSearchText = ''; // <-- Tambahan reset state pencarian project
+            this.projectSearchText = '';
             this.newTrans = {
                 tanggal: this.todayWIB(),
                 noTransaksi: '',
@@ -866,6 +865,7 @@ export default function warehouseApp() {
             });
         },
 
+        // --- PEMBAHARUAN FUNGSI generateNoTransaksi METODE DIRECT QUERY SUPABASE ---
         async generateNoTransaksi() {
             if (this.editingOriginalNo) return;
 
@@ -903,12 +903,35 @@ export default function warehouseApp() {
             const prefix = `${kodeGudangClean}-${typeCode}-${yymm}-`;
 
             let maxSeq = 0;
-            this.transactions.forEach(t => {
-                if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
-                    const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
-                    if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
+
+            if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                try {
+                    // Query langsung seluruh no_transaksi dari Supabase yang diawali prefix
+                    const { data, error } = await supabaseClient
+                        .from('transactions')
+                        .select('no_transaksi')
+                        .ilike('no_transaksi', `${prefix}%`);
+
+                    if (!error && data && data.length > 0) {
+                        data.forEach(t => {
+                            if (t.no_transaksi && t.no_transaksi.startsWith(prefix)) {
+                                const seqNum = parseInt(t.no_transaksi.replace(prefix, ''), 10);
+                                if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
+                            }
+                        });
+                    }
+                } catch (err) {
+                    console.error('Gagal mengambil nomor transaksi dari Supabase:', err);
                 }
-            });
+            } else {
+                // Fallback lokal jika supabaseClient tidak tersedia
+                this.transactions.forEach(t => {
+                    if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
+                        const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
+                        if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
+                    }
+                });
+            }
 
             this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
         },
@@ -1460,7 +1483,6 @@ export default function warehouseApp() {
             this.revertTransactionStock(tx);
             this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
             
-            // <-- Tambahan set projectSearchText saat edit transaksi
             const foundProj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
             this.projectSearchText = foundProj ? foundProj.projectName : (this.newTrans.kodeProject || '');
 
@@ -1750,7 +1772,7 @@ export default function warehouseApp() {
                 URL.revokeObjectURL(url);
             } catch (err) {
                 console.error("Gagal mengekspor CSV:", err);
-                this.showNotification('Gagal mengekspor data transaksi ke CSV: ' + err.message, 'error');
+                this.showNotification("Gagal mengekspor data transaksi ke CSV: " + (err.message || err), "error");
             } finally {
                 this.isLoading = false;
             }
