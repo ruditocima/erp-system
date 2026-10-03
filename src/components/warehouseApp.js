@@ -159,7 +159,7 @@ export default function warehouseApp() {
                     user_name: this.currentUser || 'unknown',
                     user_role: this.currentRole || '',
                     action: action,
-                    details: details, // Melengkapi payload yang terpotong
+                    details: details,
                     created_at: new Date().toISOString()
                 });
                 if (error) {
@@ -168,9 +168,7 @@ export default function warehouseApp() {
             } catch (e) {
                 console.error('Failed to log audit:', e);
             }
-        }
-    }; // Menutup object return Alpine
-} // Menutup fungsi warehouseApp
+        },
 
         async validateSession() {
             if (!supabaseClient) return;
