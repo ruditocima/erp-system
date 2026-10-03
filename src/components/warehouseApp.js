@@ -1,5 +1,5 @@
 import { supabaseClient } from '../services/supabaseClient.js';
-import { APP_CONFIG } from '../config.js'; // Import config
+import { APP_CONFIG } from '../config.js';
 
 function safeLoadStorage(key, fallback) {
     try {
@@ -24,9 +24,9 @@ export default function warehouseApp() {
         isLoading: false, notification: { show: false, message: '', type: 'error' },
         filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null,
         showDrumLedger: false, selectedCableKode: '',
-        projectSearchText: '', // State untuk pencarian nama project
+        projectSearchText: '',
 
-        selectedFilesList: [], // Menyimpan file mentah yang dipilih user sebelum disimpan
+        selectedFilesList: [],
 
         pageStok: 1, pageSizeStok: 10, totalStokCount: 0,
         pageDrum: 1, pageSizeDrum: 10, totalDrumCount: 0,
@@ -48,7 +48,7 @@ export default function warehouseApp() {
         transactions: safeLoadStorage('vortex_transactions', []),
         newTrans: { tanggal: '', noTransaksi: '', noReferensi: '', tipeTransaksi: 'Masuk', gudangAsal: '', gudangTujuan: '', kodeProject: '', keterangan: '', lampiran: '', lampiranUrl: '', staffGudang: '', projectManager: '', namaPenerima: '', items: [] },
         activeBast: {},
-        activeDropdownDrums: [], // Menampung data dropdown drum tanpa limit paginasi
+        activeDropdownDrums: [],
 
         get isSuperAdmin() {
             return !this.currentRole || this.currentRole.toLowerCase().includes('super') || this.currentRole.toLowerCase() === 'admin';
@@ -288,11 +288,13 @@ export default function warehouseApp() {
         },
 
         paginate(items, page, size) {
+            if (!Array.isArray(items)) return [];
             const start = (page - 1) * size;
             return items.slice(start, start + size);
         },
         totalPages(items, size) {
-            return Math.ceil(items.length / size) || 1;
+            const total = Array.isArray(items) ? items.length : (items || 0);
+            return Math.ceil(total / size) || 1;
         },
 
         getPaginatedStokGudang() {
@@ -393,6 +395,7 @@ export default function warehouseApp() {
                 if (usageData) {
                     this.materialUsage = usageData.map(u => ({
                         id: u.id,
+                        transactionNo: u.transaction_no || u.no_transaksi || '',
                         tanggal: u.tanggal,
                         kodeProject: u.kode_project,
                         projectName: u.project_name,
@@ -494,8 +497,8 @@ export default function warehouseApp() {
             if (this.isLoading) return;
             this.isLoading = true;
             try {
-                if (this._reloadTimer) clearTimeout(this._reloadTimer);
-                if (this._draftTimer) clearTimeout(this._draftTimer);
+                if (this._reloadTimer) { clearTimeout(this._reloadTimer); this._reloadTimer = null; }
+                if (this._draftTimer) { clearTimeout(this._draftTimer); this._draftTimer = null; }
                 
                 if (supabaseClient) {
                     await supabaseClient.removeAllChannels();
@@ -775,7 +778,7 @@ export default function warehouseApp() {
                     }
                 }
 
-                if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                if (supabaseClient) {
                     const { error: errUsage } = await supabaseClient
                         .from('material_usage')
                         .delete()
@@ -799,10 +802,7 @@ export default function warehouseApp() {
 
                     this.showNotification(`Transaksi ${tx.noTransaksi} beserta data relasinya berhasil dihapus.`, 'success');
                     await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
-                    
-                    if (typeof this.loadDataFromSupabase === 'function') {
-                        await this.loadDataFromSupabase();
-                    }
+                    await this.loadDataFromSupabase();
                 } else {
                     this.revertStockOffline(tx);
                     this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
@@ -865,7 +865,6 @@ export default function warehouseApp() {
             });
         },
 
-        // --- PEMBAHARUAN FUNGSI generateNoTransaksi METODE DIRECT QUERY SUPABASE ---
         async generateNoTransaksi() {
             if (this.editingOriginalNo) return;
 
@@ -904,9 +903,8 @@ export default function warehouseApp() {
 
             let maxSeq = 0;
 
-            if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            if (supabaseClient) {
                 try {
-                    // Query langsung seluruh no_transaksi dari Supabase yang diawali prefix
                     const { data, error } = await supabaseClient
                         .from('transactions')
                         .select('no_transaksi')
@@ -924,7 +922,6 @@ export default function warehouseApp() {
                     console.error('Gagal mengambil nomor transaksi dari Supabase:', err);
                 }
             } else {
-                // Fallback lokal jika supabaseClient tidak tersedia
                 this.transactions.forEach(t => {
                     if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
                         const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
@@ -1360,6 +1357,8 @@ export default function warehouseApp() {
 
             if (tipe === 'Masuk' || tipe === 'Return' || tipe === 'Retur') {
                 let processedItems = [];
+                const temporaryAssignedDrums = new Set();
+
                 for (const item of this.newTrans.items) {
                     const kat = this.getCategoryByKode(item.kodeBarang);
                     let totalQty = parseFloat(item.qty) || 0;
@@ -1374,9 +1373,9 @@ export default function warehouseApp() {
 
                         if (item.drumId && item.drumId.trim() !== '') {
                             processedItems.push({ ...item, drumId: item.drumId, qty: totalQty, satuan: satuanItem, namaBarang: namaBrg });
+                            temporaryAssignedDrums.add(item.drumId);
                         } else {
                             let remainingToAllocate = totalQty;
-                            let temporaryAssignedDrums = [];
 
                             let existingDrumsFromDb = [];
                             if (supabaseClient) {
@@ -1408,7 +1407,11 @@ export default function warehouseApp() {
                                 let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
                                 remainingToAllocate -= chunkQty;
 
-                                let zeroDrum = existingDrumsFromDb.find(d => (d.remaining_length === 0 || d.remainingLength === 0) && !temporaryAssignedDrums.includes(d.drum_id || d.drumId));
+                                let zeroDrum = existingDrumsFromDb.find(d => {
+                                    const dId = d.drum_id || d.drumId;
+                                    const remLen = d.remaining_length !== undefined ? d.remaining_length : d.remainingLength;
+                                    return remLen === 0 && !temporaryAssignedDrums.has(dId);
+                                });
                                 let assignedDrumId = '';
 
                                 if (zeroDrum) {
@@ -1418,7 +1421,7 @@ export default function warehouseApp() {
                                     assignedDrumId = `${whCode}-${threeCharBarang}-D${String(currentMaxSeq).padStart(2, '0')}`;
                                 }
 
-                                temporaryAssignedDrums.push(assignedDrumId);
+                                temporaryAssignedDrums.add(assignedDrumId);
                                 processedItems.push({ ...item, drumId: assignedDrumId, qty: chunkQty, satuan: satuanItem, namaBarang: namaBrg });
                             }
                         }
@@ -1548,12 +1551,7 @@ export default function warehouseApp() {
 
         getFilteredStokGudang() {
             if (supabaseClient) {
-                const dummy = new Array(this.totalStokCount || this.stokGudang.length);
-                const start = (this.pageStok - 1) * this.pageSizeStok;
-                for (let i = 0; i < this.stokGudang.length; i++) {
-                    dummy[start + i] = this.stokGudang[i];
-                }
-                return dummy;
+                return this.stokGudang;
             }
             let list = this.stokGudang;
             if (!this.isSuperAdmin) {
@@ -1569,12 +1567,7 @@ export default function warehouseApp() {
 
         getFilteredDrumLedger() {
             if (supabaseClient) {
-                const dummy = new Array(this.totalDrumCount || this.drumLedger.length);
-                const start = (this.pageDrum - 1) * this.pageSizeDrum;
-                for (let i = 0; i < this.drumLedger.length; i++) {
-                    dummy[start + i] = this.drumLedger[i];
-                }
-                return dummy;
+                return this.drumLedger;
             }
             let list = this.drumLedger;
             if (!this.isSuperAdmin) {
@@ -1612,12 +1605,7 @@ export default function warehouseApp() {
 
         getFilteredTransactions() {
             if (supabaseClient) {
-                const dummy = new Array(this.totalTxCount || this.transactions.length);
-                const start = (this.pageTx - 1) * this.pageSizeTx;
-                for (let i = 0; i < this.transactions.length; i++) {
-                    dummy[start + i] = this.transactions[i];
-                }
-                return dummy;
+                return this.transactions;
             }
             let list = this.transactions;
             if (!this.isSuperAdmin) {
@@ -1717,10 +1705,9 @@ export default function warehouseApp() {
                 let fileName = 'data_transaksi_' + selectedGudangName + '.csv';
 
                 let txsToExport = [];
-                let client = window.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null) || this.supabase;
 
-                if (client) {
-                    let txQuery = client.from('transactions').select('*');
+                if (supabaseClient) {
+                    let txQuery = supabaseClient.from('transactions').select('*');
                     if (this.searchNoTransaksi) {
                         txQuery = txQuery.or('no_transaksi.ilike.%' + this.searchNoTransaksi + '%,no_referensi.ilike.%' + this.searchNoTransaksi + '%');
                     }
