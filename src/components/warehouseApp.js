@@ -159,16 +159,18 @@ export default function warehouseApp() {
                     user_name: this.currentUser || 'unknown',
                     user_role: this.currentRole || '',
                     action: action,
-                    details: JSON.stringify(details || {}),
+                    details: details, // Melengkapi payload yang terpotong
                     created_at: new Date().toISOString()
                 });
                 if (error) {
-                    console.error('Gagal mencatat audit log ke database:', error.message);
+                    console.error('Audit Log Error:', error);
                 }
-            } catch (e) { 
-                console.error('Terjadi kesalahan saat mencatat audit log:', e); 
+            } catch (e) {
+                console.error('Failed to log audit:', e);
             }
-        },
+        }
+    }; // Menutup object return Alpine
+} // Menutup fungsi warehouseApp
 
         async validateSession() {
             if (!supabaseClient) return;
