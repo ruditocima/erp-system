@@ -19,7 +19,7 @@ export default function warehouseApp() {
         loginForm: { email: '', password: '' },
         profileForm: { namaLengkap: '', email: '', newPassword: '' },
 
-        showModal: false, modalType: '', modalForm: {}, isEdit: false, editIndex: null,
+        showModal: false, modalType: '', modalForm: {}, isEdit: false, editIndex: null, editingOriginalKode: null,
         isLoading: false, notification: { show: false, message: '', type: 'error' },
         filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null,
         showDrumLedger: false, selectedCableKode: '',
@@ -589,7 +589,11 @@ export default function warehouseApp() {
         },
 
         async openModal(type) {
-            this.modalType = type; this.isEdit = false; this.editIndex = null;
+            this.modalType = type; 
+            this.isEdit = false; 
+            this.editIndex = null;
+            this.editingOriginalKode = null;
+
             if (type === 'project') {
                 this.modalForm = { periode: this.todayWIB(), region: '', kodeProject: '(Otomatis dari Sistem)', type: 'Main Feeder', noPO: '', projectName: '' };
                 await this.generateKodeProject();
@@ -598,15 +602,48 @@ export default function warehouseApp() {
             } else if (type === 'gudang') {
                 this.modalForm = { region: '', kodeGudang: '', namaGudang: '', tipeKepemilikan: 'Milik Sendiri', lokasi: '' };
             }
-            this.showModal = true; this.refreshIcons();
+            this.showModal = true; 
+            this.refreshIcons();
         },
 
-        openEditModal(type, index) {
-            this.modalType = type; this.isEdit = true; this.editIndex = index;
-            if (type === 'project') this.modalForm = { ...this.masterProject[index] };
-            if (type === 'barang') this.modalForm = { ...this.masterBarang[index] };
-            if (type === 'gudang') this.modalForm = { ...this.masterGudang[index] };
-            this.showModal = true; this.refreshIcons();
+        openEditModal(type, target) {
+            this.modalType = type; 
+            this.isEdit = true; 
+            let item = null;
+            let realIndex = -1;
+
+            if (typeof target === 'object' && target !== null) {
+                item = target;
+                if (type === 'barang') realIndex = this.masterBarang.findIndex(b => b.kodeBarang === item.kodeBarang);
+                else if (type === 'gudang') realIndex = this.masterGudang.findIndex(g => g.kodeGudang === item.kodeGudang);
+                else if (type === 'project') realIndex = this.masterProject.findIndex(p => p.kodeProject === item.kodeProject);
+            } else if (typeof target === 'number') {
+                realIndex = target;
+                if (type === 'barang') item = this.masterBarang[target];
+                else if (type === 'gudang') item = this.masterGudang[target];
+                else if (type === 'project') item = this.masterProject[target];
+            }
+
+            if (!item) {
+                console.error('Peringatan: Data tidak ditemukan untuk diedit.');
+                return;
+            }
+
+            this.editIndex = realIndex;
+
+            if (type === 'barang') {
+                this.editingOriginalKode = item.kodeBarang;
+                this.modalForm = JSON.parse(JSON.stringify(item));
+            } else if (type === 'gudang') {
+                this.editingOriginalKode = item.kodeGudang;
+                this.modalForm = JSON.parse(JSON.stringify(item));
+            } else if (type === 'project') {
+                this.editingOriginalKode = item.kodeProject;
+                this.modalForm = JSON.parse(JSON.stringify(item));
+            }
+
+            this.showModal = true; 
+            this.refreshIcons();
         },
 
         getRegionCode(reg) {
@@ -632,6 +669,11 @@ export default function warehouseApp() {
             try {
                 this.isLoading = true;
                 if (this.modalType === 'barang') {
+                    if (!this.modalForm.kodeBarang || !this.modalForm.namaBarang) {
+                        this.showNotification('Kode Barang dan Nama Barang wajib diisi!', 'error');
+                        return;
+                    }
+
                     if (useSupabase) {
                         const payload = {
                             kategori: this.modalForm.kategori,
@@ -640,16 +682,43 @@ export default function warehouseApp() {
                             nama_barang: this.modalForm.namaBarang,
                             sat: this.modalForm.sat
                         };
-                        const { error } = await supabaseClient.from('master_barang').upsert(payload, { onConflict: 'kode_barang' });
-                        if (error) throw error;
+
+                        if (this.isEdit) {
+                            const origKey = this.editingOriginalKode || this.modalForm.kodeBarang;
+                            const { error } = await supabaseClient
+                                .from('master_barang')
+                                .update(payload)
+                                .eq('kode_barang', origKey);
+                            if (error) throw error;
+                        } else {
+                            const { error } = await supabaseClient
+                                .from('master_barang')
+                                .insert([payload]);
+                            if (error) throw error;
+                        }
                     }
+
                     if (this.isEdit) {
-                        this.masterBarang[this.editIndex] = { ...this.modalForm };
+                        const origKey = this.editingOriginalKode;
+                        const idx = this.masterBarang.findIndex(b => b.kodeBarang === origKey || b.kodeBarang === this.modalForm.kodeBarang);
+                        if (idx !== -1) {
+                            this.masterBarang[idx] = { ...this.modalForm };
+                        } else if (this.editIndex !== null && this.masterBarang[this.editIndex]) {
+                            this.masterBarang[this.editIndex] = { ...this.modalForm };
+                        } else {
+                            this.masterBarang.push({ ...this.modalForm });
+                        }
                     } else {
                         this.masterBarang.push({ ...this.modalForm });
                     }
                     localStorage.setItem('vortex_masterBarang', JSON.stringify(this.masterBarang));
+
                 } else if (this.modalType === 'gudang') {
+                    if (!this.modalForm.kodeGudang || !this.modalForm.namaGudang) {
+                        this.showNotification('Kode Gudang dan Nama Gudang wajib diisi!', 'error');
+                        return;
+                    }
+
                     if (useSupabase) {
                         const payload = {
                             region: this.modalForm.region,
@@ -658,15 +727,37 @@ export default function warehouseApp() {
                             tipe_kepemilikan: this.modalForm.tipeKepemilikan,
                             lokasi: this.modalForm.lokasi
                         };
-                        const { error } = await supabaseClient.from('master_gudang').upsert(payload, { onConflict: 'kode_gudang' });
-                        if (error) throw error;
+
+                        if (this.isEdit) {
+                            const origKey = this.editingOriginalKode || this.modalForm.kodeGudang;
+                            const { error } = await supabaseClient
+                                .from('master_gudang')
+                                .update(payload)
+                                .eq('kode_gudang', origKey);
+                            if (error) throw error;
+                        } else {
+                            const { error } = await supabaseClient
+                                .from('master_gudang')
+                                .insert([payload]);
+                            if (error) throw error;
+                        }
                     }
+
                     if (this.isEdit) {
-                        this.masterGudang[this.editIndex] = { ...this.modalForm };
+                        const origKey = this.editingOriginalKode;
+                        const idx = this.masterGudang.findIndex(g => g.kodeGudang === origKey || g.kodeGudang === this.modalForm.kodeGudang);
+                        if (idx !== -1) {
+                            this.masterGudang[idx] = { ...this.modalForm };
+                        } else if (this.editIndex !== null && this.masterGudang[this.editIndex]) {
+                            this.masterGudang[this.editIndex] = { ...this.modalForm };
+                        } else {
+                            this.masterGudang.push({ ...this.modalForm });
+                        }
                     } else {
                         this.masterGudang.push({ ...this.modalForm });
                     }
                     localStorage.setItem('vortex_masterGudang', JSON.stringify(this.masterGudang));
+
                 } else if (this.modalType === 'project') {
                     if (this.isEdit) {
                         if (useSupabase) {
@@ -678,10 +769,23 @@ export default function warehouseApp() {
                                 no_po: this.modalForm.noPO,
                                 project_name: this.modalForm.projectName
                             };
-                            const { error } = await supabaseClient.from('master_project').upsert(payload, { onConflict: 'kode_project' });
+                            const origKey = this.editingOriginalKode || this.modalForm.kodeProject;
+                            const { error } = await supabaseClient
+                                .from('master_project')
+                                .update(payload)
+                                .eq('kode_project', origKey);
                             if (error) throw error;
                         }
-                        this.masterProject[this.editIndex] = { ...this.modalForm };
+
+                        const origKey = this.editingOriginalKode;
+                        const idx = this.masterProject.findIndex(p => p.kodeProject === origKey || p.kodeProject === this.modalForm.kodeProject);
+                        if (idx !== -1) {
+                            this.masterProject[idx] = { ...this.modalForm };
+                        } else if (this.editIndex !== null && this.masterProject[this.editIndex]) {
+                            this.masterProject[this.editIndex] = { ...this.modalForm };
+                        } else {
+                            this.masterProject.push({ ...this.modalForm });
+                        }
                     } else {
                         if (useSupabase) {
                             const payload = {
@@ -707,7 +811,11 @@ export default function warehouseApp() {
                     localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
                 }
 
-                if (useSupabase) this.logAudit('master_save', { type: this.modalType, data: this.modalForm });
+                if (useSupabase) {
+                    this.logAudit('master_save', { type: this.modalType, data: this.modalForm });
+                    await this.loadDataFromSupabase();
+                }
+
                 this.showModal = false;
                 this.showNotification(useSupabase ? 'Data berhasil disimpan ke Supabase!' : 'Data berhasil disimpan (Mode Lokal)!', 'success');
             } catch (err) {
@@ -717,7 +825,7 @@ export default function warehouseApp() {
             }
         },
 
-        async deleteItem(type, index) {
+        async deleteItem(type, target) {
             if (!confirm('Hapus data ini?')) return;
 
             const tableMap = { barang: 'master_barang', gudang: 'master_gudang', project: 'master_project' };
@@ -726,8 +834,18 @@ export default function warehouseApp() {
             const arrName = { barang: 'masterBarang', gudang: 'masterGudang', project: 'masterProject' };
 
             const arr = this[arrName[type]];
-            const item = arr ? arr[index] : null;
-            if (!item) return;
+            let realIndex = -1;
+            let item = null;
+
+            if (typeof target === 'object' && target !== null) {
+                item = target;
+                realIndex = arr.findIndex(x => x[localKey[type]] === item[localKey[type]]);
+            } else if (typeof target === 'number') {
+                realIndex = target;
+                item = arr[target];
+            }
+
+            if (!item || realIndex === -1) return;
 
             try {
                 this.isLoading = true;
@@ -735,7 +853,7 @@ export default function warehouseApp() {
                     const { error } = await supabaseClient.from(tableMap[type]).delete().eq(keyMap[type], item[localKey[type]]);
                     if (error) throw error;
                 }
-                arr.splice(index, 1);
+                arr.splice(realIndex, 1);
                 if (type === 'barang') localStorage.setItem('vortex_masterBarang', JSON.stringify(this.masterBarang));
                 if (type === 'gudang') localStorage.setItem('vortex_masterGudang', JSON.stringify(this.masterGudang));
                 if (type === 'project') localStorage.setItem('vortex_masterProject', JSON.stringify(this.masterProject));
