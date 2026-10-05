@@ -321,9 +321,6 @@ export default function warehouseApp() {
         totalPages(items, size) {
             return Math.ceil(items.length / size) || 1;
         },
-        // ===================================================================
-        // HELPER REGION & FUNGSI FILTER
-        // ===================================================================
         
         isItemInUserRegion(regionName) {
             if (this.isSuperAdmin) return true;
@@ -1014,7 +1011,6 @@ export default function warehouseApp() {
                 }
 
                 if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-                    // 1. Eksekusi RPC rollback transaksi di Supabase untuk memulihkan/menyesuaikan stok & drum ledger
                     const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
                         p_no_transaksi: tx.noTransaksi
                     });
@@ -1023,7 +1019,6 @@ export default function warehouseApp() {
                         console.warn('Gagal eksekusi delete_transaction_rollback RPC:', rollbackErr.message);
                     }
 
-                    // 2. Hapus sisa data terkait di tabel material_usage & transactions jika belum terhapus oleh RPC
                     const { error: errUsage } = await supabaseClient
                         .from('material_usage')
                         .delete()
@@ -1045,7 +1040,6 @@ export default function warehouseApp() {
                         await this.loadDataFromSupabase();
                     }
                 } else {
-                    // Mode Offline / Lokal
                     this.revertStockOffline(tx);
                     this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
                     if (this.materialUsage) {
@@ -1067,11 +1061,6 @@ export default function warehouseApp() {
             }
         },
 
-        // ============================================================
-        // APPROVAL WORKFLOW (Project Manager / Super Admin)
-        // Transaksi baru tersimpan sebagai 'Pending' dan stok drum/
-        // stok gudang/material usage baru diterapkan setelah di-approve.
-        // ============================================================
         canApprove(tx) {
             if (!tx || tx.approvalStatus !== 'Pending') return false;
             const role = (this.currentRole || '').toLowerCase();
@@ -1171,7 +1160,6 @@ export default function warehouseApp() {
                 const kat = this.getCategoryByKode(item.kodeBarang);
 
                 if (tipe === 'Masuk' || tipe === 'Return' || tipe === 'Retur') {
-                    // Revert Masuk/Retur: Kurangi stok gudang tujuan
                     this.updateStokGudang(item.kodeBarang, gTujuan, -qty);
                     if (kat === 'Cable' && item.drumId) {
                         let dIdx = this.drumLedger.findIndex(x => x.drumId === item.drumId);
@@ -1189,7 +1177,6 @@ export default function warehouseApp() {
                         }
                     }
                 } else if (tipe === 'Keluar') {
-                    // Revert Keluar: Kembalikan stok ke gudang asal
                     this.updateStokGudang(item.kodeBarang, gAsal, qty);
                     if (kat === 'Cable' && item.drumId) {
                         this.updateDrumLedger(item.drumId, qty, { kodeBarang: item.kodeBarang, namaBarang: item.namaBarang, gudang: gAsal });
@@ -1198,7 +1185,6 @@ export default function warehouseApp() {
                         this.materialUsage = this.materialUsage.filter(m => !(m.transactionNo === tx.noTransaksi && m.drumId === item.drumId));
                     }
                 } else if (tipe === 'Transfer') {
-                    // Revert Transfer: Kembalikan stok ke gudang asal dan kurangi gudang tujuan
                     this.updateStokGudang(item.kodeBarang, gAsal, qty);
                     this.updateStokGudang(item.kodeBarang, gTujuan, -qty);
                     if (kat === 'Cable' && item.drumId) {
@@ -1208,7 +1194,6 @@ export default function warehouseApp() {
                 }
             });
 
-            // Bersihkan item stok gudang yang qty <= 0 agar saat seluruh transaksi dihapus, stokGudang bersih
             this.stokGudang = this.stokGudang.filter(s => parseFloat(s.qty) > 0);
         },
 
@@ -1823,372 +1808,75 @@ export default function warehouseApp() {
                                         assignedDrumId = `${whCode}-${threeCharBarang}-D${String(currentMaxSeq).padStart(2, '0')}`;
                                     } while (pendingDrumIds.has(assignedDrumId));
                                 }
-
                                 pendingDrumIds.add(assignedDrumId);
                                 processedItems.push({ ...item, drumId: assignedDrumId, qty: chunkQty, satuan: satuanItem, namaBarang: namaBrg });
                             }
                         }
                     } else {
-                        processedItems.push({ ...item, satuan: satuanItem, namaBarang: namaBrg });
+                        processedItems.push({ ...item, qty: totalQty, satuan: satuanItem, namaBarang: namaBrg });
                     }
                 }
                 this.newTrans.items = processedItems;
             }
 
-            if (supabaseClient) {
-                try {
-                    this.isLoading = true;
-                    let editBackup = null;
-                    if (this.editingOriginalNo) {
-                        editBackup = this.transactions.find(t => t.noTransaksi === this.editingOriginalNo) || null;
-
-                        const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
-                            p_no_transaksi: this.editingOriginalNo
-                        });
-                        if (rollbackErr) throw rollbackErr;
-                        if (rollbackData && rollbackData.status === 'error') {
-                            throw new Error(rollbackData.message || 'Gagal melakukan rollback transaksi lama.');
-                        }
-
-                        await supabaseClient.from('material_usage').delete().eq('transaction_no', this.editingOriginalNo);
-                    }
-
-                    const { error } = await supabaseClient.rpc('submit_transaction_pending', this.buildRpcParams(this.newTrans));
-                    if (error) {
-                        if (editBackup) await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(editBackup));
-                        throw error;
-                    }
-
-                    this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi });
-                    this.showNotification('Transaksi berhasil disimpan & menunggu approval Project Manager / Super Admin!', 'success');
-                    this.clearFormDraft();
-                    await this.resetInputTransaction();
-                    this.switchTab('data-transaksi');
-                    await this.loadDataFromSupabase();
-                    return;
-                } catch (err) {
-                    this.showNotification('Gagal memproses transaksi: ' + (err.message || err), 'error');
-                    this.isLoading = false;
-                    return;
-                } finally {
-                    this.isLoading = false;
-                }
-            }
-
-            this.newTrans.approvalStatus = 'Pending';
-            this.transactions.push(JSON.parse(JSON.stringify(this.newTrans)));
-            localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
-            this.showNotification('Transaksi tersimpan & menunggu approval PM/Super Admin (Lokal)!', 'success');
-            this.clearFormDraft();
-            await this.resetInputTransaction();
-            this.switchTab('data-transaksi');
-        },
-
-        editTransaction(tx) {
-            this.editingOriginalNo = tx.noTransaksi;
-            this.newTrans = JSON.parse(JSON.stringify(tx));
-            if (!supabaseClient && (tx.approvalStatus || 'Approved') === 'Approved') {
-                this.revertStockOffline(tx);
-                this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
-            }
-
-            const foundProj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
-            this.projectSearchText = foundProj ? foundProj.projectName : (this.newTrans.kodeProject || '');
-
-            if (this.newTrans.items) {
-                this.newTrans.items.forEach((item, idx) => {
-                    if (item.kodeBarang && this.getCategoryByKode(item.kodeBarang) === 'Cable') {
-                        this.fetchDrumsForDropdown(item.kodeBarang, this.newTrans.gudangAsal, idx);
-                    }
-                });
-            }
-            this.switchTab('input-transaksi');
-        },
-
-        printBAST(tx) {
-            this.activeBast = tx;
-            this.refreshIcons();
-            setTimeout(() => { window.print(); }, 300);
-        },
-
-        getExpandedBastItems() {
-            let expanded = [];
-            if (!this.activeBast || !this.activeBast.items) return expanded;
-            let counter = 1;
-            this.activeBast.items.forEach(item => {
-                expanded.push({
-                    no: counter++,
-                    kodeBarang: item.kodeBarang,
-                    namaBarang: item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '',
-                    drumId: item.drumId,
-                    qty: parseFloat(item.qty) || 0
-                });
-            });
-            return expanded;
-        },
-
-        getBastProjectName(kodeProject) {
-            if (!kodeProject) return '-';
-            const proj = this.masterProject.find(p => p.kodeProject === kodeProject);
-            return proj ? proj.projectName : kodeProject;
-        },
-
-        getBastSummaryItems() {
-            let expanded = this.getExpandedBastItems();
-            if (!expanded || expanded.length === 0) return [];
-            let nameCounts = {};
-            expanded.forEach(item => {
-                let name = item.namaBarang || '-';
-                nameCounts[name] = (nameCounts[name] || 0) + 1;
-            });
-            if (!Object.values(nameCounts).some(c => c > 1)) return [];
-            let summaryMap = {};
-            expanded.forEach(item => {
-                let name = item.namaBarang || '-';
-                summaryMap[name] = (summaryMap[name] || 0) + (parseFloat(item.qty) || 0);
-            });
-            let result = [];
-            let counter = 1;
-            for (let name in summaryMap) {
-                result.push({ no: counter++, namaBarang: name, totalQty: summaryMap[name] });
-            }
-            return result;
-        },
-
-        getFilteredStokGudang() {
-            if (supabaseClient) {
-                const dummy = new Array(this.totalStokCount || this.stokGudang.length);
-                const start = (this.pageStok - 1) * this.pageSizeStok;
-                for (let i = 0; i < this.stokGudang.length; i++) {
-                    dummy[start + i] = this.stokGudang[i];
-                }
-                return dummy;
-            }
-            let list = this.stokGudang;
-            if (!this.isSuperAdmin) {
-                const reg = this.userRegion().toLowerCase();
-                const regionalWhNames = this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg).map(g => g.namaGudang);
-                list = list.filter(s => regionalWhNames.includes(s.gudang));
-            }
-            if (this.filterStokGudang) {
-                list = list.filter(s => s.gudang === this.filterStokGudang);
-            }
-            return list;
-        },
-
-        getFilteredDrumLedger() {
-            if (supabaseClient) {
-                const dummy = new Array(this.totalDrumCount || this.drumLedger.length);
-                const start = (this.pageDrum - 1) * this.pageSizeDrum;
-                for (let i = 0; i < this.drumLedger.length; i++) {
-                    dummy[start + i] = this.drumLedger[i];
-                }
-                return dummy;
-            }
-            let list = this.drumLedger;
-            if (!this.isSuperAdmin) {
-                const reg = this.userRegion().toLowerCase();
-                const regionalWhNames = this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg).map(g => g.namaGudang);
-                list = list.filter(d => regionalWhNames.includes(d.gudang));
-            }
-            if (this.filterStokGudang) list = list.filter(d => d.gudang === this.filterStokGudang);
-            if (this.selectedCableKode) list = list.filter(d => d.kodeBarang === this.selectedCableKode);
-            return list;
-        },
-
-        getFilteredMaterialUsage() {
-            if (supabaseClient) {
-                const dummy = new Array(this.totalUsageCount || this.materialUsage.length);
-                const start = (this.pageUsage - 1) * this.pageSizeUsage;
-                for (let i = 0; i < this.materialUsage.length; i++) {
-                    dummy[start + i] = this.materialUsage[i];
-                }
-                return dummy;
-            }
-            let list = this.materialUsage;
-            if (!this.isSuperAdmin) {
-                const reg = (this.userRegion() || '').toLowerCase();
-                const regionalProjectCodes = this.masterProject
-                    .filter(p => (p.region || '').toLowerCase() === reg)
-                    .map(p => p.kodeProject);
-                list = list.filter(u => regionalProjectCodes.includes(u.kodeProject));
-            }
-            if (this.searchMaterialUsageProject) {
-                const q = this.searchMaterialUsageProject.toLowerCase();
-                list = list.filter(u => 
-                    (u.kodeProject && u.kodeProject.toLowerCase().includes(q)) || 
-                    (u.projectName && u.projectName.toLowerCase().includes(q)) ||
-                    (u.noPO && u.noPO.toLowerCase().includes(q))
-                );
-            }
-            return list;
-        },
-
-        getFilteredTransactions() {
-            if (supabaseClient) {
-                const dummy = new Array(this.totalTxCount || this.transactions.length);
-                const start = (this.pageTx - 1) * this.pageSizeTx;
-                for (let i = 0; i < this.transactions.length; i++) {
-                    dummy[start + i] = this.transactions[i];
-                }
-                return dummy;
-            }
-            let list = this.transactions;
-            if (!this.isSuperAdmin) {
-                const reg = this.userRegion().toLowerCase();
-                const regionalWhNames = this.masterGudang.filter(g => (g.region || '').toLowerCase() === reg).map(g => g.namaGudang);
-                list = list.filter(t => regionalWhNames.includes(t.gudangAsal) || regionalWhNames.includes(t.gudangTujuan));
-            }
-            if (this.searchNoTransaksi) {
-                const q = this.searchNoTransaksi.toLowerCase();
-                list = list.filter(t => t.noTransaksi.toLowerCase().includes(q) || (t.noReferensi && t.noReferensi.toLowerCase().includes(q)));
-            }
-            if (this.filterStatusTx) {
-                list = list.filter(t => (t.approvalStatus || 'Approved') === this.filterStatusTx);
-            }
-            return list;
-        },
-
-        async reuseDrum(drum, index) {
-            const scrapQty = prompt(`Masukkan jumlah kuantitas/panjang yang di-reuse atau scrap dari drum ${drum.drumId} (Sisa: ${drum.remainingLength}m):`, drum.remainingLength);
-            if (scrapQty === null) return;
-            const qtyVal = parseFloat(scrapQty);
-            if (isNaN(qtyVal) || qtyVal <= 0 || qtyVal > drum.remainingLength) {
-                this.showNotification('Jumlah tidak valid!', 'error');
-                return;
-            }
-            await this.catatPenggunaanKabel(drum.drumId, qtyVal);
-        },
-
-        async exportStokCSV() {
-            let items = [];
-            if (supabaseClient) {
-                let q = supabaseClient.from('stok_gudang').select('*');
-                if (this.filterStokGudang) q = q.eq('gudang', this.filterStokGudang);
-                const { data } = await q;
-                if (data) {
-                    items = data.map(s => ({ 
-                        kodeBarang: s.kode_barang, 
-                        namaBarang: s.nama_barang, 
-                        kategori: s.kategori || this.masterBarang.find(b => b.kodeBarang === s.kode_barang)?.kategori || '', 
-                        gudang: s.gudang, 
-                        masuk: parseFloat(s.masuk) || 0,
-                        keluar: parseFloat(s.keluar) || 0,
-                        retur: parseFloat(s.retur) || 0,
-                        tKeluar: parseFloat(s.t_keluar) || 0,
-                        tMasuk: parseFloat(s.t_masuk) || 0,
-                        qty: parseFloat(s.qty) || 0, 
-                        sat: s.sat 
-                    }));
-                }
-            } else {
-                items = this.getFilteredStokGudang();
-            }
-
-            const headers = ['Kode Barang', 'Nama Barang', 'Kategori', 'Gudang', 'Masuk', 'Keluar', 'Retur', 'T.Keluar', 'T.Masuk', 'Total Stok', 'Satuan'];
-            const rows = items.map(s => [
-                `"${this.csvSafe(s.kodeBarang)}"`,
-                `"${this.csvSafe(s.namaBarang)}"`,
-                `"${this.csvSafe(s.kategori)}"`,
-                `"${this.csvSafe(s.gudang)}"`,
-                s.masuk || 0,
-                s.keluar || 0,
-                s.retur || 0,
-                s.tKeluar || 0,
-                s.tMasuk || 0,
-                s.qty || 0,
-                `"${this.csvSafe(s.sat)}"`
-            ]);
-
-            const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `stok_gudang_${new Date().toISOString().split('T')[0]}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        },
-
-        async exportUsageCSV() {
-            let items = [];
-            if (supabaseClient) {
-                let q = supabaseClient.from('material_usage').select('*');
-                if (this.searchMaterialUsageProject) q = q.or(`kode_project.ilike.%${this.searchMaterialUsageProject}%`);
-                const { data } = await q;
-                if (data) items = data.map(u => ({ kodeProject: u.kode_project, noPO: u.no_po, projectName: u.project_name, namaBarang: u.nama_barang, drumId: u.drum_id, qty: u.qty, tanggal: u.tanggal }));
-            } else {
-                items = this.getFilteredMaterialUsage();
-            }
-            let csv = 'Kode Project,No PO,Project Name,Nama Barang,Drum ID,Qty Pakai,Tanggal\n';
-            items.forEach(u => { csv += `"${this.csvSafe(u.kodeProject)}","${this.csvSafe(u.noPO)}","${this.csvSafe(u.projectName)}","${this.csvSafe(u.namaBarang)}","${this.csvSafe(u.drumId)}",${parseFloat(u.qty) || 0},"${this.csvSafe(u.tanggal)}"\n`; });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'material_usage.csv'; a.click();
-        },
-
-        async exportTransactionCSV() {
             this.isLoading = true;
             try {
-                let selectedGudangName = this.filterStokGudang ? this.filterStokGudang.replace(/[^a-zA-Z0-9]/g, '_') : 'All';
-                let fileName = 'data_transaksi_' + selectedGudangName + '.csv';
+                const txPayload = {
+                    no_transaksi: this.newTrans.noTransaksi,
+                    tanggal: this.newTrans.tanggal,
+                    no_referensi: this.newTrans.noReferensi,
+                    tipe_transaksi: this.newTrans.tipeTransaksi,
+                    gudang_asal: this.newTrans.gudangAsal || '',
+                    gudang_tujuan: this.newTrans.gudangTujuan || '',
+                    kode_project: this.newTrans.kodeProject || '',
+                    keterangan: this.newTrans.keterangan,
+                    staff_gudang: this.newTrans.staffGudang || '',
+                    project_manager: this.newTrans.projectManager || '',
+                    nama_penerima: this.newTrans.namaPenerima || '',
+                    lampiran_url: this.newTrans.lampiranUrl || '',
+                    approval_status: 'Pending',
+                    items: this.newTrans.items.map(i => ({
+                        kode_barang: i.kodeBarang,
+                        nama_barang: i.namaBarang,
+                        kategori: i.kategori || this.getCategoryByKode(i.kodeBarang) || '',
+                        drum_id: i.drumId || '',
+                        qty: parseFloat(i.qty) || 0,
+                        satuan: i.satuan || 'Pcs'
+                    }))
+                };
 
-                let txsToExport = [];
-                let client = window.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null) || this.supabase;
-
-                if (client) {
-                    let txQuery = client.from('transactions').select('*');
-                    if (this.searchNoTransaksi) {
-                        txQuery = txQuery.or('no_transaksi.ilike.%' + this.searchNoTransaksi + '%,no_referensi.ilike.%' + this.searchNoTransaksi + '%');
-                    }
-                    let response = await txQuery.order('tanggal', { ascending: false }).range(0, 9999);
-                    let allTxData = response.data;
-                    let error = response.error;
+                if (supabaseClient) {
+                    const { error } = await supabaseClient.from('transactions').insert([txPayload]);
                     if (error) throw error;
-
-                    if (allTxData && allTxData.length > 0) {
-                        txsToExport = allTxData.map(t => ({
-                            noTransaksi: t.no_transaksi, 
-                            tanggal: t.tanggal, 
-                            noReferensi: t.no_referensi,
-                            tipeTransaksi: t.tipe_transaksi, 
-                            gudangAsal: t.gudang_asal,
-                            gudangTujuan: t.gudang_tujuan,
-                            kodeProject: t.kode_project,
-                            keterangan: t.keterangan,
-                            staffGudang: t.staff_gudang,
-                            projectManager: t.project_manager,
-                            namaPenerima: t.nama_penerima,
-                            items: this.safeParseItems(t.items)
-                        }));
-                    }
+                    await this.logAudit('transaction_create', { no: txPayload.no_transaksi });
+                    this.showNotification('Transaksi berhasil disimpan dengan status Pending (Menunggu Approval PM).', 'success');
+                    await this.loadDataFromSupabase();
                 } else {
-                    txsToExport = this.getFilteredTransactions();
+                    this.transactions.unshift({
+                        noTransaksi: this.newTrans.noTransaksi,
+                        tanggal: this.newTrans.tanggal,
+                        noReferensi: this.newTrans.noReferensi,
+                        tipeTransaksi: this.newTrans.tipeTransaksi,
+                        gudangAsal: this.newTrans.gudangAsal,
+                        gudangTujuan: this.newTrans.gudangTujuan,
+                        kodeProject: this.newTrans.kodeProject,
+                        keterangan: this.newTrans.keterangan,
+                        staffGudang: this.newTrans.staffGudang,
+                        projectManager: this.newTrans.projectManager,
+                        namaPenerima: this.newTrans.namaPenerima,
+                        lampiranUrl: this.newTrans.lampiranUrl,
+                        approvalStatus: 'Pending',
+                        items: this.newTrans.items
+                    });
+                    localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
+                    this.showNotification('Transaksi berhasil disimpan (Mode Lokal - Pending).', 'success');
                 }
 
-                let csv = 'No Transaksi,Tanggal,No Referensi,Tipe Transaksi,Gudang Asal,Gudang Tujuan,Kode Project,Keterangan,Staff Gudang,Project Manager,Nama Penerima,Kode Barang,Nama Barang,Drum ID,Qty\n';
-                txsToExport.forEach(tx => {
-                    const cs = (v) => this.csvSafe(v);
-                    const items = tx.items || [];
-                    if (items.length === 0) {
-                         csv += `"${cs(tx.noTransaksi)}","${cs(tx.tanggal)}","${cs(tx.noReferensi)}","${cs(tx.tipeTransaksi)}","${cs(tx.gudangAsal)}","${cs(tx.gudangTujuan)}","${cs(tx.kodeProject)}","${cs(tx.keterangan)}","${cs(tx.staffGudang)}","${cs(tx.projectManager)}","${cs(tx.namaPenerima)}","","","",0\n`;
-                    } else {
-                        items.forEach(i => {
-                            csv += `"${cs(tx.noTransaksi)}","${cs(tx.tanggal)}","${cs(tx.noReferensi)}","${cs(tx.tipeTransaksi)}","${cs(tx.gudangAsal)}","${cs(tx.gudangTujuan)}","${cs(tx.kodeProject)}","${cs(tx.keterangan)}","${cs(tx.staffGudang)}","${cs(tx.projectManager)}","${cs(tx.namaPenerima)}","${cs(i.kodeBarang)}","${cs(i.namaBarang)}","${cs(i.drumId)}",${parseFloat(i.qty) || 0}\n`;
-                        });
-                    }
-                });
-
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); 
-                a.href = url; 
-                a.download = fileName; 
-                a.click();
-                URL.revokeObjectURL(url);
+                this.clearFormDraft();
+                this.switchTab('transaksi');
             } catch (err) {
-                console.error("Gagal mengekspor CSV:", err);
-                this.showNotification("Gagal mengekspor data transaksi ke CSV: " + (err.message || err), "error");
+                console.error('Gagal menyimpan transaksi:', err);
+                this.showNotification('Gagal menyimpan transaksi: ' + (err.message || err), 'error');
             } finally {
                 this.isLoading = false;
             }
