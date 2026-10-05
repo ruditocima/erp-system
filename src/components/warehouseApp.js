@@ -72,6 +72,101 @@ export default function warehouseApp() {
             return this.masterProject.filter(p => (p.region || '').toLowerCase() === reg);
         },
 
+        // 1. TAMBAHKAN HELPER AKSES REGION
+        get allowedWarehouseNames() {
+            // Jika Super Admin, abaikan batasan
+            if (this.isSuperAdmin) return null;
+            // Jika WH Region, ambil hanya nama gudang di regionnya
+            return this.getFilteredMasterGudang().map(g => g.namaGudang);
+        },
+        get allowedProjectCodes() {
+            if (this.isSuperAdmin) return null;
+            return this.getFilteredMasterProject().map(p => p.kodeProject);
+        },
+
+        // 2. UPDATE FILTER STOK GUDANG
+        getFilteredStokGudang() {
+            let filtered = this.stokGudang || [];
+            
+            // Filter Batasan Region
+            if (!this.isSuperAdmin) {
+                const allowed = this.allowedWarehouseNames;
+                filtered = filtered.filter(stok => allowed.includes(stok.gudang));
+            }
+            
+            // Filter Dropdown UI
+            if (this.filterStokGudang) {
+                filtered = filtered.filter(stok => stok.gudang === this.filterStokGudang);
+            }
+            return filtered;
+        },
+
+        // 3. UPDATE FILTER DATA TRANSAKSI
+        getFilteredTransactions() {
+            let filtered = this.transactions || [];
+            
+            // Filter Batasan Region (Hanya tampilkan jika gudang asal ATAU tujuan ada di region user)
+            if (!this.isSuperAdmin) {
+                const allowed = this.allowedWarehouseNames;
+                filtered = filtered.filter(tx => allowed.includes(tx.gudangAsal) || allowed.includes(tx.gudangTujuan));
+            }
+            
+            // Filter Pencarian No Transaksi UI
+            if (this.searchNoTransaksi) {
+                const q = this.searchNoTransaksi.toLowerCase();
+                filtered = filtered.filter(tx => tx.noTransaksi.toLowerCase().includes(q));
+            }
+            // Filter Status UI
+            if (this.filterStatusTx) {
+                filtered = filtered.filter(tx => tx.approvalStatus === this.filterStatusTx || (!tx.approvalStatus && this.filterStatusTx === 'Approved'));
+            }
+            return filtered;
+        },
+
+        // 4. UPDATE FILTER PELACAKAN DRUM (DRUM LEDGER)
+        getFilteredDrumLedger() {
+            let filtered = this.drumLedger || [];
+            
+            // Filter Batasan Region
+            if (!this.isSuperAdmin) {
+                const allowed = this.allowedWarehouseNames;
+                filtered = filtered.filter(drum => allowed.includes(drum.gudang));
+            }
+            
+            // Filter UI
+            if (this.filterStokGudang) {
+                filtered = filtered.filter(drum => drum.gudang === this.filterStokGudang);
+            }
+            if (this.selectedCableKode) {
+                filtered = filtered.filter(drum => drum.kodeBarang === this.selectedCableKode);
+            }
+            return filtered;
+        },
+
+        // 5. UPDATE FILTER MATERIAL USAGE
+        getFilteredMaterialUsage() {
+            let filtered = this.materialUsage || [];
+            
+            // Filter Batasan Region
+            if (!this.isSuperAdmin) {
+                const allowed = this.allowedProjectCodes;
+                filtered = filtered.filter(usage => allowed.includes(usage.kodeProject));
+            }
+            
+            // Filter Pencarian UI
+            if (this.searchMaterialUsageProject) {
+                const q = this.searchMaterialUsageProject.toLowerCase();
+                filtered = filtered.filter(u => 
+                    (u.projectName && u.projectName.toLowerCase().includes(q)) || 
+                    (u.kodeProject && u.kodeProject.toLowerCase().includes(q))
+                );
+            }
+            return filtered;
+        },
+
+        getFilteredProjectDropdownList() {
+        
+
         getFilteredProjectDropdownList() {
             const projects = this.getFilteredProjectsForAsal();
             if (!this.projectSearchText) return projects;
@@ -322,23 +417,30 @@ export default function warehouseApp() {
             return Math.ceil(items.length / size) || 1;
         },
 
+        // 6. PASTIKAN FUNGSI PAGINASI MENGGUNAKAN FILTER TERBARU DI ATAS
         getPaginatedStokGudang() {
-            if (supabaseClient) return this.stokGudang;
-            return this.paginate(this.getFilteredStokGudang(), this.pageStok, this.pageSizeStok);
-        },
-        getPaginatedDrumLedger() {
-            if (supabaseClient) return this.drumLedger;
-            return this.paginate(this.getFilteredDrumLedger(), this.pageDrum, this.pageSizeDrum);
-        },
-        getPaginatedMaterialUsage() {
-            if (supabaseClient) return this.materialUsage;
-            return this.paginate(this.getFilteredMaterialUsage(), this.pageUsage, this.pageSizeUsage);
+            const data = this.getFilteredStokGudang();
+            const start = (this.pageStok - 1) * this.pageSizeStok;
+            return data.slice(start, start + this.pageSizeStok);
         },
         getPaginatedTransactions() {
-            if (supabaseClient) return this.transactions;
-            return this.paginate(this.getFilteredTransactions(), this.pageTx, this.pageSizeTx);
+            const data = this.getFilteredTransactions();
+            const start = (this.pageTx - 1) * this.pageSizeTx;
+            return data.slice(start, start + this.pageSizeTx);
         },
-
+        getPaginatedDrumLedger() {
+            const data = this.getFilteredDrumLedger();
+            const start = (this.pageDrum - 1) * this.pageSizeDrum;
+            return data.slice(start, start + this.pageSizeDrum);
+        },
+        getPaginatedMaterialUsage() {
+            const data = this.getFilteredMaterialUsage();
+            const start = (this.pageUsage - 1) * this.pageSizeUsage;
+            return data.slice(start, start + this.pageSizeUsage);
+        },
+        totalPages(dataArray, pageSize) {
+            return Math.max(1, Math.ceil(dataArray.length / pageSize));
+        },
         async loadDataFromSupabase() {
             if (!supabaseClient) return;
             this.isLoading = true;
