@@ -32,6 +32,7 @@
         }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
 
@@ -739,6 +740,12 @@
                         </div>
                         <div class="flex gap-2">
                             <input type="text" x-model="searchNoTransaksi" placeholder="Cari No Transaksi..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200">
+                            <select x-model="filterStatusTx" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200">
+                                <option value="">Semua Status</option>
+                                <option value="Pending">Pending Approval</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
                             <button type="button" @click="exportTransactionCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-1.5 rounded-lg transition">Export CSV</button>
                         </div>
                     </div>
@@ -751,6 +758,7 @@
                                     <th class="p-3">Tipe</th>
                                     <th class="p-3">Gudang Asal → Tujuan</th>
                                     <th class="p-3">Keterangan</th>
+                                    <th class="p-3">Status</th>
                                     <th class="p-3 text-right">Aksi</th>
                                 </tr>
                             </thead>
@@ -762,6 +770,17 @@
                                         <td class="p-3 font-sans"><span class="px-2 py-0.5 rounded text-[10px]" :class="tx.tipeTransaksi === 'Masuk' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'" x-text="tx.tipeTransaksi"></span></td>
                                         <td class="p-3 font-sans text-slate-300" x-text="(tx.gudangAsal || '-') + ' → ' + (tx.gudangTujuan || '-')"></td>
                                         <td class="p-3 font-sans text-slate-300" x-text="tx.keterangan"></td>
+                                        <td class="p-3 font-sans">
+                                            <template x-if="!tx.approvalStatus || tx.approvalStatus === 'Approved'">
+                                                <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Approved</span>
+                                            </template>
+                                            <template x-if="tx.approvalStatus === 'Pending'">
+                                                <span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20">Pending Approval</span>
+                                            </template>
+                                            <template x-if="tx.approvalStatus === 'Rejected'">
+                                                <span class="px-2 py-0.5 rounded text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20" :title="tx.rejectReason || ''">Rejected</span>
+                                            </template>
+                                        </td>
                                         <td class="p-3 text-right">
                                             <div class="flex items-center justify-end gap-1.5 font-sans">
                                                 <template x-if="tx.lampiranUrl">
@@ -771,6 +790,16 @@
                                                 </template>
                                                 <button type="button" @click="editTransaction(tx)" class="text-slate-400 hover:text-indigo-400 p-1" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
                                                 <button type="button" x-show="isSuperAdmin" @click="deleteTransaction(tx)" class="text-slate-500 hover:text-rose-400 p-1" title="Hapus" x-cloak><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                                <template x-if="canApprove(tx)">
+                                                    <button type="button" @click="approveTransaction(tx)" class="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[11px] font-medium flex items-center gap-1 transition" title="Approve (PM/Super Admin)">
+                                                        <i data-lucide="check" class="w-3.5 h-3.5"></i> Approve
+                                                    </button>
+                                                </template>
+                                                <template x-if="canApprove(tx)">
+                                                    <button type="button" @click="rejectTransaction(tx)" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 px-2 py-1 rounded text-[11px] font-medium flex items-center gap-1 transition" title="Reject (PM/Super Admin)">
+                                                        <i data-lucide="x" class="w-3.5 h-3.5"></i> Reject
+                                                    </button>
+                                                </template>
                                                 <button type="button" @click="printBAST(tx)" class="bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 px-2 py-1 rounded text-[11px]" title="Cetak BAST"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
                                             </div>
                                         </td>
