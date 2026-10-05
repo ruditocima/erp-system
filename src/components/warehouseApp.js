@@ -1899,7 +1899,7 @@ export default function warehouseApp() {
                     }
 
                     this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi });
-                    this.showNotification('Transaksi berhasil disimpan & menunggu approval Project Manager / Super Admin!', 'success');
+                    this.showNotification('Transaksi disimpan & menunggu Approval!', 'success');
                     this.clearFormDraft();
                     await this.resetInputTransaction();
                     this.switchTab('data-transaksi');
