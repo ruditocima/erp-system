@@ -21,7 +21,7 @@ export default function warehouseApp() {
 
         showModal: false, modalType: '', modalForm: {}, isEdit: false, editIndex: null, editingOriginalKode: null,
         isLoading: false, notification: { show: false, message: '', type: 'error' },
-        filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null,
+        filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null, filterStatusTx: '',
         showDrumLedger: false, selectedCableKode: '',
         projectSearchText: '', // State untuk pencarian nama project
 
@@ -239,6 +239,7 @@ export default function warehouseApp() {
             this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('searchNoTransaksi', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+            this.$watch('filterStatusTx', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('searchDrumQuery', () => { this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
 
             this.$watch('pageStok', () => { if(supabaseClient) this.loadDataFromSupabase(); });
@@ -433,6 +434,7 @@ export default function warehouseApp() {
 
                 let txQuery = supabaseClient.from('transactions').select('*', { count: 'exact' });
                 if (this.searchNoTransaksi) txQuery = txQuery.or(`no_transaksi.ilike.%${this.searchNoTransaksi}%,no_referensi.ilike.%${this.searchNoTransaksi}%`);
+                if (this.filterStatusTx) txQuery = txQuery.eq('approval_status', this.filterStatusTx);
                 const fromTx = (this.pageTx - 1) * this.pageSizeTx;
                 const { data: txData, count: countTx } = await txQuery.order('tanggal', { ascending: false }).range(fromTx, fromTx + this.pageSizeTx - 1);
                 if (txData) {
@@ -441,6 +443,10 @@ export default function warehouseApp() {
                         tipeTransaksi: t.tipe_transaksi, gudangAsal: t.gudang_asal, gudangTujuan: t.gudang_tujuan,
                         kodeProject: t.kode_project, keterangan: t.keterangan, staffGudang: t.staff_gudang,
                         projectManager: t.project_manager, namaPenerima: t.nama_penerima, lampiranUrl: t.lampiran_url,
+                        approvalStatus: t.approval_status || 'Approved',
+                        approvedBy: t.approved_by || '',
+                        approvedAt: t.approved_at || '',
+                        rejectReason: t.reject_reason || '',
                         items: this.safeParseItems(t.items)
                     }));
                     this.totalTxCount = countTx !== null ? countTx : txData.length;
@@ -986,6 +992,98 @@ export default function warehouseApp() {
             } catch (error) {
                 console.error('Kesalahan saat menghapus transaksi:', error);
                 this.showNotification('Gagal menghapus transaksi: ' + (error.message || error), 'error');
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        // ============================================================
+        // APPROVAL WORKFLOW (Project Manager / Super Admin)
+        // Transaksi baru tersimpan sebagai 'Pending' dan stok drum/
+        // stok gudang/material usage baru diterapkan setelah di-approve.
+        // ============================================================
+        canApprove(tx) {
+            if (!tx || tx.approvalStatus !== 'Pending') return false;
+            const role = (this.currentRole || '').toLowerCase();
+            return this.isSuperAdmin || role.includes('project manager') || role.includes('pm') || role.includes('manager');
+        },
+
+        async approveTransaction(tx) {
+            if (!tx || tx.approvalStatus !== 'Pending') return;
+            if (!this.canApprove(tx)) {
+                this.showNotification('Hanya Project Manager atau Super Admin yang dapat melakukan approval.', 'error');
+                return;
+            }
+            if (!confirm(`Setujui (approve) transaksi ${tx.noTransaksi}?\n\nStok gudang, drum ledger, dan material usage akan diterapkan setelah approval.`)) return;
+
+            this.isLoading = true;
+            try {
+                if (supabaseClient) {
+                    const { data, error } = await supabaseClient.rpc('approve_transaction', {
+                        p_no_transaksi: tx.noTransaksi,
+                        p_approved_by: this.currentUser || ''
+                    });
+                    if (error) throw error;
+                    if (data && data.status === 'error') throw new Error(data.message || 'Gagal approve transaksi.');
+
+                    await this.logAudit('transaction_approve', { no: tx.noTransaksi, by: this.currentUser });
+                    this.showNotification(`Transaksi ${tx.noTransaksi} telah di-approve. Stok berhasil diterapkan.`, 'success');
+                    await this.loadDataFromSupabase();
+                } else {
+                    const localTx = this.transactions.find(t => t.noTransaksi === tx.noTransaksi);
+                    if (!localTx) throw new Error('Transaksi lokal tidak ditemukan.');
+                    this.applyTransactionStock(localTx);
+                    localTx.approvalStatus = 'Approved';
+                    localTx.approvedBy = this.currentUser || '';
+                    localTx.approvedAt = new Date().toISOString();
+                    localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
+                    localStorage.setItem('vortex_stokGudang', JSON.stringify(this.stokGudang));
+                    localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
+                    localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
+                    this.showNotification(`Transaksi ${tx.noTransaksi} di-approve (Lokal). Stok diterapkan.`, 'success');
+                }
+            } catch (err) {
+                console.error('Kesalahan saat approve transaksi:', err);
+                this.showNotification('Gagal approve: ' + (err.message || err), 'error');
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        async rejectTransaction(tx) {
+            if (!tx || tx.approvalStatus !== 'Pending') return;
+            if (!this.canApprove(tx)) {
+                this.showNotification('Hanya Project Manager atau Super Admin yang dapat melakukan rejection.', 'error');
+                return;
+            }
+            const reason = prompt(`Tolak (reject) transaksi ${tx.noTransaksi}?\nMasukkan alasan penolakan (opsional):`, '');
+            if (reason === null) return;
+
+            this.isLoading = true;
+            try {
+                if (supabaseClient) {
+                    const { data, error } = await supabaseClient.rpc('reject_transaction', {
+                        p_no_transaksi: tx.noTransaksi,
+                        p_reason: reason || '',
+                        p_rejected_by: this.currentUser || ''
+                    });
+                    if (error) throw error;
+                    if (data && data.status === 'error') throw new Error(data.message || 'Gagal reject transaksi.');
+
+                    await this.logAudit('transaction_reject', { no: tx.noTransaksi, by: this.currentUser, reason: reason || '' });
+                    this.showNotification(`Transaksi ${tx.noTransaksi} telah ditolak.`, 'info');
+                    await this.loadDataFromSupabase();
+                } else {
+                    const localTx = this.transactions.find(t => t.noTransaksi === tx.noTransaksi);
+                    if (!localTx) throw new Error('Transaksi lokal tidak ditemukan.');
+                    localTx.approvalStatus = 'Rejected';
+                    localTx.rejectReason = reason || '';
+                    localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
+                    this.showNotification(`Transaksi ${tx.noTransaksi} ditolak (Lokal).`, 'info');
+                }
+            } catch (err) {
+                console.error('Kesalahan saat reject transaksi:', err);
+                this.showNotification('Gagal reject: ' + (err.message || err), 'error');
             } finally {
                 this.isLoading = false;
             }
@@ -1685,14 +1783,14 @@ export default function warehouseApp() {
                         await supabaseClient.from('material_usage').delete().eq('transaction_no', this.editingOriginalNo);
                     }
 
-                    const { error } = await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(this.newTrans));
+                    const { error } = await supabaseClient.rpc('submit_transaction_pending', this.buildRpcParams(this.newTrans));
                     if (error) {
                         if (editBackup) await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(editBackup));
                         throw error;
                     }
 
                     this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi });
-                    this.showNotification('Transaksi berhasil disimpan ke Supabase!', 'success');
+                    this.showNotification('Transaksi berhasil disimpan & menunggu approval Project Manager / Super Admin!', 'success');
                     this.clearFormDraft();
                     await this.resetInputTransaction();
                     this.switchTab('data-transaksi');
@@ -1707,9 +1805,10 @@ export default function warehouseApp() {
                 }
             }
 
-            this.applyTransactionStock(this.newTrans);
+            this.newTrans.approvalStatus = 'Pending';
             this.transactions.push(JSON.parse(JSON.stringify(this.newTrans)));
-            this.showNotification('Transaksi disimpan (Lokal)!', 'success');
+            localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
+            this.showNotification('Transaksi tersimpan & menunggu approval PM/Super Admin (Lokal)!', 'success');
             this.clearFormDraft();
             await this.resetInputTransaction();
             this.switchTab('data-transaksi');
@@ -1718,7 +1817,7 @@ export default function warehouseApp() {
         editTransaction(tx) {
             this.editingOriginalNo = tx.noTransaksi;
             this.newTrans = JSON.parse(JSON.stringify(tx));
-            if (!supabaseClient) {
+            if (!supabaseClient && (tx.approvalStatus || 'Approved') === 'Approved') {
                 this.revertStockOffline(tx);
                 this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
             }
@@ -1873,6 +1972,9 @@ export default function warehouseApp() {
             if (this.searchNoTransaksi) {
                 const q = this.searchNoTransaksi.toLowerCase();
                 list = list.filter(t => t.noTransaksi.toLowerCase().includes(q) || (t.noReferensi && t.noReferensi.toLowerCase().includes(q)));
+            }
+            if (this.filterStatusTx) {
+                list = list.filter(t => (t.approvalStatus || 'Approved') === this.filterStatusTx);
             }
             return list;
         },
