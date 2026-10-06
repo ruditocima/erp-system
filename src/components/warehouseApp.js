@@ -1215,7 +1215,7 @@ export default function warehouseApp() {
                     if (data && data.status === 'error') throw new Error(data.message || 'Gagal approve transaksi.');
 
                     await this.logAudit('transaction_approve', { no: tx.noTransaksi, by: this.currentUser });
-                    this.showNotification(`Transaksi ${tx.noTransaksi} telah di-approve. Stok berhasil diterapkan.`, 'success');
+                    this.showNotification(`Transaksi ${tx.noTransaksi} telah di-Approve.`, 'success');
                     await this.loadDataFromSupabase();
                 } else {
                     const localTx = this.transactions.find(t => t.noTransaksi === tx.noTransaksi);
