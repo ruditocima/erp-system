@@ -1,5 +1,5 @@
 import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/+esm';
-import warehouseApp from './components/warehouseApp.js?v=2';
+import warehouseApp from './components/warehouseApp.js?v=3';
 
 window.Alpine = Alpine;
 Alpine.data('warehouseApp', warehouseApp);
