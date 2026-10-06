@@ -1202,7 +1202,7 @@ export default function warehouseApp() {
                 this.showNotification('Hanya Project Manager atau Super Admin yang dapat melakukan approval.', 'error');
                 return;
             }
-            if (!confirm(`Setujui (approve) transaksi ${tx.noTransaksi}?\n\nStok gudang, drum ledger, dan material usage akan diterapkan setelah approval.`)) return;
+            if (!confirm(`Setujui transaksi ${tx.noTransaksi}?`)) return;
 
             this.isLoading = true;
             try {
