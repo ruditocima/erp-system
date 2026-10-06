@@ -490,6 +490,8 @@ export default function warehouseApp() {
         async loadDataFromSupabase() {
             if (!supabaseClient) return;
             this.isLoading = true;
+            let regionWhNames = null;
+            let regionProjCodes = null;
             try {
                 const { data: projectData } = await supabaseClient.from('master_project').select('*');
                 if (projectData) {
@@ -516,8 +518,8 @@ export default function warehouseApp() {
                 }
 
                 // [PERBAIKAN] Batasi data hanya pada region user (non Super Admin).
-                const regionWhNames = this.getRegionalWarehouseNames();
-                const regionProjCodes = this.getRegionalProjectCodes();
+                regionWhNames = this.getRegionalWarehouseNames();
+                regionProjCodes = this.getRegionalProjectCodes();
 
                 let stockQuery = supabaseClient.from('stok_gudang').select('*', { count: 'exact' });
                 if (this.filterStokGudang) {
