@@ -337,8 +337,6 @@ export default function warehouseApp() {
             return uReg === 'semua region' || iReg === uReg;
         },
 
-        // [PERBAIKAN] Mengembalikan daftar nama gudang milik region user.
-        // Null = tidak dibatasi (Super Admin / Semua Region).
         getRegionalWarehouseNames() {
             if (this.isSuperAdmin) return null;
             const reg = this.userRegion().toLowerCase();
@@ -348,7 +346,6 @@ export default function warehouseApp() {
                 .map(g => g.namaGudang);
         },
 
-        // [PERBAIKAN] Mengembalikan daftar kode project milik region user (null = tidak dibatasi).
         getRegionalProjectCodes() {
             if (this.isSuperAdmin) return null;
             const reg = this.userRegion().toLowerCase();
@@ -358,8 +355,6 @@ export default function warehouseApp() {
                 .map(p => p.kodeProject);
         },
 
-        // [PERBAIKAN] Membersihkan keyword pencarian agar aman dipakai di filter .or() PostgREST
-        // (karakter , ( ) % bisa merusak sintaks filter atau menjadi wildcard injection).
         sanitizeOrKeyword(kw) {
             return String(kw || '').replace(/[(),%]/g, ' ').replace(/\s+/g, ' ').trim();
         },
@@ -375,9 +370,6 @@ export default function warehouseApp() {
         extractDrumSkuCode(kodeBarang) {
             if (!kodeBarang) return '';
             const kb = String(kodeBarang);
-            // Ambil mulai dari digit ke-6 SKU, lalu buang semua tanda strip (-).
-            // Contoh: 'ADSS-024-YOFC'  -> mulai digit ke-6 -> '024-YOFC' -> '024YOFC'
-            //         'ADSS-024YOFC'   -> mulai digit ke-6 -> '024YOFC'
             const code = (kb.length > 5 ? kb.substring(5) : kb).replace(/-/g, '');
             return code || kb.replace(/-/g, '');
         },
@@ -522,7 +514,6 @@ export default function warehouseApp() {
                     }));
                 }
 
-                // [PERBAIKAN] Batasi data hanya pada region user (non Super Admin).
                 regionWhNames = this.getRegionalWarehouseNames();
                 regionProjCodes = this.getRegionalProjectCodes();
 
@@ -530,7 +521,6 @@ export default function warehouseApp() {
                 if (this.filterStokGudang) {
                     stockQuery = stockQuery.eq('gudang', this.filterStokGudang);
                 } else if (regionWhNames) {
-                    // 'Semua Gudang' tidak aktif untuk non Super Admin: tetap batasi ke region sendiri.
                     if (regionWhNames.length > 0) stockQuery = stockQuery.in('gudang', regionWhNames);
                     else stockQuery = stockQuery.eq('gudang', '__tidak_ada_gudang_region__');
                 }
@@ -562,7 +552,7 @@ export default function warehouseApp() {
                 if (this.selectedCableKode) drumQuery = drumQuery.eq('kode_barang', this.selectedCableKode);
                 const drumKw = this.sanitizeOrKeyword(this.searchDrumQuery);
                 if (drumKw) {
-                    drumQuery = drumQuery.or(`drum_id.ilike.%${drumKw}%,nama_barang.ilike.%${drumKw}%,gudang.ilike.%${drumKw}%`);
+                    drumQuery = drumQuery.or(`drum_id.ilike.%${drumKw}%,nama_barang.ilike.%${drumKw}\%,gudang.ilike.\%${drumKw}%`);
                 }
                 const fromDrum = (this.pageDrum - 1) * this.pageSizeDrum;
                 const { data: drumData, count: countDrum } = await drumQuery.order('drum_id', { ascending: true }).range(fromDrum, fromDrum + this.pageSizeDrum - 1);
@@ -578,7 +568,7 @@ export default function warehouseApp() {
                 let usageQuery = supabaseClient.from('material_usage').select('*', { count: 'exact' });
                 const usageKw = this.sanitizeOrKeyword(this.searchMaterialUsageProject);
                 if (usageKw) {
-                    usageQuery = usageQuery.or(`kode_project.ilike.%${usageKw}%,project_name.ilike.%${usageKw}%`);
+                    usageQuery = usageQuery.or(`kode_project.ilike.%${usageKw}\%,project_name.ilike.\%${usageKw}%`);
                 }
                 if (regionProjCodes) {
                     if (regionProjCodes.length > 0) usageQuery = usageQuery.in('kode_project', regionProjCodes);
@@ -606,10 +596,9 @@ export default function warehouseApp() {
 
                 let txQuery = supabaseClient.from('transactions').select('*', { count: 'exact' });
                 const txKw = this.sanitizeOrKeyword(this.searchNoTransaksi);
-                if (txKw) txQuery = txQuery.or(`no_transaksi.ilike.%${txKw}%,no_referensi.ilike.%${txKw}%`);
+                if (txKw) txQuery = txQuery.or(`no_transaksi.ilike.%${txKw}\%,no_referensi.ilike.\%${txKw}%`);
                 if (this.filterStatusTx) txQuery = txQuery.eq('approval_status', this.filterStatusTx);
                 if (regionWhNames) {
-                    // Data Transaksi hanya region sendiri (berdasarkan gudang asal atau tujuan).
                     if (regionWhNames.length > 0) {
                         const whList = regionWhNames.map(n => `"${String(n).replace(/"/g, '\\"')}"`).join(',');
                         txQuery = txQuery.or(`gudang_asal.in.(${whList}),gudang_tujuan.in.(${whList})`);
@@ -645,8 +634,6 @@ export default function warehouseApp() {
                 this.pageUsage = clampPage(this.pageUsage, this.totalUsageCount, this.pageSizeUsage);
                 this.pageTx    = clampPage(this.pageTx,    this.totalTxCount,    this.pageSizeTx);
 
-                // [PERBAIKAN] Untuk non Super Admin, 'Semua Gudang' tidak aktif:
-                // otomatis arahkan filter ke gudang pertama region sendiri.
                 if (!this.isSuperAdmin && regionWhNames) {
                     if (this.filterStokGudang && !regionWhNames.includes(this.filterStokGudang)) {
                         this.filterStokGudang = regionWhNames[0] || '';
@@ -1138,7 +1125,6 @@ export default function warehouseApp() {
                 }
 
                 if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-                    // 1. Eksekusi RPC rollback transaksi di Supabase untuk memulihkan/menyesuaikan stok & drum ledger
                     const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
                         p_no_transaksi: tx.noTransaksi
                     });
@@ -1147,7 +1133,6 @@ export default function warehouseApp() {
                         console.warn('Gagal eksekusi delete_transaction_rollback RPC:', rollbackErr.message);
                     }
 
-                    // 2. Hapus sisa data terkait di tabel material_usage & transactions jika belum terhapus oleh RPC
                     const { error: errUsage } = await supabaseClient
                         .from('material_usage')
                         .delete()
@@ -1169,7 +1154,6 @@ export default function warehouseApp() {
                         await this.loadDataFromSupabase();
                     }
                 } else {
-                    // Mode Offline / Lokal
                     this.revertStockOffline(tx);
                     this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
                     if (this.materialUsage) {
@@ -1191,11 +1175,6 @@ export default function warehouseApp() {
             }
         },
 
-        // ============================================================
-        // APPROVAL WORKFLOW (Project Manager / Super Admin)
-        // Transaksi baru tersimpan sebagai 'Pending' dan stok drum/
-        // stok gudang/material usage baru diterapkan setelah di-approve.
-        // ============================================================
         canApprove(tx) {
             if (!tx || tx.approvalStatus !== 'Pending') return false;
             const role = (this.currentRole || '').toLowerCase();
@@ -1295,7 +1274,6 @@ export default function warehouseApp() {
                 const kat = this.getCategoryByKode(item.kodeBarang);
 
                 if (tipe === 'Masuk' || tipe === 'Return' || tipe === 'Retur') {
-                    // Revert Masuk/Retur: Kurangi stok gudang tujuan
                     this.updateStokGudang(item.kodeBarang, gTujuan, -qty);
                     if (kat === 'Cable' && item.drumId) {
                         let dIdx = this.drumLedger.findIndex(x => x.drumId === item.drumId);
@@ -1313,7 +1291,6 @@ export default function warehouseApp() {
                         }
                     }
                 } else if (tipe === 'Keluar') {
-                    // Revert Keluar: Kembalikan stok ke gudang asal
                     this.updateStokGudang(item.kodeBarang, gAsal, qty);
                     if (kat === 'Cable' && item.drumId) {
                         this.updateDrumLedger(item.drumId, qty, { kodeBarang: item.kodeBarang, namaBarang: item.namaBarang, gudang: gAsal });
@@ -1322,7 +1299,6 @@ export default function warehouseApp() {
                         this.materialUsage = this.materialUsage.filter(m => !(m.transactionNo === tx.noTransaksi && m.drumId === item.drumId));
                     }
                 } else if (tipe === 'Transfer') {
-                    // Revert Transfer: Kembalikan stok ke gudang asal dan kurangi gudang tujuan
                     this.updateStokGudang(item.kodeBarang, gAsal, qty);
                     this.updateStokGudang(item.kodeBarang, gTujuan, -qty);
                     if (kat === 'Cable' && item.drumId) {
@@ -1332,7 +1308,6 @@ export default function warehouseApp() {
                 }
             });
 
-            // Bersihkan item stok gudang yang qty <= 0 agar saat seluruh transaksi dihapus, stokGudang bersih
             this.stokGudang = this.stokGudang.filter(s => parseFloat(s.qty) > 0);
         },
 
@@ -1729,7 +1704,7 @@ export default function warehouseApp() {
             const d = Math.round((parseFloat(delta) || 0) * 100) / 100;
             let drum = this.drumLedger.find(dr => dr.drumId === drumId);
             if (drum) {
-                const currentRemaining = parseFloat(drum.remainingLength || 0);
+                let currentRemaining = parseFloat(drum.remainingLength || 0);
                 if (currentRemaining === 0 && d > 0) {
                     drum.initialLength = d;
                     drum.remainingLength = d;
@@ -1834,8 +1809,6 @@ export default function warehouseApp() {
                     this.showNotification('Qty setiap item harus lebih besar dari 0!', 'error');
                     return;
                 }
-                // [PERBAIKAN] Retur kabel wajib mengisi Drum ID asal yang akan diretur,
-                // karena nomor drum retur diturunkan dari drum asal (mis. ...-D01 -> ...-D01-01).
                 if (this.getCategoryByKode(item.kodeBarang) === 'Cable' &&
                     (this.newTrans.tipeTransaksi === 'Keluar' || this.newTrans.tipeTransaksi === 'Transfer' || this.newTrans.tipeTransaksi === 'Return') &&
                     !item.drumId) {
@@ -1908,13 +1881,9 @@ export default function warehouseApp() {
 
                     if (kat === 'Cable' && totalQty > 0) {
                         const whObj = this.masterGudang.find(g => g.namaGudang === gudangMasuk);
-                        // Ketentuan 1: NPM01 = kode Gudang TUJUAN (bukan nama gudang), tanpa tanda strip (-).
                         let whCodeClean = (whObj && whObj.kodeGudang) ? whObj.kodeGudang.replace(/-/g, '') : 'PLB';
-                        // Ketentuan 2: potongan SKU mulai digit ke-6, tanpa strip.
-                        // Contoh: 'ADSS-024-YOFC' -> '024YOFC'; hasil: 'NPM01-024YOFC-D01'.
                         let skuCodeClean = this.extractDrumSkuCode(item.kodeBarang);
 
-                        // Kumpulkan drum ledger existing untuk SKU ini di gudang tujuan (untuk sequence & reuse).
                         let existingDrums = [];
                         if (supabaseClient) {
                             const { data: dbDrums } = await supabaseClient
@@ -1931,10 +1900,6 @@ export default function warehouseApp() {
                             existingDrums = this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudangMasuk);
                         }
 
-                        // ============================================================
-                        // RETUR/RETURN: Drum ID asal yang diretur + nomor urut retur.
-                        // Contoh: retur 'NPM01-024YOFC-D01' -> 'NPM01-024YOFC-D01-01'.
-                        // ============================================================
                         if (isReturn && item.drumId && item.drumId.trim() !== '') {
                             const baseDrumId = item.drumId.trim();
                             let maxRetSeq = 0;
@@ -1957,14 +1922,11 @@ export default function warehouseApp() {
                             pendingDrumIds.add(assignedDrumId);
                             processedItems.push({ ...item, drumId: assignedDrumId, qty: totalQty, satuan: satuanItem, namaBarang: namaBrg });
                         } else if (item.drumId && item.drumId.trim() !== '') {
-                            // MASUK dengan Drum ID manual yang ditentukan user sendiri.
                             pendingDrumIds.add(item.drumId.trim());
                             processedItems.push({ ...item, drumId: item.drumId.trim(), qty: totalQty, satuan: satuanItem, namaBarang: namaBrg });
                         } else {
-                            // MASUK auto-generate / fallback retur tanpa Drum ID asal.
                             let remainingToAllocate = totalQty;
 
-                            // Hitung sequence drum maksimum yang sudah ada (mendukung format lama & baru).
                             let currentMaxSeq = 0;
                             let currentMaxReturnSeq = 0;
                             const dSeqPattern = /-D(\d+)(?:-(\d+))?$/;
@@ -1978,7 +1940,6 @@ export default function warehouseApp() {
                                     if (retSeq && !isNaN(retSeq) && retSeq > currentMaxReturnSeq) currentMaxReturnSeq = retSeq;
                                 }
                             });
-                            if (currentMaxSeq === 0) currentMaxSeq = 1;
 
                             while (remainingToAllocate > 0) {
                                 let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
@@ -1987,11 +1948,9 @@ export default function warehouseApp() {
                                 let assignedDrumId = '';
 
                                 if (isReturn) {
-                                    // Format retur: NPM01-024YOFC-D01-01
                                     currentMaxReturnSeq++;
-                                    assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
+                                    assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq \vert{}\vert{} 1).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
                                 } else {
-                                    // Cek reuse drum kosong (sisa panjang 0) agar nomornya dipakai ulang.
                                     let zeroDrum = existingDrums.find(d => {
                                         const rem = d.remaining_length !== undefined ? parseFloat(d.remaining_length) : parseFloat(d.remainingLength);
                                         return rem === 0 && !pendingDrumIds.has(d.drum_id || d.drumId);
@@ -1999,7 +1958,6 @@ export default function warehouseApp() {
                                     if (zeroDrum) {
                                         assignedDrumId = zeroDrum.drum_id || zeroDrum.drumId;
                                     } else {
-                                        // Format normal: NPM01-024YOFC-D01
                                         currentMaxSeq++;
                                         assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq).padStart(2, '0')}`;
                                     }
@@ -2008,7 +1966,7 @@ export default function warehouseApp() {
                                 while (pendingDrumIds.has(assignedDrumId)) {
                                     if (isReturn) {
                                         currentMaxReturnSeq++;
-                                        assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
+                                        assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq \vert{}\vert{} 1).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
                                     } else {
                                         currentMaxSeq++;
                                         assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq).padStart(2, '0')}`;
@@ -2100,8 +2058,6 @@ export default function warehouseApp() {
             this.activeBast = tx;
             this.refreshIcons();
 
-            // [PERBAIKAN] Nama file BAST: [No Transaksi]-[Gudang Asal]-[Gudang Tujuan].
-            // Browser memakai document.title sebagai nama default file hasil print/PDF.
             const originalTitle = document.title;
             const safeName = (s) => {
                 const v = String(s == null ? '' : s).replace(/[\\/:*?"<>|]/g, '_').trim();
@@ -2163,7 +2119,7 @@ export default function warehouseApp() {
         },
 
         async reuseDrum(drum, index) {
-            const scrapQty = prompt(`Masukkan jumlah kuantitas/panjang yang di-reuse atau scrap dari drum ${drum.drumId} (Sisa: ${drum.remainingLength}m):`, drum.remainingLength);
+            const scrapQty = prompt(`Masukkan jumlah kuantitas/panjang yang di-reuse atau scrap dari drum ${drum.drumId} (Sisa:${drum.remainingLength}m):`, drum.remainingLength);
             if (scrapQty === null) return;
             const qtyVal = parseFloat(scrapQty);
             if (isNaN(qtyVal) || qtyVal <= 0 || qtyVal > drum.remainingLength) {
@@ -2180,7 +2136,6 @@ export default function warehouseApp() {
                 if (this.filterStokGudang) {
                     q = q.eq('gudang', this.filterStokGudang);
                 } else {
-                    // [PERBAIKAN] Export tetap dibatasi region untuk non Super Admin.
                     const regionWhNames = this.getRegionalWarehouseNames();
                     if (regionWhNames) {
                         if (regionWhNames.length > 0) q = q.in('gudang', regionWhNames);
@@ -2237,8 +2192,7 @@ export default function warehouseApp() {
             if (supabaseClient) {
                 let q = supabaseClient.from('material_usage').select('*');
                 const usageKw = this.sanitizeOrKeyword(this.searchMaterialUsageProject);
-                if (usageKw) q = q.or(`kode_project.ilike.%${usageKw}%,project_name.ilike.%${usageKw}%`);
-                // [PERBAIKAN] Export tetap dibatasi region untuk non Super Admin.
+                if (usageKw) q = q.or(`kode_project.ilike.%${usageKw}\%,project_name.ilike.\%${usageKw}%`);
                 const regionProjCodes = this.getRegionalProjectCodes();
                 if (regionProjCodes) {
                     if (regionProjCodes.length > 0) q = q.in('kode_project', regionProjCodes);
@@ -2250,7 +2204,7 @@ export default function warehouseApp() {
                 items = this.getFilteredMaterialUsage();
             }
             let csv = 'Kode Project,No PO,Project Name,Nama Barang,Drum ID,Qty Pakai,Tanggal\n';
-            items.forEach(u => { csv += `"${this.csvSafe(u.kodeProject)}","${this.csvSafe(u.noPO)}","${this.csvSafe(u.projectName)}","${this.csvSafe(u.namaBarang)}","${this.csvSafe(u.drumId)}",${parseFloat(u.qty) || 0},"${this.csvSafe(u.tanggal)}"\n`; });
+            items.forEach(u => { csv += `"${this.csvSafe(u.kodeProject)}","${this.csvSafe(u.noPO)}","${this.csvSafe(u.projectName)}","${this.csvSafe(u.namaBarang)}","${this.csvSafe(u.drumId)}",${parseFloat(u.qty) \vert{}\vert{} 0},"${this.csvSafe(u.tanggal)}"\n`; });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = 'material_usage.csv'; a.click();
@@ -2271,7 +2225,6 @@ export default function warehouseApp() {
                     if (txKw) {
                         txQuery = txQuery.or('no_transaksi.ilike.%' + txKw + '%,no_referensi.ilike.%' + txKw + '%');
                     }
-                    // [PERBAIKAN] Export tetap dibatasi region untuk non Super Admin.
                     const regionWhNames = this.getRegionalWarehouseNames();
                     if (regionWhNames) {
                         if (regionWhNames.length > 0) {
@@ -2311,27 +2264,4 @@ export default function warehouseApp() {
                     const cs = (v) => this.csvSafe(v);
                     const items = tx.items || [];
                     if (items.length === 0) {
-                         csv += `"${cs(tx.noTransaksi)}","${cs(tx.tanggal)}","${cs(tx.noReferensi)}","${cs(tx.tipeTransaksi)}","${cs(tx.gudangAsal)}","${cs(tx.gudangTujuan)}","${cs(tx.kodeProject)}","${cs(tx.keterangan)}","${cs(tx.staffGudang)}","${cs(tx.projectManager)}","${cs(tx.namaPenerima)}","","","",0\n`;
-                    } else {
-                        items.forEach(i => {
-                            csv += `"${cs(tx.noTransaksi)}","${cs(tx.tanggal)}","${cs(tx.noReferensi)}","${cs(tx.tipeTransaksi)}","${cs(tx.gudangAsal)}","${cs(tx.gudangTujuan)}","${cs(tx.kodeProject)}","${cs(tx.keterangan)}","${cs(tx.staffGudang)}","${cs(tx.projectManager)}","${cs(tx.namaPenerima)}","${cs(i.kodeBarang)}","${cs(i.namaBarang)}","${cs(i.drumId)}",${parseFloat(i.qty) || 0}\n`;
-                        });
-                    }
-                });
-
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); 
-                a.href = url; 
-                a.download = fileName; 
-                a.click();
-                URL.revokeObjectURL(url);
-            } catch (err) {
-                console.error("Gagal mengekspor CSV:", err);
-                this.showNotification("Gagal mengekspor data transaksi ke CSV: " + (err.message || err), "error");
-            } finally {
-                this.isLoading = false;
-            }
-        }
-    };
-}
+                         csv += `"${cs(tx.noTransaksi)}","${cs(tx.tanggal)}","${cs(tx.noReferensi)}","${cs(tx.tipeTransaksi)}","${cs(tx.gudangAsal)}","${cs(tx.gudangTujuan)}","${cs(tx.kodeProject)}","${cs(tx.keterangan)}","${cs(tx.staffGudang)}","${cs(tx.projectManager)}","${cs(tx.namaPenerima)}","","
