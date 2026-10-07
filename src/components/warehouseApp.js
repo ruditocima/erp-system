@@ -23,9 +23,9 @@ export default function warehouseApp() {
         isLoading: false, notification: { show: false, message: '', type: 'error' },
         filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null, filterStatusTx: '',
         showDrumLedger: false, selectedCableKode: '',
-        projectSearchText: '',
+        projectSearchText: '', // State untuk pencarian nama project
 
-        selectedFilesList: [],
+        selectedFilesList: [], // Menyimpan file mentah yang dipilih user sebelum disimpan
 
         pageStok: 1, pageSizeStok: 10, totalStokCount: 0,
         pageDrum: 1, pageSizeDrum: 10, totalDrumCount: 0,
@@ -36,9 +36,10 @@ export default function warehouseApp() {
         _genNoRunning: false,
         _authListenerSet: false,
 
-        activeDropdownDrums: {},
-        stokCache: {},
-        drumCache: {},
+        // cache dropdown drum per-index item (object), bukan satu array global.
+        activeDropdownDrums: {}, // { [indexItem]: [{ drumId, remainingLength }] }
+        stokCache: {},           // cache validasi stok: { 'kodeBarang|gudang': qty }
+        drumCache: {},           // cache sisa panjang drum: { drumId: remainingLength }
         _stokPending: {},
         _drumPending: {},
 
@@ -1304,71 +1305,71 @@ export default function warehouseApp() {
             if (this._genNoRunning) return;
             this._genNoRunning = true;
             try {
-                let targetWarehouseName = '';
-                if (this.newTrans.tipeTransaksi === 'Masuk' || this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') {
-                    targetWarehouseName = this.newTrans.gudangTujuan;
+            let targetWarehouseName = '';
+            if (this.newTrans.tipeTransaksi === 'Masuk' || this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') {
+                targetWarehouseName = this.newTrans.gudangTujuan;
+            } else {
+                targetWarehouseName = this.newTrans.gudangAsal;
+            }
+
+            let kodeGudangClean = 'HQ';
+            if (targetWarehouseName) {
+                const wh = this.masterGudang.find(g => g.namaGudang === targetWarehouseName);
+                if (wh && wh.kodeGudang) {
+                    kodeGudangClean = wh.kodeGudang.replace(/-/g, '');
                 } else {
-                    targetWarehouseName = this.newTrans.gudangAsal;
+                    kodeGudangClean = targetWarehouseName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
                 }
+            }
 
-                let kodeGudangClean = 'HQ';
-                if (targetWarehouseName) {
-                    const wh = this.masterGudang.find(g => g.namaGudang === targetWarehouseName);
-                    if (wh && wh.kodeGudang) {
-                        kodeGudangClean = wh.kodeGudang.replace(/-/g, '');
-                    } else {
-                        kodeGudangClean = targetWarehouseName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            let typeCode = 'IN';
+            if (this.newTrans.tipeTransaksi === 'Keluar') {
+                typeCode = 'OUT';
+            } else if (this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') {
+                typeCode = 'RET';
+            } else if (this.newTrans.tipeTransaksi === 'Transfer') {
+                typeCode = 'TRF';
+            }
+
+            const tglStr = this.newTrans.tanggal || this.todayWIB();
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(tglStr);
+            const transDate = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(tglStr);
+            const yy = String(transDate.getFullYear()).slice(-2);
+            const mm = String(transDate.getMonth() + 1).padStart(2, '0');
+            const yymm = `${yy}${mm}`;
+
+            const prefix = `${kodeGudangClean}-${typeCode}-${yymm}-`;
+
+            let maxSeq = 0;
+
+            if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('transactions')
+                        .select('no_transaksi')
+                        .ilike('no_transaksi', `${prefix}%`);
+
+                    if (!error && data && data.length > 0) {
+                        data.forEach(t => {
+                            if (t.no_transaksi && t.no_transaksi.startsWith(prefix)) {
+                                const seqNum = parseInt(t.no_transaksi.replace(prefix, ''), 10);
+                                if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
+                            }
+                        });
                     }
+                } catch (err) {
+                    console.error('Gagal mengambil nomor transaksi dari Supabase:', err);
                 }
-
-                let typeCode = 'IN';
-                if (this.newTrans.tipeTransaksi === 'Keluar') {
-                    typeCode = 'OUT';
-                } else if (this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') {
-                    typeCode = 'RET';
-                } else if (this.newTrans.tipeTransaksi === 'Transfer') {
-                    typeCode = 'TRF';
-                }
-
-                const tglStr = this.newTrans.tanggal || this.todayWIB();
-                const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(tglStr);
-                const transDate = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(tglStr);
-                const yy = String(transDate.getFullYear()).slice(-2);
-                const mm = String(transDate.getMonth() + 1).padStart(2, '0');
-                const yymm = `${yy}${mm}`;
-
-                const prefix = `${kodeGudangClean}-${typeCode}-${yymm}-`;
-
-                let maxSeq = 0;
-
-                if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-                    try {
-                        const { data, error } = await supabaseClient
-                            .from('transactions')
-                            .select('no_transaksi')
-                            .ilike('no_transaksi', `${prefix}%`);
-
-                        if (!error && data && data.length > 0) {
-                            data.forEach(t => {
-                                if (t.no_transaksi && t.no_transaksi.startsWith(prefix)) {
-                                    const seqNum = parseInt(t.no_transaksi.replace(prefix, ''), 10);
-                                    if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
-                                }
-                            });
-                        }
-                    } catch (err) {
-                        console.error('Gagal mengambil nomor transaksi dari Supabase:', err);
+            } else {
+                this.transactions.forEach(t => {
+                    if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
+                        const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
+                        if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
                     }
-                } else {
-                    this.transactions.forEach(t => {
-                        if (t.noTransaksi && t.noTransaksi.startsWith(prefix)) {
-                            const seqNum = parseInt(t.noTransaksi.replace(prefix, ''), 10);
-                            if (!isNaN(seqNum) && seqNum > maxSeq) maxSeq = seqNum;
-                        }
-                    });
-                }
+                });
+            }
 
-                this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
+            this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
             } finally {
                 this._genNoRunning = false;
             }
@@ -1862,9 +1863,10 @@ export default function warehouseApp() {
                 for (const item of this.newTrans.items) {
                     const kat = this.getCategoryByKode(item.kodeBarang);
                     let totalQty = parseFloat(item.qty) || 0;
+                    const namaBrg = item.namaBarang || this.masterBarang.find(b => b.kodeBarang === item.kodeBarang)?.namaBarang || '';
 
                     const brgMaster = this.masterBarang.find(b => b.kodeBarang === item.kodeBarang);
-                    const satuanItem = (kat === 'Cable') ? 'Meter' : ((brgMaster && brgMaster.sat) || item.sat || 'Pcs');
+                    const satuanItem = (kat === 'Cable') ? 'Meter' : ((brgMaster && brgMaster.sat) || item.satuan || 'Pcs');
 
                     if (kat === 'Cable' && totalQty > 0) {
                         const whObj = this.masterGudang.find(g => g.namaGudang === gudangMasuk);
@@ -1892,127 +1894,146 @@ export default function warehouseApp() {
                             let maxRetSeq = 0;
                             const escBase = baseDrumId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                             const retPattern = new RegExp('^' + escBase + '-(\\d+)$');
-
-                            let retList = [];
-                            if (supabaseClient) {
-                                const { data: dData } = await supabaseClient
-                                    .from('drum_ledger')
-                                    .select('drum_id')
-                                    .ilike('drum_id', `${baseDrumId}-%`);
-                                retList = dData || [];
-                            } else {
-                                retList = this.drumLedger.filter(d => d.drumId.startsWith(`${baseDrumId}-`));
-                            }
-
-                            retList.forEach(d => {
-                                const dId = d.drum_id || d.drumId || '';
-                                const m = retPattern.exec(dId);
-                                if (m) {
-                                    const seq = parseInt(m[1], 10);
-                                    if (!isNaN(seq) && seq > maxRetSeq) maxRetSeq = seq;
-                                }
-                            });
-
-                            const newRetSeq = maxRetSeq + 1;
-                            const newDrumId = `${baseDrumId}-${String(newRetSeq).padStart(2, '0')}`;
-
-                            processedItems.push({
-                                ...item,
-                                drumId: newDrumId,
-                                qty: totalQty,
-                                sat: satuanItem
-                            });
-                        } else {
-                            // Transaksi MASUK: Auto-split per 3.000 Meter per drum
-                            const DRUM_CAPACITY = 3000;
-                            let maxSeq = 0;
-
-                            const prefixDrum = `${whCodeClean}-${skuCodeClean}-D`;
-                            const drumPattern = new RegExp('^' + prefixDrum.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\d+)$');
-
                             existingDrums.forEach(d => {
                                 const dId = d.drum_id || d.drumId || '';
-                                const m = drumPattern.exec(dId);
+                                const m = dId.match(retPattern);
                                 if (m) {
-                                    const seq = parseInt(m[1], 10);
-                                    if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+                                    const s = parseInt(m[1], 10);
+                                    if (!isNaN(s) && s > maxRetSeq) maxRetSeq = s;
+                                }
+                            });
+                            let retSeq = maxRetSeq + 1;
+                            let assignedDrumId = `${baseDrumId}-${String(retSeq).padStart(2, '0')}`;
+                            while (pendingDrumIds.has(assignedDrumId)) {
+                                retSeq++;
+                                assignedDrumId = `${baseDrumId}-${String(retSeq).padStart(2, '0')}`;
+                            }
+                            pendingDrumIds.add(assignedDrumId);
+                            processedItems.push({ ...item, drumId: assignedDrumId, qty: totalQty, satuan: satuanItem, namaBarang: namaBrg });
+                        } else if (item.drumId && item.drumId.trim() !== '') {
+                            pendingDrumIds.add(item.drumId.trim());
+                            processedItems.push({ ...item, drumId: item.drumId.trim(), qty: totalQty, satuan: satuanItem, namaBarang: namaBrg });
+                        } else {
+                            let remainingToAllocate = totalQty;
+
+                            let currentMaxSeq = 0;
+                            let currentMaxReturnSeq = 0;
+                            const dSeqPattern = /-D(\d+)(?:-(\d+))?$/;
+                            existingDrums.forEach(d => {
+                                const dId = d.drum_id || d.drumId || '';
+                                const m = dId.match(dSeqPattern);
+                                if (m) {
+                                    const drumSeq = parseInt(m[1], 10);
+                                    const retSeq = m[2] ? parseInt(m[2], 10) : 0;
+                                    if (!isNaN(drumSeq) && drumSeq > currentMaxSeq) currentMaxSeq = drumSeq;
+                                    if (retSeq && !isNaN(retSeq) && retSeq > currentMaxReturnSeq) currentMaxReturnSeq = retSeq;
                                 }
                             });
 
-                            let remainingQtyToSplit = totalQty;
+                            while (remainingToAllocate > 0) {
+                                let chunkQty = remainingToAllocate > 3000 ? 3000 : remainingToAllocate;
+                                remainingToAllocate -= chunkQty;
 
-                            while (remainingQtyToSplit > 0) {
-                                const chunk = Math.min(remainingQtyToSplit, DRUM_CAPACITY);
-                                maxSeq++;
-                                let drumSeqStr = String(maxSeq).padStart(2, '0');
-                                let generatedDrumId = `${prefixDrum}${drumSeqStr}`;
+                                let assignedDrumId = '';
 
-                                while (pendingDrumIds.has(generatedDrumId)) {
-                                    maxSeq++;
-                                    drumSeqStr = String(maxSeq).padStart(2, '0');
-                                    generatedDrumId = `${prefixDrum}${drumSeqStr}`;
+                                if (isReturn) {
+                                    currentMaxReturnSeq++;
+                                    assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
+                                } else {
+                                    let zeroDrum = existingDrums.find(d => {
+                                        const rem = d.remaining_length !== undefined ? parseFloat(d.remaining_length) : parseFloat(d.remainingLength);
+                                        return rem === 0 && !pendingDrumIds.has(d.drum_id || d.drumId);
+                                    });
+                                    if (zeroDrum) {
+                                        assignedDrumId = zeroDrum.drum_id || zeroDrum.drumId;
+                                    } else {
+                                        currentMaxSeq++;
+                                        assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq).padStart(2, '0')}`;
+                                    }
                                 }
-                                pendingDrumIds.add(generatedDrumId);
 
-                                processedItems.push({
-                                    ...item,
-                                    drumId: generatedDrumId,
-                                    qty: chunk,
-                                    sat: satuanItem
-                                });
+                                while (pendingDrumIds.has(assignedDrumId)) {
+                                    if (isReturn) {
+                                        currentMaxReturnSeq++;
+                                        assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
+                                    } else {
+                                        currentMaxSeq++;
+                                        assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq).padStart(2, '0')}`;
+                                    }
+                                }
 
-                                remainingQtyToSplit = Math.round((remainingQtyToSplit - chunk) * 100) / 100;
+                                pendingDrumIds.add(assignedDrumId);
+                                processedItems.push({ ...item, drumId: assignedDrumId, qty: chunkQty, satuan: satuanItem, namaBarang: namaBrg });
                             }
                         }
                     } else {
-                        processedItems.push({
-                            ...item,
-                            sat: satuanItem
-                        });
+                        processedItems.push({ ...item, satuan: satuanItem, namaBarang: namaBrg });
                     }
                 }
-
                 this.newTrans.items = processedItems;
             }
 
-            try {
-                if (supabaseClient) {
-                    const rpcParams = this.buildRpcParams(this.newTrans);
-                    const { data, error } = await supabaseClient.rpc('save_transaction', rpcParams);
+            if (supabaseClient) {
+                try {
+                    this.isLoading = true;
+                    let editBackup = null;
+                    if (this.editingOriginalNo) {
+                        editBackup = this.transactions.find(t => t.noTransaksi === this.editingOriginalNo) || null;
 
-                    if (error) throw error;
-                    if (data && data.status === 'error') {
-                        throw new Error(data.message || 'Gagal menyimpan transaksi via RPC.');
+                        const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
+                            p_no_transaksi: this.editingOriginalNo
+                        });
+                        if (rollbackErr) throw rollbackErr;
+                        if (rollbackData && rollbackData.status === 'error') {
+                            throw new Error(rollbackData.message || 'Gagal melakukan rollback transaksi lama.');
+                        }
+
+                        await supabaseClient.from('material_usage').delete().eq('transaction_no', this.editingOriginalNo);
                     }
 
-                    this.showNotification(`Transaksi ${this.newTrans.noTransaksi} berhasil disimpan!`, 'success');
-                    await this.logAudit('transaction_create', { no: this.newTrans.noTransaksi, type: this.newTrans.tipeTransaksi });
+                    const { error } = await supabaseClient.rpc('submit_transaction_pending', this.buildRpcParams(this.newTrans));
+                    if (error) {
+                        if (editBackup) await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(editBackup));
+                        throw error;
+                    }
+
+                    this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi });
+                    this.showNotification('Transaksi disimpan & menunggu Approval!', 'success');
                     this.clearFormDraft();
                     await this.resetInputTransaction();
+                    this.switchTab('data-transaksi');
                     await this.loadDataFromSupabase();
-                    this.switchTab('transaksi');
-                } else {
-                    const txObj = JSON.parse(JSON.stringify(this.newTrans));
-                    txObj.approvalStatus = 'Approved';
-                    this.applyTransactionStock(txObj);
-                    this.transactions.unshift(txObj);
-
-                    localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
-                    localStorage.setItem('vortex_stokGudang', JSON.stringify(this.stokGudang));
-                    localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
-                    localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
-
-                    this.showNotification(`Transaksi ${txObj.noTransaksi} berhasil disimpan (Mode Lokal)!`, 'success');
-                    this.clearFormDraft();
-                    await this.resetInputTransaction();
-                    this.switchTab('transaksi');
+                    return;
+                } catch (err) {
+                    this.showNotification('Gagal memproses transaksi: ' + (err.message || err), 'error');
+                    this.isLoading = false;
+                    return;
+                } finally {
+                    this.isLoading = false;
                 }
-            } catch (err) {
-                console.error('Gagal menyimpan transaksi:', err);
-                this.showNotification('Gagal menyimpan transaksi: ' + (err.message || err), 'error');
-            } finally {
-                this.isLoading = false;
             }
-        }
-    };
-}
+
+            this.newTrans.approvalStatus = 'Pending';
+            this.transactions.push(JSON.parse(JSON.stringify(this.newTrans)));
+            localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
+            this.showNotification('Transaksi tersimpan & menunggu approval PM/Super Admin (Lokal)!', 'success');
+            this.clearFormDraft();
+            await this.resetInputTransaction();
+            this.switchTab('data-transaksi');
+        },
+
+        editTransaction(tx) {
+            this.editingOriginalNo = tx.noTransaksi;
+            this.newTrans = JSON.parse(JSON.stringify(tx));
+            if (!supabaseClient && (tx.approvalStatus || 'Approved') === 'Approved') {
+                this.revertStockOffline(tx);
+                this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+            }
+
+            const foundProj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
+            this.projectSearchText = foundProj ? foundProj.projectName : (this.newTrans.kodeProject || '');
+
+            if (this.newTrans.items) {
+                this.newTrans.items.forEach((item, idx) => {
+                    if (item.kodeBarang && this.getCategoryByKode(item.kodeBarang) === 'Cable') {
+                        this.fetchDrumsForDropdown(item.kodeBarang, this.newTrans.gudangAsal, idx);
