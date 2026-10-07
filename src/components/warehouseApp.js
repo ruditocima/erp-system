@@ -552,7 +552,7 @@ export default function warehouseApp() {
                 if (this.selectedCableKode) drumQuery = drumQuery.eq('kode_barang', this.selectedCableKode);
                 const drumKw = this.sanitizeOrKeyword(this.searchDrumQuery);
                 if (drumKw) {
-                    drumQuery = drumQuery.or(`drum_id.ilike.%${drumKw}%,nama_barang.ilike.%${drumKw}\%,gudang.ilike.\%${drumKw}%`);
+                    drumQuery = drumQuery.or(`drum_id.ilike.%${drumKw}%,nama_barang.ilike.%${drumKw}%,gudang.ilike.%${drumKw}%`);
                 }
                 const fromDrum = (this.pageDrum - 1) * this.pageSizeDrum;
                 const { data: drumData, count: countDrum } = await drumQuery.order('drum_id', { ascending: true }).range(fromDrum, fromDrum + this.pageSizeDrum - 1);
@@ -568,7 +568,7 @@ export default function warehouseApp() {
                 let usageQuery = supabaseClient.from('material_usage').select('*', { count: 'exact' });
                 const usageKw = this.sanitizeOrKeyword(this.searchMaterialUsageProject);
                 if (usageKw) {
-                    usageQuery = usageQuery.or(`kode_project.ilike.%${usageKw}\%,project_name.ilike.\%${usageKw}%`);
+                    usageQuery = usageQuery.or(`kode_project.ilike.%${usageKw}%,project_name.ilike.%${usageKw}%`);
                 }
                 if (regionProjCodes) {
                     if (regionProjCodes.length > 0) usageQuery = usageQuery.in('kode_project', regionProjCodes);
@@ -596,7 +596,7 @@ export default function warehouseApp() {
 
                 let txQuery = supabaseClient.from('transactions').select('*', { count: 'exact' });
                 const txKw = this.sanitizeOrKeyword(this.searchNoTransaksi);
-                if (txKw) txQuery = txQuery.or(`no_transaksi.ilike.%${txKw}\%,no_referensi.ilike.\%${txKw}%`);
+                if (txKw) txQuery = txQuery.or(`no_transaksi.ilike.%${txKw}%,no_referensi.ilike.%${txKw}%`);
                 if (this.filterStatusTx) txQuery = txQuery.eq('approval_status', this.filterStatusTx);
                 if (regionWhNames) {
                     if (regionWhNames.length > 0) {
@@ -1949,7 +1949,7 @@ export default function warehouseApp() {
 
                                 if (isReturn) {
                                     currentMaxReturnSeq++;
-                                    assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq \vert{}\vert{} 1).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
+                                    assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq || 1).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
                                 } else {
                                     let zeroDrum = existingDrums.find(d => {
                                         const rem = d.remaining_length !== undefined ? parseFloat(d.remaining_length) : parseFloat(d.remainingLength);
@@ -1966,7 +1966,7 @@ export default function warehouseApp() {
                                 while (pendingDrumIds.has(assignedDrumId)) {
                                     if (isReturn) {
                                         currentMaxReturnSeq++;
-                                        assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq \vert{}\vert{} 1).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
+                                        assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq || 1).padStart(2, '0')}-${String(currentMaxReturnSeq).padStart(2, '0')}`;
                                     } else {
                                         currentMaxSeq++;
                                         assignedDrumId = `${whCodeClean}-${skuCodeClean}-D${String(currentMaxSeq).padStart(2, '0')}`;
@@ -2119,7 +2119,7 @@ export default function warehouseApp() {
         },
 
         async reuseDrum(drum, index) {
-            const scrapQty = prompt(`Masukkan jumlah kuantitas/panjang yang di-reuse atau scrap dari drum ${drum.drumId} (Sisa:${drum.remainingLength}m):`, drum.remainingLength);
+            const scrapQty = prompt(`Masukkan jumlah kuantitas/panjang yang di-reuse atau scrap dari drum ${drum.drumId} (Sisa: ${drum.remainingLength}m):`, drum.remainingLength);
             if (scrapQty === null) return;
             const qtyVal = parseFloat(scrapQty);
             if (isNaN(qtyVal) || qtyVal <= 0 || qtyVal > drum.remainingLength) {
@@ -2192,7 +2192,7 @@ export default function warehouseApp() {
             if (supabaseClient) {
                 let q = supabaseClient.from('material_usage').select('*');
                 const usageKw = this.sanitizeOrKeyword(this.searchMaterialUsageProject);
-                if (usageKw) q = q.or(`kode_project.ilike.%${usageKw}\%,project_name.ilike.\%${usageKw}%`);
+                if (usageKw) q = q.or(`kode_project.ilike.%${usageKw}%,project_name.ilike.%${usageKw}%`);
                 const regionProjCodes = this.getRegionalProjectCodes();
                 if (regionProjCodes) {
                     if (regionProjCodes.length > 0) q = q.in('kode_project', regionProjCodes);
@@ -2204,7 +2204,7 @@ export default function warehouseApp() {
                 items = this.getFilteredMaterialUsage();
             }
             let csv = 'Kode Project,No PO,Project Name,Nama Barang,Drum ID,Qty Pakai,Tanggal\n';
-            items.forEach(u => { csv += `"${this.csvSafe(u.kodeProject)}","${this.csvSafe(u.noPO)}","${this.csvSafe(u.projectName)}","${this.csvSafe(u.namaBarang)}","${this.csvSafe(u.drumId)}",${parseFloat(u.qty) \vert{}\vert{} 0},"${this.csvSafe(u.tanggal)}"\n`; });
+            items.forEach(u => { csv += `"${this.csvSafe(u.kodeProject)}","${this.csvSafe(u.noPO)}","${this.csvSafe(u.projectName)}","${this.csvSafe(u.namaBarang)}","${this.csvSafe(u.drumId)}",${parseFloat(u.qty) || 0},"${this.csvSafe(u.tanggal)}"\n`; });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = 'material_usage.csv'; a.click();
@@ -2264,4 +2264,27 @@ export default function warehouseApp() {
                     const cs = (v) => this.csvSafe(v);
                     const items = tx.items || [];
                     if (items.length === 0) {
-                         csv += `"${cs(tx.noTransaksi)}","${cs(tx.tanggal)}","${cs(tx.noReferensi)}","${cs(tx.tipeTransaksi)}","${cs(tx.gudangAsal)}","${cs(tx.gudangTujuan)}","${cs(tx.kodeProject)}","${cs(tx.keterangan)}","${cs(tx.staffGudang)}","${cs(tx.projectManager)}","${cs(tx.namaPenerima)}","","
+                         csv += `"${cs(tx.noTransaksi)}","${cs(tx.tanggal)}","${cs(tx.noReferensi)}","${cs(tx.tipeTransaksi)}","${cs(tx.gudangAsal)}","${cs(tx.gudangTujuan)}","${cs(tx.kodeProject)}","${cs(tx.keterangan)}","${cs(tx.staffGudang)}","${cs(tx.projectManager)}","${cs(tx.namaPenerima)}","","","",0\n`;
+                    } else {
+                        items.forEach(i => {
+                            csv += `"${cs(tx.noTransaksi)}","${cs(tx.tanggal)}","${cs(tx.noReferensi)}","${cs(tx.tipeTransaksi)}","${cs(tx.gudangAsal)}","${cs(tx.gudangTujuan)}","${cs(tx.kodeProject)}","${cs(tx.keterangan)}","${cs(tx.staffGudang)}","${cs(tx.projectManager)}","${cs(tx.namaPenerima)}","${cs(i.kodeBarang)}","${cs(i.namaBarang)}","${cs(i.drumId)}",${parseFloat(i.qty) || 0}\n`;
+                        });
+                    }
+                });
+
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); 
+                a.href = url; 
+                a.download = fileName; 
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error("Gagal mengekspor CSV:", err);
+                this.showNotification("Gagal mengekspor data transaksi ke CSV: " + (err.message || err), "error");
+            } finally {
+                this.isLoading = false;
+            }
+        }
+    };
+}
