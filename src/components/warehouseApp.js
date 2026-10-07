@@ -33,6 +33,8 @@ export default function warehouseApp() {
         pageTx: 1, pageSizeTx: 10, totalTxCount: 0,
         _reloadTimer: null,
         _draftTimer: null,
+        _genNoRunning: false,
+        _authListenerSet: false,
 
         // cache dropdown drum per-index item (object), bukan satu array global.
         activeDropdownDrums: {}, // { [indexItem]: [{ drumId, remainingLength }] }
@@ -203,17 +205,20 @@ export default function warehouseApp() {
                     localStorage.setItem('vortex_role', this.currentRole);
                     localStorage.setItem('vortex_user', this.currentUser);
                 }
-                supabaseClient.auth.onAuthStateChange((event) => {
-                    if (event === 'SIGNED_OUT') this.logout();
-                });
+                if (!this._authListenerSet) {
+                    this._authListenerSet = true;
+                    supabaseClient.auth.onAuthStateChange((event) => {
+                        if (event === 'SIGNED_OUT') this.logout();
+                    });
+                }
             }
         },
 
         async init() {
             await this.resetInputTransaction();
             this.loadFormDraft();
-            this.initProfileData();
             await this.validateSession();
+            this.initProfileData();
             await this.loadDataFromSupabase();
             this.inisialisasiRealtimeStok();
             this.refreshIcons();
@@ -694,6 +699,7 @@ export default function warehouseApp() {
                 const { data: profileData, error: profileError } = await supabaseClient.from('profiles').select('role, nama_lengkap, region').eq('id', userId).single();
 
                 if (profileError || !profileData) {
+                    await supabaseClient.auth.signOut().catch(() => {});
                     throw new Error('Data profil pengguna tidak ditemukan di database.');
                 }
 
@@ -1332,7 +1338,9 @@ export default function warehouseApp() {
 
         async generateNoTransaksi() {
             if (this.editingOriginalNo) return;
-
+            if (this._genNoRunning) return;
+            this._genNoRunning = true;
+            try {
             let targetWarehouseName = '';
             if (this.newTrans.tipeTransaksi === 'Masuk' || this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') {
                 targetWarehouseName = this.newTrans.gudangTujuan;
@@ -1398,11 +1406,15 @@ export default function warehouseApp() {
             }
 
             this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
+            } finally {
+                this._genNoRunning = false;
+            }
         },
 
         onTipeTransaksiChange() { 
             this.newTrans.gudangAsal = ''; 
             this.newTrans.gudangTujuan = ''; 
+            this.projectSearchText = '';
             if (this.newTrans.tipeTransaksi === 'Keluar') {
                 this.newTrans.staffGudang = this.currentUser || '';
             } else {
@@ -1411,6 +1423,7 @@ export default function warehouseApp() {
             this.generateNoTransaksi(); 
         },
         resetItemsOnWarehouseChange() { 
+            this.projectSearchText = '';
             this.stokCache = {};
             this.drumCache = {};
             this.newTrans.items.forEach((i, idx) => {
@@ -2100,6 +2113,7 @@ export default function warehouseApp() {
                 window.removeEventListener('afterprint', restoreTitle);
             };
             window.addEventListener('afterprint', restoreTitle);
+            setTimeout(restoreTitle, 30000);
 
             setTimeout(() => { window.print(); }, 300);
         },
