@@ -1819,12 +1819,12 @@ export default function warehouseApp() {
 
             if (this.selectedFilesList && this.selectedFilesList.length > 0) {
                 if (!supabaseClient) {
-                    this.showNotification('Lampiran tidak dapat diunggah tanpa koneksi Supabase. Hapus lampiran terlebih dahulu.', 'error');
+                    this.showNotification('Lampiran tidak dapat diunggah tanpa koneksi. Hapus lampiran terlebih dahulu.', 'error');
                     return;
                 }
                 this.isLoading = true;
                 try {
-                    this.showNotification('Menyatukan lampiran dan mengunggah ke Google Drive...', 'info');
+                    this.showNotification('Proses Upload ke Server...', 'info');
 
                     const mergedFile = await this.combineFilesToOnePdf(this.selectedFilesList);
 
