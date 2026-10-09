@@ -24,6 +24,9 @@ export default function warehouseApp() {
         filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null, filterStatusTx: '',
         showDrumLedger: false, selectedCableKode: '',
         projectSearchText: '', // State untuk pencarian nama project
+        selectedUsageProject: '',      // Project terpilih untuk ringkasan material usage
+        projectUsageSummary: [],       // Agregasi qty masuk / return / actual terpakai per project
+        isLoadingUsageSummary: false,
 
         selectedFilesList: [], // Menyimpan file mentah yang dipilih user sebelum disimpan
 
@@ -193,33 +196,40 @@ export default function warehouseApp() {
 
         async validateSession() {
             if (!supabaseClient) return;
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (this.isLoggedIn && !session) { this.logout(); return; }
-            if (session && session.user) {
-                const { data: prof } = await supabaseClient.from('profiles')
-                    .select('role, nama_lengkap, region').eq('id', session.user.id).single();
-                if (prof) {
-                    this.currentRole = prof.role || this.currentRole;
-                    this.currentUser = prof.nama_lengkap || this.currentUser;
-                    if (prof.region) localStorage.setItem('vortex_region', prof.region);
-                    localStorage.setItem('vortex_role', this.currentRole);
-                    localStorage.setItem('vortex_user', this.currentUser);
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (this.isLoggedIn && !session) { this.logout(); return; }
+                if (session && session.user) {
+                    const { data: prof } = await supabaseClient.from('profiles')
+                        .select('role, nama_lengkap, region').eq('id', session.user.id).single();
+                    if (prof) {
+                        this.currentRole = prof.role || this.currentRole;
+                        this.currentUser = prof.nama_lengkap || this.currentUser;
+                        if (prof.region) localStorage.setItem('vortex_region', prof.region);
+                        localStorage.setItem('vortex_role', this.currentRole);
+                        localStorage.setItem('vortex_user', this.currentUser);
+                    }
+                    if (!this._authListenerSet) {
+                        this._authListenerSet = true;
+                        supabaseClient.auth.onAuthStateChange((event) => {
+                            if (event === 'SIGNED_OUT') this.logout();
+                        });
+                    }
                 }
-                if (!this._authListenerSet) {
-                    this._authListenerSet = true;
-                    supabaseClient.auth.onAuthStateChange((event) => {
-                        if (event === 'SIGNED_OUT') this.logout();
-                    });
-                }
+            } catch (e) {
+                console.error('Gagal memvalidasi sesi pengguna:', e);
             }
         },
 
         async init() {
+            try {
             await this.resetInputTransaction();
             this.loadFormDraft();
             await this.validateSession();
             this.initProfileData();
-            await this.loadDataFromSupabase();
+            if (this.isLoggedIn) {
+                await this.loadDataFromSupabase();
+            }
             this.inisialisasiRealtimeStok();
             this.refreshIcons();
 
@@ -255,6 +265,11 @@ export default function warehouseApp() {
             this.$watch('pageSizeUsage', () => { this.pageUsage = 1; if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('pageTx', () => { if(supabaseClient) this.loadDataFromSupabase(); });
             this.$watch('pageSizeTx', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+
+            this.$watch('selectedUsageProject', () => { this.loadProjectUsageSummary(); });
+            } catch (e) {
+                console.error('Kesalahan saat inisialisasi aplikasi:', e);
+            }
         },
 
         inisialisasiRealtimeStok() {
@@ -490,7 +505,19 @@ export default function warehouseApp() {
             let regionWhNames = null;
             let regionProjCodes = null;
             try {
-                const { data: projectData } = await supabaseClient.from('master_project').select('*');
+                // [PERF] Muat tabel master secara paralel (sebelumnya berurutan/serial).
+                const [projRes, barangRes, gudangRes] = await Promise.all([
+                    supabaseClient.from('master_project').select('*'),
+                    supabaseClient.from('master_barang').select('*'),
+                    supabaseClient.from('master_gudang').select('*')
+                ]);
+                const { data: projectData, error: projErr } = projRes;
+                const { data: barangData, error: barangErr } = barangRes;
+                const { data: gudangData, error: gudangErr } = gudangRes;
+                if (projErr) throw projErr;
+                if (barangErr) throw barangErr;
+                if (gudangErr) throw gudangErr;
+
                 if (projectData) {
                     this.masterProject = projectData.map(p => ({
                         periode: p.periode, region: p.region, kodeProject: p.kode_project,
@@ -498,7 +525,6 @@ export default function warehouseApp() {
                     }));
                 }
 
-                const { data: barangData } = await supabaseClient.from('master_barang').select('*');
                 if (barangData) {
                     this.masterBarang = barangData.map(b => ({
                         kategori: b.kategori, jenis: b.jenis, kodeBarang: b.kode_barang,
@@ -506,7 +532,6 @@ export default function warehouseApp() {
                     }));
                 }
 
-                const { data: gudangData } = await supabaseClient.from('master_gudang').select('*');
                 if (gudangData) {
                     this.masterGudang = gudangData.map(g => ({
                         region: g.region || '', kodeGudang: g.kode_gudang,
@@ -517,6 +542,7 @@ export default function warehouseApp() {
                 regionWhNames = this.getRegionalWarehouseNames();
                 regionProjCodes = this.getRegionalProjectCodes();
 
+                // Bangun seluruh query operasional terlebih dahulu
                 let stockQuery = supabaseClient.from('stok_gudang').select('*', { count: 'exact' });
                 if (this.filterStokGudang) {
                     stockQuery = stockQuery.eq('gudang', this.filterStokGudang);
@@ -525,7 +551,62 @@ export default function warehouseApp() {
                     else stockQuery = stockQuery.eq('gudang', '__tidak_ada_gudang_region__');
                 }
                 const fromStok = (this.pageStok - 1) * this.pageSizeStok;
-                const { data: stockData, count: countStok } = await stockQuery.order('kode_barang', { ascending: true }).range(fromStok, fromStok + this.pageSizeStok - 1);
+                stockQuery = stockQuery.order('kode_barang', { ascending: true }).range(fromStok, fromStok + this.pageSizeStok - 1);
+
+                let drumQuery = supabaseClient.from('drum_ledger').select('*', { count: 'exact' });
+                if (this.filterStokGudang) drumQuery = drumQuery.eq('gudang', this.filterStokGudang);
+                else if (regionWhNames) {
+                    if (regionWhNames.length > 0) drumQuery = drumQuery.in('gudang', regionWhNames);
+                    else drumQuery = drumQuery.eq('gudang', '__tidak_ada_gudang_region__');
+                }
+                if (this.selectedCableKode) drumQuery = drumQuery.eq('kode_barang', this.selectedCableKode);
+                const drumKw = this.sanitizeOrKeyword(this.searchDrumQuery);
+                if (drumKw) {
+                    drumQuery = drumQuery.or(`drum_id.ilike.%${drumKw}%,nama_barang.ilike.%${drumKw}%,gudang.ilike.%${drumKw}%`);
+                }
+                const fromDrum = (this.pageDrum - 1) * this.pageSizeDrum;
+                drumQuery = drumQuery.order('drum_id', { ascending: true }).range(fromDrum, fromDrum + this.pageSizeDrum - 1);
+
+                let usageQuery = supabaseClient.from('material_usage').select('*', { count: 'exact' });
+                const usageKw = this.sanitizeOrKeyword(this.searchMaterialUsageProject);
+                if (usageKw) {
+                    usageQuery = usageQuery.or(`kode_project.ilike.%${usageKw}%,project_name.ilike.%${usageKw}%`);
+                }
+                if (regionProjCodes) {
+                    if (regionProjCodes.length > 0) usageQuery = usageQuery.in('kode_project', regionProjCodes);
+                    else usageQuery = usageQuery.eq('kode_project', '__tidak_ada_project_region__');
+                }
+                const fromUsage = (this.pageUsage - 1) * this.pageSizeUsage;
+                usageQuery = usageQuery.order('id', { ascending: false }).range(fromUsage, fromUsage + this.pageSizeUsage - 1);
+
+                let txQuery = supabaseClient.from('transactions').select('*', { count: 'exact' });
+                const txKw = this.sanitizeOrKeyword(this.searchNoTransaksi);
+                if (txKw) txQuery = txQuery.or(`no_transaksi.ilike.%${txKw}%,no_referensi.ilike.%${txKw}%`);
+                if (this.filterStatusTx) txQuery = txQuery.eq('approval_status', this.filterStatusTx);
+                if (regionWhNames) {
+                    if (regionWhNames.length > 0) {
+                        const whList = regionWhNames.map(n => `"${String(n).replace(/"/g, '\"')}"`).join(',');
+                        txQuery = txQuery.or(`gudang_asal.in.(${whList}),gudang_tujuan.in.(${whList})`);
+                    } else {
+                        txQuery = txQuery.or('gudang_asal.eq.__tidak_ada_gudang_region__,gudang_tujuan.eq.__tidak_ada_gudang_region__');
+                    }
+                }
+                const fromTx = (this.pageTx - 1) * this.pageSizeTx;
+                txQuery = txQuery.order('tanggal', { ascending: false }).range(fromTx, fromTx + this.pageSizeTx - 1);
+
+                // [PERF] Eksekusi keempat query operasional secara paralel
+                const [stockRes, drumRes, usageRes, txRes] = await Promise.all([
+                    stockQuery, drumQuery, usageQuery, txQuery
+                ]);
+                const { data: stockData, count: countStok, error: stockErr } = stockRes;
+                const { data: drumData, count: countDrum, error: drumErr } = drumRes;
+                const { data: usageData, count: countUsage, error: usageErr } = usageRes;
+                const { data: txData, count: countTx, error: txErr } = txRes;
+                if (stockErr) throw stockErr;
+                if (drumErr) throw drumErr;
+                if (usageErr) throw usageErr;
+                if (txErr) throw txErr;
+
                 if (stockData) {
                     this.stokGudang = stockData.map(s => ({
                         kodeBarang: s.kode_barang, 
@@ -543,19 +624,6 @@ export default function warehouseApp() {
                     this.totalStokCount = countStok !== null ? countStok : stockData.length;
                 }
 
-                let drumQuery = supabaseClient.from('drum_ledger').select('*', { count: 'exact' });
-                if (this.filterStokGudang) drumQuery = drumQuery.eq('gudang', this.filterStokGudang);
-                else if (regionWhNames) {
-                    if (regionWhNames.length > 0) drumQuery = drumQuery.in('gudang', regionWhNames);
-                    else drumQuery = drumQuery.eq('gudang', '__tidak_ada_gudang_region__');
-                }
-                if (this.selectedCableKode) drumQuery = drumQuery.eq('kode_barang', this.selectedCableKode);
-                const drumKw = this.sanitizeOrKeyword(this.searchDrumQuery);
-                if (drumKw) {
-                    drumQuery = drumQuery.or(`drum_id.ilike.%${drumKw}%,nama_barang.ilike.%${drumKw}%,gudang.ilike.%${drumKw}%`);
-                }
-                const fromDrum = (this.pageDrum - 1) * this.pageSizeDrum;
-                const { data: drumData, count: countDrum } = await drumQuery.order('drum_id', { ascending: true }).range(fromDrum, fromDrum + this.pageSizeDrum - 1);
                 if (drumData) {
                     this.drumLedger = drumData.map(d => ({
                         drumId: d.drum_id, kodeBarang: d.kode_barang, namaBarang: d.nama_barang,
@@ -564,20 +632,6 @@ export default function warehouseApp() {
                     }));
                     this.totalDrumCount = countDrum !== null ? countDrum : drumData.length;
                 }
-
-                let usageQuery = supabaseClient.from('material_usage').select('*', { count: 'exact' });
-                const usageKw = this.sanitizeOrKeyword(this.searchMaterialUsageProject);
-                if (usageKw) {
-                    usageQuery = usageQuery.or(`kode_project.ilike.%${usageKw}%,project_name.ilike.%${usageKw}%`);
-                }
-                if (regionProjCodes) {
-                    if (regionProjCodes.length > 0) usageQuery = usageQuery.in('kode_project', regionProjCodes);
-                    else usageQuery = usageQuery.eq('kode_project', '__tidak_ada_project_region__');
-                }
-                const fromUsage = (this.pageUsage - 1) * this.pageSizeUsage;
-                const { data: usageData, count: countUsage } = await usageQuery
-                    .order('id', { ascending: false })
-                    .range(fromUsage, fromUsage + this.pageSizeUsage - 1);
 
                 if (usageData) {
                     this.materialUsage = usageData.map(u => ({
@@ -594,20 +648,6 @@ export default function warehouseApp() {
                     this.totalUsageCount = countUsage !== null ? countUsage : usageData.length;
                 }
 
-                let txQuery = supabaseClient.from('transactions').select('*', { count: 'exact' });
-                const txKw = this.sanitizeOrKeyword(this.searchNoTransaksi);
-                if (txKw) txQuery = txQuery.or(`no_transaksi.ilike.%${txKw}%,no_referensi.ilike.%${txKw}%`);
-                if (this.filterStatusTx) txQuery = txQuery.eq('approval_status', this.filterStatusTx);
-                if (regionWhNames) {
-                    if (regionWhNames.length > 0) {
-                        const whList = regionWhNames.map(n => `"${String(n).replace(/"/g, '\\"')}"`).join(',');
-                        txQuery = txQuery.or(`gudang_asal.in.(${whList}),gudang_tujuan.in.(${whList})`);
-                    } else {
-                        txQuery = txQuery.or('gudang_asal.eq.__tidak_ada_gudang_region__,gudang_tujuan.eq.__tidak_ada_gudang_region__');
-                    }
-                }
-                const fromTx = (this.pageTx - 1) * this.pageSizeTx;
-                const { data: txData, count: countTx } = await txQuery.order('tanggal', { ascending: false }).range(fromTx, fromTx + this.pageSizeTx - 1);
                 if (txData) {
                     this.transactions = txData.map(t => ({
                         noTransaksi: t.no_transaksi, tanggal: t.tanggal, noReferensi: t.no_referensi,
@@ -642,8 +682,112 @@ export default function warehouseApp() {
                     }
                 }
 
+                // Segarkan ringkasan material per project jika sedang berada di tab Usage
+                if (this.currentTab === 'usage' && this.selectedUsageProject) {
+                    this.loadProjectUsageSummary();
+                }
+
                 this.isLoading = false;
                 this.refreshIcons();
+            }
+        },
+
+        // ===================================================================
+        // RINGKASAN MATERIAL PER PROJECT (FITUR BARU)
+        // Agregasi per kode barang untuk project terpilih:
+        //   - Qty Masuk        : total item transaksi KELUAR (dikirim ke project) yg Approved
+        //   - Qty Return       : total item transaksi RETURN/RETUR yg Approved
+        //   - Actual Terpakai  : total qty pada tabel material_usage
+        //   - Selisih          : Masuk - Return - Terpakai
+        // ===================================================================
+        async loadProjectUsageSummary() {
+            const proj = this.selectedUsageProject;
+            const round2 = n => Math.round((parseFloat(n) || 0) * 100) / 100;
+            const summary = {};
+            const ensure = (kode, nama) => {
+                if (!summary[kode]) {
+                    const brg = this.masterBarang.find(b => b.kodeBarang === kode);
+                    const kat = brg ? brg.kategori : this.getCategoryByKode(kode);
+                    summary[kode] = {
+                        kodeBarang: kode,
+                        namaBarang: nama || (brg ? brg.namaBarang : ''),
+                        sat: kat === 'Cable' ? 'Meter' : ((brg && brg.sat) || 'Pcs'),
+                        qtyMasuk: 0,
+                        qtyReturn: 0,
+                        qtyTerpakai: 0
+                    };
+                }
+                return summary[kode];
+            };
+
+            if (!proj) {
+                this.projectUsageSummary = [];
+                return;
+            }
+
+            this.isLoadingUsageSummary = true;
+            try {
+                if (supabaseClient) {
+                    const { data: txData, error: txErr } = await supabaseClient
+                        .from('transactions')
+                        .select('tipe_transaksi, approval_status, items')
+                        .eq('kode_project', proj)
+                        .in('tipe_transaksi', ['Keluar', 'Return', 'Retur']);
+                    if (txErr) throw txErr;
+
+                    (txData || []).forEach(t => {
+                        if ((t.approval_status || 'Approved') !== 'Approved') return;
+                        this.safeParseItems(t.items).forEach(i => {
+                            const kode = i.kodeBarang || i.kode_barang;
+                            const q = round2(i.qty);
+                            if (!kode || q <= 0) return;
+                            const row = ensure(kode, i.namaBarang || i.nama_barang);
+                            if (t.tipe_transaksi === 'Keluar') row.qtyMasuk = round2(row.qtyMasuk + q);
+                            else row.qtyReturn = round2(row.qtyReturn + q);
+                        });
+                    });
+
+                    const { data: usageData, error: usageErr } = await supabaseClient
+                        .from('material_usage')
+                        .select('kode_barang, nama_barang, qty')
+                        .eq('kode_project', proj);
+                    if (usageErr) throw usageErr;
+
+                    (usageData || []).forEach(u => {
+                        const q = round2(u.qty);
+                        if (!u.kode_barang || q <= 0) return;
+                        ensure(u.kode_barang, u.nama_barang).qtyTerpakai = round2(summary[u.kode_barang].qtyTerpakai + q);
+                    });
+                } else {
+                    // Mode lokal (offline): hitung dari array in-memory
+                    this.transactions.forEach(t => {
+                        if (t.kodeProject !== proj) return;
+                        if (t.tipeTransaksi !== 'Keluar' && t.tipeTransaksi !== 'Return' && t.tipeTransaksi !== 'Retur') return;
+                        if ((t.approvalStatus || 'Approved') !== 'Approved') return;
+                        this.safeParseItems(t.items).forEach(i => {
+                            const q = round2(i.qty);
+                            if (!i.kodeBarang || q <= 0) return;
+                            const row = ensure(i.kodeBarang, i.namaBarang);
+                            if (t.tipeTransaksi === 'Keluar') row.qtyMasuk = round2(row.qtyMasuk + q);
+                            else row.qtyReturn = round2(row.qtyReturn + q);
+                        });
+                    });
+                    (this.materialUsage || []).forEach(u => {
+                        if (u.kodeProject !== proj) return;
+                        const q = round2(u.qty);
+                        if (!u.kodeBarang || q <= 0) return;
+                        ensure(u.kodeBarang, u.namaBarang).qtyTerpakai = round2(summary[u.kodeBarang].qtyTerpakai + q);
+                    });
+                }
+
+                this.projectUsageSummary = Object.values(summary)
+                    .map(s => ({ ...s, selisih: round2(s.qtyMasuk - s.qtyReturn - s.qtyTerpakai) }))
+                    .sort((a, b) => String(a.kodeBarang).localeCompare(String(b.kodeBarang)));
+            } catch (err) {
+                console.error('Gagal memuat ringkasan material project:', err);
+                this.projectUsageSummary = [];
+            } finally {
+                this.isLoadingUsageSummary = false;
             }
         },
 
@@ -691,7 +835,7 @@ export default function warehouseApp() {
                 }
 
                 this.isLoggedIn = true;
-                this.currentUser = profileData.nama_lengkap || authData.user.email.split('@')[0];
+                this.currentUser = profileData.nama_lengkap || (authData.user.email || 'user').split('@')[0];
                 this.currentRole = profileData.role;
                 if (profileData.region) {
                     localStorage.setItem('vortex_region', profileData.region);
@@ -703,6 +847,14 @@ export default function warehouseApp() {
                 this.initProfileData();
                 this.logAudit('login', { user: this.currentUser, role: this.currentRole });
                 this.showNotification('Berhasil masuk ke sistem!', 'success');
+
+                // [FIX] Setelah login berhasil, data WAJIB dimuat ulang dan langganan
+                // realtime diperbarui. Sebelumnya init() hanya berjalan saat aplikasi
+                // pertama dibuka (belum login), sehingga setelah login data tabel
+                // tetap kosong sampai user menyentuh filter/pagination.
+                try { await supabaseClient.removeAllChannels(); } catch (e) { /* abaikan */ }
+                this.inisialisasiRealtimeStok();
+                await this.loadDataFromSupabase();
             } catch (err) {
                 this.showNotification('Gagal Masuk: ' + (err.message || err), 'error');
             } finally {
@@ -1559,6 +1711,25 @@ export default function warehouseApp() {
         handleFileSelect(event) {
             const files = event.target && event.target.files ? Array.from(event.target.files) : [];
             if (files.length === 0) {
+                this.selectedFilesList = [];
+                this.newTrans.lampiran = '';
+                return;
+            }
+            // [FIX] Validasi ukuran file agar upload/Edge Function tidak gagal diam-diam
+            const MAX_FILE_SIZE = 10 * 1024 * 1024;   // 10 MB per file
+            const MAX_TOTAL_SIZE = 25 * 1024 * 1024;  // 25 MB total
+            const tooBig = files.find(f => f.size > MAX_FILE_SIZE);
+            if (tooBig) {
+                this.showNotification(`File "${tooBig.name}" melebihi batas 10MB per file.`, 'error');
+                if (event.target) event.target.value = '';
+                this.selectedFilesList = [];
+                this.newTrans.lampiran = '';
+                return;
+            }
+            const totalSize = files.reduce((acc, f) => acc + (f.size || 0), 0);
+            if (totalSize > MAX_TOTAL_SIZE) {
+                this.showNotification('Total ukuran lampiran melebihi batas 25MB.', 'error');
+                if (event.target) event.target.value = '';
                 this.selectedFilesList = [];
                 this.newTrans.lampiran = '';
                 return;
