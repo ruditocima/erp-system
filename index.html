@@ -689,6 +689,63 @@
                             <button type="button" @click="exportUsageCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3.5 py-1.5 rounded-lg transition">Export CSV</button>
                         </div>
                     </div>
+
+                    <!-- RINGKASAN MATERIAL PER PROJECT (Qty Masuk / Return / Actual Terpakai) -->
+                    <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 shadow-sm space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                            <div>
+                                <h3 class="text-sm font-semibold text-white">Ringkasan Material per Project</h3>
+                                <p class="text-[10px] text-slate-400">Total Qty Masuk (dikirim ke project), Qty Return, dan Actual Terpakai per barang.</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <select x-model="selectedUsageProject" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 min-w-[240px] focus:border-indigo-500 focus:outline-none">
+                                    <option value="">Pilih Project...</option>
+                                    <template x-for="p in getFilteredMasterProject()" :key="p.kodeProject"><option :value="p.kodeProject" x-text="p.kodeProject + ' — ' + p.projectName"></option></template>
+                                </select>
+                                <button type="button" x-show="selectedUsageProject" @click="loadProjectUsageSummary()" class="bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 px-2.5 py-2 rounded-lg text-[11px] transition" title="Muat ulang ringkasan" x-cloak>
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-slate-400 text-[10px] uppercase tracking-wider bg-slate-900/80">
+                                        <th class="p-3">Kode Barang</th>
+                                        <th class="p-3">Nama Barang</th>
+                                        <th class="p-3 text-center">Qty Masuk</th>
+                                        <th class="p-3 text-center">Qty Return</th>
+                                        <th class="p-3 text-center">Actual Terpakai</th>
+                                        <th class="p-3 text-center">Selisih</th>
+                                        <th class="p-3">Satuan</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <template x-for="row in projectUsageSummary" :key="row.kodeBarang">
+                                        <tr class="hover:bg-slate-800/30 transition">
+                                            <td class="p-3 text-indigo-400" x-text="row.kodeBarang"></td>
+                                            <td class="p-3 font-sans text-white font-medium" x-text="row.namaBarang"></td>
+                                            <td class="p-3 text-center text-emerald-400 font-semibold" x-text="formatQty(row.qtyMasuk)"></td>
+                                            <td class="p-3 text-center text-purple-400 font-semibold" x-text="formatQty(row.qtyReturn)"></td>
+                                            <td class="p-3 text-center text-amber-400 font-semibold" x-text="formatQty(row.qtyTerpakai)"></td>
+                                            <td class="p-3 text-center font-bold" :class="row.selisih < 0 ? 'text-rose-400' : 'text-emerald-400'" x-text="formatQty(row.selisih)"></td>
+                                            <td class="p-3 font-sans text-slate-400" x-text="row.sat"></td>
+                                        </tr>
+                                    </template>
+                                    <tr x-show="isLoadingUsageSummary">
+                                        <td colspan="7" class="p-4 text-center text-slate-500 font-sans">Memuat ringkasan material...</td>
+                                    </tr>
+                                    <tr x-show="!isLoadingUsageSummary && selectedUsageProject && projectUsageSummary.length === 0">
+                                        <td colspan="7" class="p-4 text-center text-slate-500 font-sans">Tidak ada data material untuk project ini.</td>
+                                    </tr>
+                                    <tr x-show="!selectedUsageProject">
+                                        <td colspan="7" class="p-4 text-center text-slate-500 font-sans">Pilih project terlebih dahulu untuk melihat ringkasan material.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
                         <table class="w-full text-left border-collapse">
                             <thead>
