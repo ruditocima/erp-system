@@ -24,6 +24,7 @@ export default function warehouseApp() {
         filterStokGudang: '', filterRegionUsage: '', searchNoTransaksi: '', searchNoReferensi: '', searchMaterialUsageProject: '', searchDrumQuery: '', editingOriginalNo: null, filterStatusTx: '',
         showDrumLedger: false, selectedCableKode: '',
         projectSearchText: '', // State untuk pencarian nama project
+        usageProjectSearchText: '', // State pencarian project pada tab Material Usage (combobox bisa diketik)
         selectedUsageProject: '',      // Project terpilih untuk ringkasan material usage
         projectUsageSummary: [],       // Agregasi qty masuk / return / actual terpakai per project
         isLoadingUsageSummary: false,
@@ -36,6 +37,7 @@ export default function warehouseApp() {
         pageTx: 1, pageSizeTx: 10, totalTxCount: 0,
         _reloadTimer: null,
         _draftTimer: null,
+        _dataReloadTimer: null,
         _genNoRunning: false,
         _authListenerSet: false,
 
@@ -45,6 +47,7 @@ export default function warehouseApp() {
         drumCache: {},           // cache sisa panjang drum: { drumId: remainingLength }
         _stokPending: {},
         _drumPending: {},
+        _drumDropdownPending: {},
 
         masterBarang: safeLoadStorage('vortex_masterBarang', [
             { kategori: 'Cable', jenis: 'ADSS', kodeBarang: 'CBL-ADSS-036', namaBarang: 'Kabel ADSS-036 36Core', sat: 'Meter' }
@@ -84,6 +87,30 @@ export default function warehouseApp() {
             return projects.filter(p => (p.projectName || '').toLowerCase().includes(query));
         },
 
+        // ===================================================================
+        // COMBOBOX PENCARIAN PROJECT PADA TAB MATERIAL USAGE
+        // Mendukung pengetikan nama project / kode project untuk mempermudah pencarian.
+        // ===================================================================
+        getFilteredUsageProjectList() {
+            const projects = this.getFilteredMasterProject();
+            if (!this.usageProjectSearchText) return projects;
+            const q = this.usageProjectSearchText.toLowerCase();
+            return projects.filter(p =>
+                (p.projectName || '').toLowerCase().includes(q) ||
+                (p.kodeProject || '').toLowerCase().includes(q)
+            );
+        },
+        selectUsageProject(p) {
+            if (!p) return;
+            this.selectedUsageProject = p.kodeProject;
+            this.usageProjectSearchText = p.kodeProject + ' — ' + p.projectName;
+        },
+        clearUsageProject() {
+            this.selectedUsageProject = '';
+            this.usageProjectSearchText = '';
+            this.projectUsageSummary = [];
+        },
+
         todayWIB() {
             return new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
         },
@@ -105,6 +132,13 @@ export default function warehouseApp() {
         scheduleReload() {
             if (this._reloadTimer) clearTimeout(this._reloadTimer);
             this._reloadTimer = setTimeout(() => { this.loadDataFromSupabase(); }, 1200);
+        },
+
+        // Debounce ringan untuk pemicu ulang data dari watcher filter/pagination,
+        // agar perubahan beberapa state sekaligus tidak menembak query paralel berlebihan.
+        scheduleDataReload() {
+            if (this._dataReloadTimer) clearTimeout(this._dataReloadTimer);
+            this._dataReloadTimer = setTimeout(() => { this.loadDataFromSupabase(); }, 250);
         },
 
         saveFormDraft(formData) {
@@ -209,6 +243,19 @@ export default function warehouseApp() {
                         localStorage.setItem('vortex_role', this.currentRole);
                         localStorage.setItem('vortex_user', this.currentUser);
                     }
+                    // [FIX] Jika sesi Supabase masih valid tetapi flag login lokal hilang
+                    // (mis. localStorage dibersihkan), pulihkan status login agar pengguna
+                    // tidak dipaksa login ulang dan data tetap dimuat saat init().
+                    if (!this.isLoggedIn) {
+                        this.isLoggedIn = true;
+                        this.currentUser = (prof && prof.nama_lengkap) || (session.user.email || 'user').split('@')[0];
+                        this.currentRole = (prof && prof.role) || this.currentRole || 'Regional WH';
+                        if (prof && prof.region) localStorage.setItem('vortex_region', prof.region);
+                        localStorage.setItem('vortex_logged_in', 'true');
+                        localStorage.setItem('vortex_user', this.currentUser);
+                        localStorage.setItem('vortex_role', this.currentRole);
+                        this.initProfileData();
+                    }
                     if (!this._authListenerSet) {
                         this._authListenerSet = true;
                         supabaseClient.auth.onAuthStateChange((event) => {
@@ -250,23 +297,30 @@ export default function warehouseApp() {
                 }
             });
 
-            this.$watch('selectedCableKode', () => { this.pageDrum = 1; if (supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('searchNoTransaksi', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('filterStatusTx', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('searchDrumQuery', () => { this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+            this.$watch('selectedCableKode', () => { this.pageDrum = 1; if (supabaseClient) this.scheduleDataReload(); });
+            this.$watch('filterStokGudang', () => { this.pageStok = 1; this.pageDrum = 1; if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('searchMaterialUsageProject', () => { this.pageUsage = 1; if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('searchNoTransaksi', () => { this.pageTx = 1; if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('filterStatusTx', () => { this.pageTx = 1; if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('searchDrumQuery', () => { this.pageDrum = 1; if(supabaseClient) this.scheduleDataReload(); });
 
-            this.$watch('pageStok', () => { if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('pageSizeStok', () => { this.pageStok = 1; if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('pageDrum', () => { if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('pageSizeDrum', () => { this.pageDrum = 1; if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('pageUsage', () => { if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('pageSizeUsage', () => { this.pageUsage = 1; if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('pageTx', () => { if(supabaseClient) this.loadDataFromSupabase(); });
-            this.$watch('pageSizeTx', () => { this.pageTx = 1; if(supabaseClient) this.loadDataFromSupabase(); });
+            this.$watch('pageStok', () => { if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('pageSizeStok', () => { this.pageStok = 1; if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('pageDrum', () => { if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('pageSizeDrum', () => { this.pageDrum = 1; if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('pageUsage', () => { if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('pageSizeUsage', () => { this.pageUsage = 1; if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('pageTx', () => { if(supabaseClient) this.scheduleDataReload(); });
+            this.$watch('pageSizeTx', () => { this.pageTx = 1; if(supabaseClient) this.scheduleDataReload(); });
 
-            this.$watch('selectedUsageProject', () => { this.loadProjectUsageSummary(); });
+            this.$watch('selectedUsageProject', (val) => {
+                // Sinkronkan teks combobox dengan project terpilih (bukan saat dikosongkan mengetik)
+                if (val) {
+                    const proj = this.masterProject.find(p => p.kodeProject === val);
+                    this.usageProjectSearchText = proj ? (proj.kodeProject + ' — ' + proj.projectName) : val;
+                }
+                this.loadProjectUsageSummary();
+            });
             } catch (e) {
                 console.error('Kesalahan saat inisialisasi aplikasi:', e);
             }
@@ -297,6 +351,8 @@ export default function warehouseApp() {
                     return false;
                 }
                 drum.remainingLength = Math.round((drum.remainingLength - panjangDipakai) * 100) / 100;
+                // [FIX] Persist perubahan agar tidak hilang saat halaman dimuat ulang (mode lokal)
+                try { localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger)); } catch (e) {}
                 return true;
             }
 
@@ -868,6 +924,7 @@ export default function warehouseApp() {
             try {
                 if (this._reloadTimer) clearTimeout(this._reloadTimer);
                 if (this._draftTimer) clearTimeout(this._draftTimer);
+                if (this._dataReloadTimer) clearTimeout(this._dataReloadTimer);
 
                 if (supabaseClient) {
                     await supabaseClient.removeAllChannels();
@@ -1221,6 +1278,7 @@ export default function warehouseApp() {
             this.stokCache = {};
             this.drumCache = {};
             this.projectSearchText = '';
+            this._drumDropdownPending = {};
             this.newTrans = {
                 tanggal: this.todayWIB(),
                 noTransaksi: '',
@@ -1608,6 +1666,12 @@ export default function warehouseApp() {
             }
             const gudang = this.newTrans.gudangAsal;
             if (!item || !item.kodeBarang || !gudang) return [];
+            if (supabaseClient) {
+                // [FIX] Mode Supabase: drumLedger hanya berisi 1 halaman hasil query, jadi
+                // fallback lokal berisiko tidak lengkap. Tarik daftar drum item ini dari DB.
+                this.fetchDrumsForDropdown(item.kodeBarang, gudang, index);
+                return [];
+            }
             return this.drumLedger.filter(d => d.kodeBarang === item.kodeBarang && d.gudang === gudang && d.remainingLength > 0);
         },
 
@@ -1617,6 +1681,11 @@ export default function warehouseApp() {
                 this.activeDropdownDrums = { ...this.activeDropdownDrums, [index]: [] };
                 return;
             }
+
+            // [FIX] Cegah pemanggilan berulang untuk kombinasi yang sama saat render berjalan
+            const pendingKey = index + '|' + kodeBarang + '|' + gudangAsal;
+            if (this._drumDropdownPending[pendingKey]) return;
+            this._drumDropdownPending[pendingKey] = true;
 
             try {
                 const { data, error } = await supabaseClient.from('drum_ledger')
@@ -1636,6 +1705,8 @@ export default function warehouseApp() {
                 }
             } catch (err) {
                 console.error("Gagal menarik daftar drum:", err);
+            } finally {
+                delete this._drumDropdownPending[pendingKey];
             }
         },
 
@@ -2171,6 +2242,15 @@ export default function warehouseApp() {
                         }
 
                         await supabaseClient.from('material_usage').delete().eq('transaction_no', this.editingOriginalNo);
+
+                        // [FIX] Hapus juga baris transaksi lama. RPC delete_transaction_rollback
+                        // hanya membatalkan dampak stok; jika baris lama tidak dihapus, insert
+                        // ulang dengan no_transaksi yang sama dapat konflik primary key.
+                        const { error: delOldTxErr } = await supabaseClient
+                            .from('transactions')
+                            .delete()
+                            .eq('no_transaksi', this.editingOriginalNo);
+                        if (delOldTxErr) throw delOldTxErr;
                     }
 
                     const { error } = await supabaseClient.rpc('submit_transaction_pending', this.buildRpcParams(this.newTrans));
@@ -2388,7 +2468,7 @@ export default function warehouseApp() {
                 let fileName = 'data_transaksi_' + selectedGudangName + '.csv';
 
                 let txsToExport = [];
-                let client = window.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null) || this.supabase;
+                let client = supabaseClient;
 
                 if (client) {
                     let txQuery = client.from('transactions').select('*');
