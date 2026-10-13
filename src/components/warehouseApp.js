@@ -64,7 +64,10 @@ export default function warehouseApp() {
         activeBast: {},
 
         get isSuperAdmin() {
-            return !this.currentRole || this.currentRole.toLowerCase().includes('super') || this.currentRole.toLowerCase() === 'admin';
+            // [SECURITY] Role wajib eksplisit bernilai Super Admin/Admin.
+            // Sebelumnya `!this.currentRole` membuat user tanpa role ikut dianggap Super Admin.
+            const role = (this.currentRole || '').toLowerCase().trim();
+            return role.includes('super') || role === 'admin';
         },
         userRegion() {
             return localStorage.getItem('vortex_region') || (this.isSuperAdmin ? 'Semua Region' : 'Aceh');
@@ -353,6 +356,7 @@ export default function warehouseApp() {
                 drum.remainingLength = Math.round((drum.remainingLength - panjangDipakai) * 100) / 100;
                 // [FIX] Persist perubahan agar tidak hilang saat halaman dimuat ulang (mode lokal)
                 try { localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger)); } catch (e) {}
+                this.showNotification(`Re-use/Scrap tercatat. Sisa drum ${drum.drumId}: ${drum.remainingLength}m`, 'success');
                 return true;
             }
 
@@ -1061,6 +1065,10 @@ export default function warehouseApp() {
         },
 
         async saveModalData() {
+            if (!this.isSuperAdmin) {
+                this.showNotification('Hanya Super Admin yang dapat mengubah master data!', 'error');
+                return;
+            }
             const useSupabase = !!supabaseClient;
             try {
                 this.isLoading = true;
@@ -1222,6 +1230,10 @@ export default function warehouseApp() {
         },
 
         async deleteItem(type, target) {
+            if (!this.isSuperAdmin) {
+                this.showNotification('Hanya Super Admin yang dapat menghapus master data!', 'error');
+                return;
+            }
             if (!confirm('Hapus data ini?')) return;
 
             const tableMap = { barang: 'master_barang', gudang: 'master_gudang', project: 'master_project' };
@@ -1714,10 +1726,11 @@ export default function warehouseApp() {
             if (this.newTrans.tipeTransaksi === 'Masuk' || this.newTrans.tipeTransaksi === 'Return' || this.newTrans.tipeTransaksi === 'Retur') return 999999;
             if (!this.newTrans.gudangAsal || !item.kodeBarang) return 999999;
             if (this.getCategoryByKode(item.kodeBarang) === 'Cable' && item.drumId) {
-                const localDrum = this.drumLedger.find(d => d.drumId === item.drumId);
-                if (localDrum) return parseFloat(localDrum.remainingLength) || 0;
+                // Prioritaskan cache dropdown (baru di-fetch saat item dipilih), baru drumLedger halaman aktif.
                 const cachedDrum = Object.values(this.activeDropdownDrums).flat().find(d => d.drumId === item.drumId);
                 if (cachedDrum) return parseFloat(cachedDrum.remainingLength) || 0;
+                const localDrum = this.drumLedger.find(d => d.drumId === item.drumId);
+                if (localDrum) return parseFloat(localDrum.remainingLength) || 0;
                 if (this.drumCache[item.drumId] !== undefined) return this.drumCache[item.drumId];
                 this.fetchDrumRemaining(item.drumId);
                 return 0;
@@ -2059,6 +2072,13 @@ export default function warehouseApp() {
                 }
             }
 
+            // [VALIDASI] Pengaman selain `:disabled` pada tombol UI:
+            // tolak submit bila qty melebihi stok aktif gudang asal (Keluar/Transfer).
+            if (this.hasStockExceeded()) {
+                this.showNotification('Qty item melebihi stok aktif yang tersedia di gudang asal!', 'error');
+                return;
+            }
+
             if (this.selectedFilesList && this.selectedFilesList.length > 0) {
                 if (!supabaseClient) {
                     this.showNotification('Lampiran tidak dapat diunggah tanpa koneksi. Hapus lampiran terlebih dahulu.', 'error');
@@ -2370,6 +2390,13 @@ export default function warehouseApp() {
         },
 
         async reuseDrum(drum, index) {
+            // [SECURITY] Re-use / Scrap memotong sisa panjang drum (mengurangi stok kabel),
+            // sehingga hanya boleh dijalankan oleh Super Admin.
+            if (!this.isSuperAdmin) {
+                this.showNotification('Aksi Re-use / Scrap hanya diizinkan untuk Super Admin!', 'error');
+                return;
+            }
+            if (!drum || !drum.drumId) return;
             const scrapQty = prompt(`Masukkan jumlah kuantitas/panjang yang di-reuse atau scrap dari drum ${drum.drumId} (Sisa: ${drum.remainingLength}m):`, drum.remainingLength);
             if (scrapQty === null) return;
             const qtyVal = parseFloat(scrapQty);
