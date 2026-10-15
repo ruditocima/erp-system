@@ -273,8 +273,9 @@ export default function warehouseApp() {
 
         async init() {
             try {
-            await this.resetInputTransaction();
+            await this.resetInputTransaction(true);
             this.loadFormDraft();
+            await this.generateNoTransaksi();
             await this.validateSession();
             this.initProfileData();
             if (this.isLoggedIn) {
@@ -1255,6 +1256,14 @@ export default function warehouseApp() {
 
             if (!item || realIndex === -1) return;
 
+            // [GUARD] Tolak penghapusan bila master masih direferensikan data operasional,
+            // agar tidak menghasilkan data yatim di stok_gudang/drum_ledger/transaksi/usage.
+            const refCheck = await this._checkMasterReferences(type, item);
+            if (refCheck.referenced) {
+                this.showNotification(refCheck.message, 'error');
+                return;
+            }
+
             try {
                 this.isLoading = true;
                 if (supabaseClient) {
@@ -1276,14 +1285,75 @@ export default function warehouseApp() {
             }
         },
 
+        async _checkMasterReferences(type, item) {
+            try {
+                if (supabaseClient) {
+                    if (type === 'barang') {
+                        const kode = item.kodeBarang;
+                        const [a, b, c] = await Promise.all([
+                            supabaseClient.from('stok_gudang').select('kode_barang', { count: 'exact', head: true }).eq('kode_barang', kode),
+                            supabaseClient.from('drum_ledger').select('kode_barang', { count: 'exact', head: true }).eq('kode_barang', kode),
+                            supabaseClient.from('transactions').select('no_transaksi', { count: 'exact', head: true }).ilike('items::text', `%${kode}%`)
+                        ]);
+                        const total = (a.count || 0) + (b.count || 0) + (c.count || 0);
+                        if (total > 0) return { referenced: true, message: `Barang ${kode} masih memiliki riwayat stok/drum/transaksi dan tidak dapat dihapus.` };
+                    } else if (type === 'gudang') {
+                        const nama = item.namaGudang;
+                        const [a, b, c, d] = await Promise.all([
+                            supabaseClient.from('stok_gudang').select('gudang', { count: 'exact', head: true }).eq('gudang', nama),
+                            supabaseClient.from('drum_ledger').select('gudang', { count: 'exact', head: true }).eq('gudang', nama),
+                            supabaseClient.from('transactions').select('no_transaksi', { count: 'exact', head: true }).eq('gudang_asal', nama),
+                            supabaseClient.from('transactions').select('no_transaksi', { count: 'exact', head: true }).eq('gudang_tujuan', nama)
+                        ]);
+                        const total = (a.count || 0) + (b.count || 0) + (c.count || 0) + (d.count || 0);
+                        if (total > 0) return { referenced: true, message: `Gudang "${nama}" masih memiliki data stok/drum/transaksi dan tidak dapat dihapus.` };
+                    } else if (type === 'project') {
+                        const kode = item.kodeProject;
+                        const [a, b] = await Promise.all([
+                            supabaseClient.from('transactions').select('no_transaksi', { count: 'exact', head: true }).eq('kode_project', kode),
+                            supabaseClient.from('material_usage').select('id', { count: 'exact', head: true }).eq('kode_project', kode)
+                        ]);
+                        const total = (a.count || 0) + (b.count || 0);
+                        if (total > 0) return { referenced: true, message: `Project ${kode} masih memiliki transaksi/material usage dan tidak dapat dihapus.` };
+                    }
+                    return { referenced: false };
+                }
+
+                // Mode lokal (tanpa koneksi Supabase)
+                if (type === 'barang') {
+                    const kode = item.kodeBarang;
+                    const used = this.stokGudang.some(s => s.kodeBarang === kode)
+                        || this.drumLedger.some(d => d.kodeBarang === kode)
+                        || this.transactions.some(t => this.safeParseItems(t.items).some(i => i.kodeBarang === kode));
+                    if (used) return { referenced: true, message: `Barang ${kode} masih memiliki riwayat stok/drum/transaksi dan tidak dapat dihapus.` };
+                } else if (type === 'gudang') {
+                    const nama = item.namaGudang;
+                    const used = this.stokGudang.some(s => s.gudang === nama)
+                        || this.drumLedger.some(d => d.gudang === nama)
+                        || this.transactions.some(t => t.gudangAsal === nama || t.gudangTujuan === nama);
+                    if (used) return { referenced: true, message: `Gudang "${nama}" masih memiliki data stok/drum/transaksi dan tidak dapat dihapus.` };
+                } else if (type === 'project') {
+                    const kode = item.kodeProject;
+                    const used = this.transactions.some(t => t.kodeProject === kode)
+                        || (this.materialUsage || []).some(u => u.kodeProject === kode);
+                    if (used) return { referenced: true, message: `Project ${kode} masih memiliki transaksi/material usage dan tidak dapat dihapus.` };
+                }
+                return { referenced: false };
+            } catch (e) {
+                // Gagal memeriksa (mis. jaringan putus) → jangan blokir; biarkan DB constraint yang menjaga.
+                console.error('Gagal memeriksa referensi master data:', e);
+                return { referenced: false };
+            }
+        },
+
         async openInputTransaction() { 
-            await this.resetInputTransaction();
+            await this.resetInputTransaction(true);
             this.loadFormDraft();
             await this.generateNoTransaksi();
             this.switchTab('input-transaksi'); 
         },
 
-        async resetInputTransaction() {
+        async resetInputTransaction(keepDraft = false) {
             this.editingOriginalNo = null;
             this.selectedFilesList = [];
             this.activeDropdownDrums = {};
@@ -1311,7 +1381,7 @@ export default function warehouseApp() {
                 this.newTrans.staffGudang = this.currentUser || '';
             }
             await this.generateNoTransaksi();
-            this.clearFormDraft();
+            if (!keepDraft) this.clearFormDraft();
             const fileInput = document.getElementById('attachmentInput');
             if (fileInput) fileInput.value = '';
         },
@@ -1535,7 +1605,7 @@ export default function warehouseApp() {
 
         async generateNoTransaksi() {
             if (this.editingOriginalNo) return;
-            if (this._genNoRunning) return;
+            if (this._genNoRunning) { this._genNoAgain = true; return; }
             this._genNoRunning = true;
             try {
             let targetWarehouseName = '';
@@ -1605,6 +1675,9 @@ export default function warehouseApp() {
             this.newTrans.noTransaksi = `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
             } finally {
                 this._genNoRunning = false;
+                // [FIX] Bila ada perubahan gudang/tipe/tanggal saat penomoran sedang
+                // berjalan, ulangi penomoran agar selalu mengikuti state terakhir.
+                if (this._genNoAgain) { this._genNoAgain = false; this.generateNoTransaksi(); }
             }
         },
 
@@ -1888,26 +1961,34 @@ export default function warehouseApp() {
                         const file = files[i];
                         if (i > 0) doc.addPage();
 
+                        let rendered = false;
                         if (file.type.startsWith('image/')) {
-                            const dataUrl = await this.fileToDataURL(file);
-                            const dims = await this.getImageDimensions(dataUrl);
+                            try {
+                                const dataUrl = await this.fileToDataURL(file);
+                                const dims = await this.getImageDimensions(dataUrl);
 
-                            let w = dims.width;
-                            let h = dims.height;
-                            const margin = 10;
-                            const maxW = pageWidth - (margin * 2);
-                            const maxH = pageHeight - (margin * 2);
+                                let w = dims.width;
+                                let h = dims.height;
+                                const margin = 10;
+                                const maxW = pageWidth - (margin * 2);
+                                const maxH = pageHeight - (margin * 2);
 
-                            const scale = Math.min(maxW / w, maxH / h);
-                            w = w * scale;
-                            h = h * scale;
+                                const scale = Math.min(maxW / w, maxH / h);
+                                w = w * scale;
+                                h = h * scale;
 
-                            const x = (pageWidth - w) / 2;
-                            const y = (pageHeight - h) / 2;
+                                const x = (pageWidth - w) / 2;
+                                const y = (pageHeight - h) / 2;
 
-                            const format = file.type.includes('png') ? 'PNG' : 'JPEG';
-                            doc.addImage(dataUrl, format, x, y, w, h);
-                        } else {
+                                const format = file.type.includes('png') ? 'PNG' : 'JPEG';
+                                doc.addImage(dataUrl, format, x, y, w, h);
+                                rendered = true;
+                            } catch (imgErr) {
+                                console.warn(`Gagal menyisipkan gambar ${file.name}, memakai halaman info:`, imgErr);
+                            }
+                        }
+
+                        if (!rendered) {
                             doc.setFontSize(14);
                             doc.text(`Lampiran Dokumen #${i + 1}`, 15, 20);
                             doc.setFontSize(10);
@@ -2312,6 +2393,10 @@ export default function warehouseApp() {
                 this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
             }
 
+            this.selectedFilesList = [];
+            const _fi = document.getElementById('attachmentInput');
+            if (_fi) _fi.value = '';
+
             const foundProj = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
             this.projectSearchText = foundProj ? foundProj.projectName : (this.newTrans.kodeProject || '');
 
@@ -2503,6 +2588,7 @@ export default function warehouseApp() {
                     if (txKw) {
                         txQuery = txQuery.or('no_transaksi.ilike.%' + txKw + '%,no_referensi.ilike.%' + txKw + '%');
                     }
+                    if (this.filterStatusTx) txQuery = txQuery.eq('approval_status', this.filterStatusTx);
                     const regionWhNames = this.getRegionalWarehouseNames();
                     if (regionWhNames) {
                         if (regionWhNames.length > 0) {
