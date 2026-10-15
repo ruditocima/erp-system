@@ -1,5 +1,5 @@
 import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/+esm';
-import warehouseApp from './components/warehouseApp.js?v=3';
+import warehouseApp from './components/warehouseApp.js?v=4';
 
 window.Alpine = Alpine;
 Alpine.data('warehouseApp', warehouseApp);
@@ -19,7 +19,8 @@ let __iconTimer = null;
 const scheduleIconRefresh = () => {
     if (__iconTimer) clearTimeout(__iconTimer);
     __iconTimer = setTimeout(() => {
-        if (typeof lucide !== 'undefined') lucide.createIcons();
+        // Lewati bila tidak ada ikon <i data-lucide> yang menunggu (hemat CPU)
+        if (typeof lucide !== 'undefined' && document.querySelector('i[data-lucide]')) lucide.createIcons();
     }, 60);
 };
 if (typeof MutationObserver !== 'undefined' && document.body) {
