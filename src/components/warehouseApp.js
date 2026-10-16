@@ -1402,6 +1402,13 @@ export default function warehouseApp() {
 
             this.isLoading = true;
 
+            // [FIX] Rollback stok hanya boleh dijalankan bila transaksi sudah APPROVED.
+            // Transaksi Pending/Rejected tidak pernah memotong stok; rollback pada
+            // transaksi seperti itu justru MENAMBAH stok secara keliru.
+            // Contoh bug lama: stok 600, Keluar 280 (Pending, stok belum terpotong),
+            // transaksi dihapus -> stok malah 600 + 280 = 880 (seharusnya tetap 600).
+            const wasApproved = (tx.approvalStatus || 'Approved') === 'Approved';
+
             try {
                 if (tx.lampiranUrl) {
                     const fileId = this.extractGoogleDriveFileId(tx.lampiranUrl);
@@ -1417,12 +1424,17 @@ export default function warehouseApp() {
                 }
 
                 if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-                    const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
-                        p_no_transaksi: tx.noTransaksi
-                    });
+                    // [FIX] Hanya panggil RPC rollback bila transaksi pernah Approved
+                    // (dampak stoknya memang sudah diterapkan di server).
+                    if (wasApproved) {
+                        const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
+                            p_no_transaksi: tx.noTransaksi
+                        });
 
-                    if (rollbackErr) {
-                        console.warn('Gagal eksekusi delete_transaction_rollback RPC:', rollbackErr.message);
+                        if (rollbackErr) throw rollbackErr;
+                        if (rollbackData && rollbackData.status === 'error') {
+                            throw new Error(rollbackData.message || 'Gagal melakukan rollback stok transaksi.');
+                        }
                     }
 
                     const { error: errUsage } = await supabaseClient
@@ -1437,7 +1449,7 @@ export default function warehouseApp() {
                         .delete()
                         .eq('no_transaksi', tx.noTransaksi);
 
-                    if (errTx && !rollbackErr) throw errTx;
+                    if (errTx) throw errTx;
 
                     this.showNotification(`Transaksi ${tx.noTransaksi} beserta data stok gudang & drum ledger terkait berhasil dibatalkan dan dihapus.`, 'success');
                     await this.logAudit('DELETE_TRANSACTION', { noTransaksi: tx.noTransaksi });
@@ -1446,7 +1458,10 @@ export default function warehouseApp() {
                         await this.loadDataFromSupabase();
                     }
                 } else {
-                    this.revertStockOffline(tx);
+                    // [FIX] Mode lokal: kembalikan stok hanya bila transaksi pernah Approved.
+                    if (wasApproved) {
+                        this.revertStockOffline(tx);
+                    }
                     this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
                     if (this.materialUsage) {
                         this.materialUsage = this.materialUsage.filter(m => m.transactionNo !== tx.noTransaksi && m.noTransaksi !== tx.noTransaksi);
@@ -1762,7 +1777,17 @@ export default function warehouseApp() {
 
         async fetchDrumsForDropdown(kodeBarang, gudangAsal, index) {
             if (index === undefined || index === null) return;
-            if (!supabaseClient || !kodeBarang || !gudangAsal) {
+            // [FIX] Mode lokal/offline: daftar drum diisi langsung dari drumLedger oleh
+            // getDrumList(). Jangan simpan array kosong ke cache per-index, karena []
+            // bernilai truthy dan akan menimpa (mengosongkan) daftar drum lokal,
+            // sehingga dropdown Drum ID menjadi kosong di mode demo/lokal.
+            if (!supabaseClient) {
+                const updated = { ...this.activeDropdownDrums };
+                delete updated[index];
+                this.activeDropdownDrums = updated;
+                return;
+            }
+            if (!kodeBarang || !gudangAsal) {
                 this.activeDropdownDrums = { ...this.activeDropdownDrums, [index]: [] };
                 return;
             }
@@ -2331,15 +2356,22 @@ export default function warehouseApp() {
                 try {
                     this.isLoading = true;
                     let editBackup = null;
+                    let backupApproved = false;
                     if (this.editingOriginalNo) {
                         editBackup = this.transactions.find(t => t.noTransaksi === this.editingOriginalNo) || null;
+                        // [FIX] Rollback stok transaksi lama hanya bila statusnya Approved.
+                        // Transaksi Pending/Rejected tidak pernah memotong stok, sehingga
+                        // rollback justru akan menambah stok secara keliru.
+                        backupApproved = !!editBackup && (editBackup.approvalStatus || 'Approved') === 'Approved';
 
-                        const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
-                            p_no_transaksi: this.editingOriginalNo
-                        });
-                        if (rollbackErr) throw rollbackErr;
-                        if (rollbackData && rollbackData.status === 'error') {
-                            throw new Error(rollbackData.message || 'Gagal melakukan rollback transaksi lama.');
+                        if (backupApproved) {
+                            const { data: rollbackData, error: rollbackErr } = await supabaseClient.rpc('delete_transaction_rollback', {
+                                p_no_transaksi: this.editingOriginalNo
+                            });
+                            if (rollbackErr) throw rollbackErr;
+                            if (rollbackData && rollbackData.status === 'error') {
+                                throw new Error(rollbackData.message || 'Gagal melakukan rollback transaksi lama.');
+                            }
                         }
 
                         await supabaseClient.from('material_usage').delete().eq('transaction_no', this.editingOriginalNo);
@@ -2356,7 +2388,8 @@ export default function warehouseApp() {
 
                     const { error } = await supabaseClient.rpc('submit_transaction_pending', this.buildRpcParams(this.newTrans));
                     if (error) {
-                        if (editBackup) await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(editBackup));
+                        // Kembalikan dampak stok transaksi lama hanya bila sebelumnya memang sudah Approved.
+                        if (editBackup && backupApproved) await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(editBackup));
                         throw error;
                     }
 
