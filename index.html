@@ -2,7 +2,17 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- [PWA] Dukungan install aplikasi (Android/iOS) -->
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ACM-WMS">
+    <meta name="description" content="Warehouse Management System PT Acero Cetha Metalindo">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" type="image/png" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <title>Warehouse Management System</title>
     <!-- Tailwind CSS (CDN Stable) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -30,8 +40,37 @@
             #printable-bast * { visibility: visible !important; }
             tr { page-break-inside: avoid; }
         }
+
+        /* ==========================================================
+           [MOBILE] Penyesuaian tampilan layar kecil (hanya tambahan,
+           tidak mengubah kelas/template yang sudah ada)
+           ========================================================== */
+        @media (max-width: 767px) {
+            /* Sidebar vertikal yang memakan layar penuh di HP diubah menjadi
+               blok ringkas: logo kecil + menu yang bisa digeser horizontal */
+            aside { max-height: 46vh; overflow-y: auto; }
+            aside nav { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding: 8px; scrollbar-width: thin; }
+            aside nav::-webkit-scrollbar { height: 4px; }
+            aside nav > a { flex: 0 0 auto; white-space: nowrap; }
+            aside nav > div { display: none; } /* sembunyikan label grup menu di HP */
+            aside .h-14 { height: 3rem; }
+
+            /* Area konten utama tetap bisa discroll penuh */
+            main { min-height: 0; }
+
+            /* Tabel lebar digulir horizontal agar tidak merusak layout */
+            .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+
+            /* Input tanggal/angka tidak boleh di-zoom otomatis iOS (font < 16px) */
+            input, select, textarea { font-size: 16px !important; }
+            input[type="checkbox"], input[type="radio"] { font-size: inherit !important; }
+
+            /* Judul header lebih ringkas di HP */
+            header .hidden.sm\:flex { display: none !important; }
+        }
     </style>
 
+<base target="_blank">
 <base target="_blank">
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" x-data="warehouseApp()">
@@ -1096,6 +1135,17 @@
             </div>
         </div>
     </div>
+
+    <!-- [PWA] Registrasi Service Worker agar bisa di-install & offline-ready -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('./sw.js').catch(function (err) {
+                    console.warn('Pendaftaran Service Worker gagal:', err);
+                });
+            });
+        }
+    </script>
 
     <!-- MAIN MODULE ENTRY POINT -->
     <script type="module" src="./src/main.js"></script>
