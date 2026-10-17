@@ -40,6 +40,7 @@ export default function warehouseApp() {
         _dataReloadTimer: null,
         _genNoRunning: false,
         _authListenerSet: false,
+        _editBackup: null, // cadangan transaksi saat edit (untuk pemulihan bila batal, mode lokal)
 
         // cache dropdown drum per-index item (object), bukan satu array global.
         activeDropdownDrums: {}, // { [indexItem]: [{ drumId, remainingLength }] }
@@ -210,6 +211,30 @@ export default function warehouseApp() {
                     drum_id: item.drumId || '',
                     qty: parseFloat(item.qty) || 0
                 }))
+            };
+        },
+
+        // [FIX] Pemetaan transaksi (camelCase) ke baris tabel 'transactions' (snake_case).
+        // Dipakai untuk memulihkan baris transaksi lama bila proses simpan edit gagal.
+        _txToDbRow(tx) {
+            return {
+                no_transaksi: tx.noTransaksi,
+                tanggal: tx.tanggal,
+                no_referensi: tx.noReferensi || '',
+                tipe_transaksi: tx.tipeTransaksi,
+                gudang_asal: tx.gudangAsal || '',
+                gudang_tujuan: tx.gudangTujuan || '',
+                kode_project: tx.kodeProject || '',
+                keterangan: tx.keterangan || '',
+                staff_gudang: tx.staffGudang || '',
+                project_manager: tx.projectManager || '',
+                nama_penerima: tx.namaPenerima || '',
+                lampiran_url: tx.lampiranUrl || '',
+                approval_status: tx.approvalStatus || 'Approved',
+                approved_by: tx.approvedBy || '',
+                approved_at: tx.approvedAt || '',
+                reject_reason: tx.rejectReason || '',
+                items: tx.items || []
             };
         },
 
@@ -1347,13 +1372,28 @@ export default function warehouseApp() {
         },
 
         async openInputTransaction() { 
-            await this.resetInputTransaction(true);
-            this.loadFormDraft();
-            await this.generateNoTransaksi();
+            // [FIX] Menu Input Transaksi sekarang SELALU membuka form kosong.
+            // Sebelumnya memanggil resetInputTransaction(true) + loadFormDraft(),
+            // sehingga data/draf transaksi sebelumnya tetap muncul lagi di form.
+            // Draf sengaja dihapus di sini; fitur draf otomatis tetap berjalan
+            // hanya untuk pemulihan halaman (init -> loadFormDraft).
+            await this.resetInputTransaction(false);
             this.switchTab('input-transaksi'); 
         },
 
         async resetInputTransaction(keepDraft = false) {
+            // [FIX] Mode lokal: bila sedang mengedit transaksi Approved lalu batal/reset,
+            // kembalikan stok yang sempat ditarik saat edit dimulai, agar tidak ada
+            // stok/drum/material usage yang hilang karena pembatalan edit.
+            if (!supabaseClient && this.editingOriginalNo && this._editBackup) {
+                this.applyTransactionStock(this._editBackup);
+                try {
+                    localStorage.setItem('vortex_stokGudang', JSON.stringify(this.stokGudang));
+                    localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
+                    localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
+                } catch (e) {}
+            }
+            this._editBackup = null;
             this.editingOriginalNo = null;
             this.selectedFilesList = [];
             this.activeDropdownDrums = {};
@@ -2393,6 +2433,7 @@ export default function warehouseApp() {
                         throw error;
                     }
 
+                    this._editBackup = null;
                     this.logAudit(this.editingOriginalNo ? 'transaction_update' : 'transaction_save', { no: this.newTrans.noTransaksi });
                     this.showNotification('Transaksi disimpan & menunggu Approval!', 'success');
                     this.clearFormDraft();
@@ -2401,6 +2442,22 @@ export default function warehouseApp() {
                     await this.loadDataFromSupabase();
                     return;
                 } catch (err) {
+                    // [FIX] Pulihkan transaksi lama bila proses simpan hasil edit gagal.
+                    // Alur edit menghapus baris lama + rollback stoknya SEBELUM insert baru;
+                    // tanpa pemulihan ini, kegagalan insert meninggalkan stok ter-rollback
+                    // tanpa baris transaksi (data stok & transaksi jadi tidak konsisten).
+                    if (editBackup) {
+                        try {
+                            if (backupApproved) {
+                                await supabaseClient.rpc('process_warehouse_transaction', this.buildRpcParams(editBackup));
+                            }
+                            await supabaseClient.from('transactions').upsert(this._txToDbRow(editBackup));
+                            this.logAudit('transaction_restore', { no: editBackup.noTransaksi, reason: err.message || String(err) });
+                        } catch (restoreErr) {
+                            console.error('Gagal memulihkan transaksi lama:', restoreErr);
+                        }
+                        this._editBackup = null;
+                    }
                     this.showNotification('Gagal memproses transaksi: ' + (err.message || err), 'error');
                     this.isLoading = false;
                     return;
@@ -2410,6 +2467,14 @@ export default function warehouseApp() {
             }
 
             this.newTrans.approvalStatus = 'Pending';
+            // [FIX] Saat mode edit, ganti transaksi lama agar tidak terjadi duplikat
+            // noTransaksi (perilaku lama hanya push, setelah editTransaction lokal
+            // sempat menghapus baris lama -- sekarang baris lama dipertahankan sampai disini).
+            if (this.editingOriginalNo) {
+                const _oldIdx = this.transactions.findIndex(t => t.noTransaksi === this.editingOriginalNo);
+                if (_oldIdx !== -1) this.transactions.splice(_oldIdx, 1);
+                this._editBackup = null;
+            }
             this.transactions.push(JSON.parse(JSON.stringify(this.newTrans)));
             localStorage.setItem('vortex_transactions', JSON.stringify(this.transactions));
             this.showNotification('Transaksi tersimpan & menunggu approval PM/Super Admin (Lokal)!', 'success');
@@ -2420,10 +2485,19 @@ export default function warehouseApp() {
 
         editTransaction(tx) {
             this.editingOriginalNo = tx.noTransaksi;
+            this._editBackup = JSON.parse(JSON.stringify(tx));
             this.newTrans = JSON.parse(JSON.stringify(tx));
+            // [FIX] Mode lokal: tarik stok ke memori + persist, tetapi JANGAN hapus
+            // baris transaksi dari daftar. Perilaku lama menghapus baris saat edit
+            // sehingga transaksi hilang permanen bila user batal/navigasi tanpa simpan.
+            // Jika user batal, stok dikembalikan oleh resetInputTransaction().
             if (!supabaseClient && (tx.approvalStatus || 'Approved') === 'Approved') {
                 this.revertStockOffline(tx);
-                this.transactions = this.transactions.filter(t => t.noTransaksi !== tx.noTransaksi);
+                try {
+                    localStorage.setItem('vortex_stokGudang', JSON.stringify(this.stokGudang));
+                    localStorage.setItem('vortex_drumLedger', JSON.stringify(this.drumLedger));
+                    localStorage.setItem('vortex_materialUsage', JSON.stringify(this.materialUsage));
+                } catch (e) {}
             }
 
             this.selectedFilesList = [];
