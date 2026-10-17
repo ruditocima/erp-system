@@ -165,6 +165,9 @@ export default function warehouseApp() {
                     const parsed = JSON.parse(savedDraft);
                     if (parsed && typeof parsed === 'object' && (parsed.noReferensi || parsed.keterangan || (parsed.items && parsed.items.some(i => i.kodeBarang || i.qty)))) {
                         this.newTrans = parsed;
+                        // [FIX] Pulihkan juga teks combobox project agar konsisten setelah reload halaman
+                        const _dp = this.masterProject.find(p => p.kodeProject === this.newTrans.kodeProject);
+                        this.projectSearchText = _dp ? _dp.projectName : (this.newTrans.kodeProject || '');
                         if (this.newTrans.items) {
                             this.newTrans.items.forEach((item, idx) => {
                                 if (item.kodeBarang && this.getCategoryByKode(item.kodeBarang) === 'Cable') {
@@ -2074,6 +2077,11 @@ export default function warehouseApp() {
                 console.warn('Gagal membuat PDF gabungan dengan jsPDF, menggunakan fallback:', e);
             }
 
+            // [FIX] Fallback terakhir: sebelumnya hanya file pertama yang diunggah
+            // secara diam-dikan (kehilangan lampiran lain tanpa pemberitahuan).
+            if (files.length > 1) {
+                this.showNotification('Perhatian: hanya file pertama yang terlampir karena jsPDF tidak tersedia.', 'info');
+            }
             const base64 = await this.fileToBase64(files[0]);
             return {
                 filename: files[0].name,
@@ -2705,10 +2713,24 @@ export default function warehouseApp() {
                             txQuery = txQuery.or('gudang_asal.eq.__tidak_ada_gudang_region__,gudang_tujuan.eq.__tidak_ada_gudang_region__');
                         }
                     }
-                    let response = await txQuery.order('tanggal', { ascending: false }).range(0, 9999);
-                    let allTxData = response.data;
-                    let error = response.error;
-                    if (error) throw error;
+                    // [FIX] Query dibatasi .range(0,9999) sehingga transaksi di luar
+                    // 10.000 baris pertama tidak pernah terekspor. Kini diambil
+                    // ber-chunk 1.000 baris sampai maksimal 50.000 baris.
+                    let allTxData = [];
+                    const CHUNK = 1000;
+                    const MAX_ROWS = 50000;
+                    for (let from = 0; from < MAX_ROWS; from += CHUNK) {
+                        const chunkRes = await client.from('transactions').select('*')
+                            .order('tanggal', { ascending: false })
+                            .range(from, from + CHUNK - 1);
+                        if (chunkRes.error) throw chunkRes.error;
+                        const rows = chunkRes.data || [];
+                        allTxData = allTxData.concat(rows);
+                        if (rows.length < CHUNK) break;
+                    }
+                    if (allTxData.length >= MAX_ROWS) {
+                        this.showNotification('Ekspor dibatasi 50.000 baris pertama.', 'info');
+                    }
 
                     if (allTxData && allTxData.length > 0) {
                         txsToExport = allTxData.map(t => ({
